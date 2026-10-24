@@ -11,6 +11,8 @@ use egui::{Color32, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2, Widget
 pub enum Icon {
     // Tools
     Pencil,
+    ViewStudio,
+    ViewClean,
     Sliders,
     InsertBefore,
     Motion,
@@ -492,7 +494,7 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             line(&[(12.0, 4.5), (12.0, 19.5)]);
             line(&[(9.0, 19.5), (15.0, 19.5)]);
         }
-        Icon::Sliders | Icon::InsertBefore | Icon::Motion | Icon::Duration | Icon::SelectMany => {}
+        Icon::ViewStudio | Icon::ViewClean | Icon::Sliders | Icon::InsertBefore | Icon::Motion | Icon::Duration | Icon::SelectMany => {}
         Icon::Tween => {
             dot(5.0, 17.0, 1.6);
             dot(9.5, 13.5, 2.0);

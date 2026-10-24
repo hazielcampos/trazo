@@ -175,7 +175,8 @@ pub fn sheet(ctx: &egui::Context, id: &str, edge: SheetEdge, touch: bool, header
                     close = true;
                 }
             });
-            Rect::from_min_max(Pos2::new(screen.left(), screen.bottom() - h), screen.max)
+            let w = screen.width().min(640.0);
+            Rect::from_min_max(Pos2::new(screen.center().x - w / 2.0, screen.bottom() - h), Pos2::new(screen.center().x + w / 2.0, screen.bottom()))
         }
         SheetEdge::Right => {
             let w = 340.0f32.min(screen.width() * 0.5);

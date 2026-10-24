@@ -46,6 +46,12 @@ pub fn top_bar(app: &mut TrazoApp, ui: &mut Ui) {
                     if widgets::icon_button_ex(ui, Icon::Export, tr("Exportar y compartir"), true, Some(ELEVATED)).clicked() {
                         app.export_ui.open = true;
                     }
+                    // Tablet: back to the studio layout.
+                    if app.ui.tablet_clean && crate::widgets::SizeClass::of(&ctx) == crate::widgets::SizeClass::Wide {
+                        if widgets::icon_button(ui, Icon::ViewStudio, tr("Vista estudio: paneles y línea de tiempo a la vista")).clicked() {
+                            set_tablet_clean(app, false);
+                        }
+                    }
                 });
             });
         });
@@ -1915,10 +1921,13 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
             egui::Popup::menu(&t).show(|ui| crate::panels::phone::project_menu(app, ui));
         });
     });
-    // Camera and export.
+    // Clean view, camera and export.
     egui::Area::new(egui::Id::unique("tab_actions")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - 20.0, screen.top() + 24.0)).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
+            if widgets::icon_button_ex(ui, Icon::ViewClean, tr("Vista limpia: más espacio para dibujar"), true, Some(SURFACE)).clicked() {
+                set_tablet_clean(app, true);
+            }
             for (ic, label, key) in [(Icon::Camera, tr("Cámara"), 0), (Icon::Export, tr("Exportar"), 1)] {
                 let g = ui.painter().layout_no_wrap(label.to_string(), theme::font(14.0, W::Semi), TEXT);
                 let (r, resp) = ui.allocate_exact_size(Vec2::new(g.size().x + 56.0, 44.0), Sense::click());
@@ -2756,4 +2765,12 @@ pub(crate) fn clip_bar(app: &mut TrazoApp, ui: &mut Ui) -> bool {
         }
     });
     true
+}
+
+/// Switch the tablet between the clean (phone-like) and studio layouts; the
+/// choice is remembered.
+pub fn set_tablet_clean(app: &mut TrazoApp, on: bool) {
+    app.ui.tablet_clean = on;
+    app.ui.sheet = None;
+    let _ = std::fs::write(app.platform.data_dir.join("vista_tablet.txt"), if on { "limpia" } else { "estudio" });
 }

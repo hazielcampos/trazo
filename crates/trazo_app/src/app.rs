@@ -242,6 +242,8 @@ pub struct UiState {
     pub sheet: Option<panels::SideTab>,
     /// The phone's bottom dock is pulled up: one track per layer.
     pub dock_open: bool,
+    /// Tablet: the phone's clean layout instead of the studio one.
+    pub tablet_clean: bool,
     /// Menu of the drawing that starts at this frame (long press in the strip).
     pub drawing_menu: Option<usize>,
     /// Tablet: the inspector's tab.
@@ -334,6 +336,7 @@ impl TrazoApp {
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
                 dock_open: false,
+                tablet_clean: std::fs::read_to_string(platform.data_dir.join("vista_tablet.txt")).is_ok_and(|v| v.trim() == "limpia"),
                 drawing_menu: None,
                 inspector: panels::SideTab::Layers,
                 gestures_card: None,
@@ -1016,6 +1019,7 @@ impl eframe::App for TrazoApp {
                 Ok("menu") => self.ui.drawing_menu = Some(self.doc.frame),
                 Ok("exportar") => self.export_ui.open = true,
                 Ok("gestos") => self.ui.gestures_card = Some(false),
+                Ok("limpia") => self.ui.tablet_clean = true,
                 _ => {}
             }
             if let Some(a) = std::env::var_os("TRAZO_AUDIO") {
@@ -1089,6 +1093,8 @@ impl eframe::App for TrazoApp {
 
         // One layout per screen shape (see the design canvas).
         let class = crate::widgets::SizeClass::of(&ctx);
+        // Tablet in clean view: the phone's layout, roomier canvas.
+        let class = if class == crate::widgets::SizeClass::Wide && self.platform.touch_first && self.ui.tablet_clean { crate::widgets::SizeClass::Phone } else { class };
         match class {
             crate::widgets::SizeClass::Phone => {
                 panels::phone_up::top_bar(self, ui);
