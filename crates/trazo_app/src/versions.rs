@@ -43,6 +43,7 @@ pub fn list(project: &Path) -> Vec<Version> {
 
 /// Replace `dest` with the bytes of `src` without ever leaving it half written.
 pub fn replace_file(src: &Path, dest: &Path) -> std::io::Result<()> {
+    trazo_core::io::forget_cels(dest);
     let tmp = dest.with_extension("restore.tmp");
     std::fs::copy(src, &tmp)?;
     std::fs::rename(&tmp, dest).inspect_err(|_| {
