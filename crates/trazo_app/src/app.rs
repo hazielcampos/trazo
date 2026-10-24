@@ -240,6 +240,10 @@ pub struct UiState {
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
     pub sheet: Option<panels::SideTab>,
+    /// The phone's bottom dock is pulled up: one track per layer.
+    pub dock_open: bool,
+    /// Menu of the drawing that starts at this frame (long press in the strip).
+    pub drawing_menu: Option<usize>,
     /// Zoom and gestures of the per-layer timeline.
     pub tracks: panels::timeline::TracksState,
 }
@@ -321,6 +325,8 @@ impl TrazoApp {
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
+                dock_open: false,
+                drawing_menu: None,
                 tracks: Default::default(),
             },
             thumbs: Default::default(),
@@ -975,6 +981,17 @@ impl eframe::App for TrazoApp {
         let screen = ctx.content_rect();
         let mut root = ui.new_child(egui::UiBuilder::new().max_rect(screen));
         let ui = &mut root;
+        // Test builds: 1 point = 1 pixel, so screenshots match the design's sizes.
+        if cfg!(debug_assertions) && std::env::var_os("TRAZO_ESCALA1").is_some() && ctx.pixels_per_point() != 1.0 {
+            ctx.set_pixels_per_point(1.0);
+        }
+        // Test builds: open a project straight away (screenshots of the editor).
+        if cfg!(debug_assertions) && self.ui.home && !ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("debug_open")).unwrap_or(false)) {
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("debug_open"), true));
+            if let Some(p) = std::env::var_os("TRAZO_ABRIR") {
+                self.open_from_home(&ctx, std::path::Path::new(&p), 7);
+            }
+        }
         self.poll_save(&ctx);
         self.shortcuts(&ctx);
         self.advance_playback(&ctx);
@@ -1041,12 +1058,12 @@ impl eframe::App for TrazoApp {
         let class = crate::widgets::SizeClass::of(&ctx);
         match class {
             crate::widgets::SizeClass::Phone => {
-                panels::phone::top_bar(self, ui);
-                // Frames and audio are two tabs of the same bottom panel.
+                panels::phone_up::top_bar(self, ui);
+                // Sound has its own panel (from the dock's menu).
                 if self.audio_ui.show {
                     panels::audio::show(self, ui);
                 } else {
-                    panels::phone::timeline(self, ui);
+                    panels::phone_up::dock(self, ui);
                 }
             }
             crate::widgets::SizeClass::PhoneLandscape => {
@@ -1068,12 +1085,15 @@ impl eframe::App for TrazoApp {
                 }
             }
         }
+        let canvas_margin = if class == crate::widgets::SizeClass::Phone { panels::phone_up::CANVAS_MARGIN } else { egui::Margin::ZERO };
         let canvas_rect = egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(crate::theme::CANVAS_BG))
+            .frame(egui::Frame::new().fill(crate::theme::CANVAS_BG).inner_margin(canvas_margin))
             .show(ui, |ui| {
                 let frame = self.displayed_frame();
                 let onion = (!self.playback.playing).then_some(self.onion);
                 self.canvas.camera_view = self.ui.camera.view_on();
+                // On the phone the margins already leave room for the floating controls.
+                self.canvas.fit_pad = if class == crate::widgets::SizeClass::Phone { 0.0 } else { 40.0 };
                 self.canvas.show(ui, &mut self.doc, &mut self.tools, frame, onion, self.playback.playing);
                 if let Some(g) = self.canvas.take_gesture() {
                     match g {
@@ -1130,9 +1150,8 @@ impl eframe::App for TrazoApp {
             || self.file_browser.is_some();
         match if modal { crate::widgets::SizeClass::Wide } else { class } {
             crate::widgets::SizeClass::Phone => {
-                panels::phone::size_rail(self, &ctx, canvas_rect, false);
-                panels::phone::zoom_pill(self, &ctx, canvas_rect);
-                panels::phone::dock(self, &ctx, canvas_rect);
+                panels::phone_up::size_rail(self, &ctx, canvas_rect);
+                panels::phone_up::island(self, &ctx, canvas_rect);
                 panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Bottom);
             }
             crate::widgets::SizeClass::PhoneLandscape => {

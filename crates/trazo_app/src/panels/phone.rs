@@ -197,6 +197,10 @@ fn tool_slot(app: &mut TrazoApp, ui: &mut Ui, t: Tool, size: Vec2) {
 }
 
 /// "Más": the less frequent tools. Shows the active one when it's in here.
+pub fn more_tools_pub(app: &mut TrazoApp, ui: &mut Ui, size: Vec2) {
+    more_tools(app, ui, size);
+}
+
 fn more_tools(app: &mut TrazoApp, ui: &mut Ui, size: Vec2) {
     let active = MORE_TOOLS.contains(&app.tools.tool);
     let ic = if active { app.tools.tool.icon() } else { Icon::More };
@@ -240,6 +244,10 @@ fn color_slot(app: &mut TrazoApp, ui: &mut Ui) {
 }
 
 /// Options of the active tool (lasso modes, shape kinds) above the dock.
+pub fn tool_options_pub(app: &mut TrazoApp, ui: &mut Ui) {
+    tool_options(app, ui);
+}
+
 fn tool_options(app: &mut TrazoApp, ui: &mut Ui) {
     match app.tools.tool {
         Tool::Lasso => {

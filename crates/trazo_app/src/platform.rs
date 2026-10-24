@@ -49,6 +49,8 @@ impl Platform {
                 log::warn!("could not create {}: {e}", d.display());
             }
         }
+        // Test builds can pretend to be a touch device (tablet layout on a PC).
+        let touch_first = touch_first || (cfg!(debug_assertions) && std::env::var_os("TRAZO_TACTIL").is_some());
         Self { data_dir: base, projects_dir, brushes_dir, import_dir, export_dir, touch_first }
     }
 

@@ -3,10 +3,10 @@
 //! vertical slider). One look everywhere, sized for fingers.
 
 use crate::i18n::tr;
-use egui::{Align2, Color32, CornerRadius, Id, Order, Pos2, Rect, Response, RichText, Sense, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, CornerRadius, Id, Order, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 
 use crate::icons::{paint, Icon};
-use crate::theme::{self, ACCENT, CONTROL, ELEVATED, ON_ACCENT, SURFACE, TEXT, TEXT2};
+use crate::theme::{self, ACCENT, CONTROL, ELEVATED, ON_ACCENT, SEPARATOR, TEXT, TEXT2};
 
 /// Which layout the screen gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,17 +68,20 @@ pub fn tool_button(ui: &mut Ui, icon: Icon, selected: bool, size: Vec2, tip: &st
 
 /// iOS-style switch. Returns true when toggled.
 pub fn switch(ui: &mut Ui, on: &mut bool) -> Response {
-    let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(51.0, 31.0), Sense::click());
+    let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(46.0, 28.0), Sense::click());
     if resp.clicked() {
         *on = !*on;
         resp.mark_changed();
     }
     let t = ui.ctx().animate_bool(resp.id, *on);
     let p = ui.painter();
-    let bg = lerp_color(CONTROL, ACCENT, t);
-    p.rect_filled(rect, 15.5, bg);
-    let x = egui::lerp(rect.left() + 15.5..=rect.right() - 15.5, t);
-    p.circle_filled(Pos2::new(x, rect.center().y), 13.5, Color32::WHITE);
+    p.rect_filled(rect, 14.0, lerp_color(CONTROL, ACCENT, t));
+    let x = egui::lerp(rect.left() + 14.0..=rect.right() - 14.0, t);
+    let knob = Pos2::new(x, rect.center().y);
+    p.circle_filled(knob, 11.0, lerp_color(TEXT2, ON_ACCENT, t));
+    if t > 0.5 {
+        paint(p, Rect::from_center_size(knob, Vec2::splat(13.0)), Icon::Check, ACCENT);
+    }
     resp
 }
 
@@ -100,19 +103,19 @@ pub fn switch_row(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
 pub fn segmented(ui: &mut Ui, selected: &mut usize, labels: &[&str], width: f32) -> bool {
     let n = labels.len().max(1);
     let w = width.min(ui.available_width()).max(60.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 36.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 44.0), Sense::hover());
     let p = ui.painter().clone();
-    p.rect_filled(rect, 10.0, ELEVATED);
-    let seg_w = (w - 4.0) / n as f32;
+    p.rect_filled(rect, 12.0, Color32::from_rgb(17, 17, 19));
+    let seg_w = (w - 6.0) / n as f32;
     let mut changed = false;
     for (i, label) in labels.iter().enumerate() {
-        let r = Rect::from_min_size(Pos2::new(rect.left() + 2.0 + seg_w * i as f32, rect.top() + 2.0), Vec2::new(seg_w, 32.0));
+        let r = Rect::from_min_size(Pos2::new(rect.left() + 3.0 + seg_w * i as f32, rect.top() + 3.0), Vec2::new(seg_w, 38.0));
         let resp = ui.interact(r, ui.scope_id().with(("seg", i, *label)), Sense::click());
         let on = *selected == i;
         if on {
-            p.rect_filled(r, 8.0, CONTROL);
+            p.rect_filled(r, 10.0, SEPARATOR);
         }
-        let font = egui::FontId::proportional(13.0);
+        let font = theme::font(14.0, if on { theme::W::Semi } else { theme::W::Regular });
         p.text(r.center(), Align2::CENTER_CENTER, *label, font, if on { TEXT } else { TEXT2 });
         if resp.clicked() && !on {
             *selected = i;
@@ -128,7 +131,7 @@ pub fn vslider(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
     let (lo, hi) = (*range.start(), *range.end());
     let to_t = |v: f32| if logarithmic { (v.max(lo).ln() - lo.ln()) / (hi.ln() - lo.ln()) } else { (v - lo) / (hi - lo) };
     let from_t = |t: f32| if logarithmic { (lo.ln() + t * (hi.ln() - lo.ln())).exp() } else { lo + t * (hi - lo) };
-    let rail = Rect::from_center_size(rect.center(), Vec2::new(6.0, height - 24.0));
+    let rail = Rect::from_center_size(rect.center(), Vec2::new(5.0, height - 24.0));
     if let Some(p) = resp.interact_pointer_pos() {
         if resp.dragged() || resp.clicked() {
             let t = ((rail.bottom() - p.y) / rail.height()).clamp(0.0, 1.0);
@@ -138,10 +141,11 @@ pub fn vslider(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
     }
     let t = to_t(*value).clamp(0.0, 1.0);
     let painter = ui.painter();
-    painter.rect_filled(rail, 3.0, CONTROL);
+    painter.rect_filled(rail, 3.0, SEPARATOR);
     let y = rail.bottom() - t * rail.height();
-    painter.rect_filled(Rect::from_min_max(Pos2::new(rail.left(), y), rail.max), 3.0, TEXT2);
-    painter.circle_filled(Pos2::new(rail.center().x, y), 12.0, TEXT);
+    painter.rect_filled(Rect::from_min_max(Pos2::new(rail.left(), y), rail.max), 3.0, TEXT);
+    painter.circle_filled(Pos2::new(rail.center().x, y + 1.5), 11.5, Color32::from_black_alpha(90));
+    painter.circle_filled(Pos2::new(rail.center().x, y), 11.0, TEXT);
     resp.on_hover_text(tip)
 }
 
@@ -184,11 +188,10 @@ pub fn sheet(ctx: &egui::Context, id: &str, edge: SheetEdge, touch: bool, header
     };
     egui::Area::new(id).order(Order::Foreground).fixed_pos(rect.min).show(ctx, |ui| {
         let frame = egui::Frame::new()
-            .fill(SURFACE)
+            .fill(theme::SHEET)
             .corner_radius(radius)
-            .stroke(Stroke::new(1.0, theme::ELEVATED))
-            .shadow(egui::Shadow { offset: [0, -6], blur: 30, spread: 0, color: Color32::from_black_alpha(130) })
-            .inner_margin(egui::Margin { left: 16, right: 12, top: 8, bottom: if touch { 26 } else { 12 } });
+            .shadow(egui::Shadow { offset: [0, -10], blur: 40, spread: 0, color: Color32::from_black_alpha(140) })
+            .inner_margin(egui::Margin { left: 16, right: 10, top: 8, bottom: if touch { 26 } else { 12 } });
         frame.show(ui, |ui| {
             ui.set_width(rect.width() - 28.0);
             ui.set_height(rect.height() - 42.0);
@@ -200,8 +203,7 @@ pub fn sheet(ctx: &egui::Context, id: &str, edge: SheetEdge, touch: bool, header
                 ui.set_min_height(44.0);
                 header(ui);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let label = if edge == SheetEdge::Bottom { tr("Listo") } else { tr("Cerrar") };
-                    if ui.add(egui::Button::new(RichText::new(label).color(ACCENT).strong()).frame(false).min_size(Vec2::new(56.0, 44.0))).clicked() {
+                    if crate::widgets::icon_button(ui, Icon::Close, tr("Cerrar")).clicked() {
                         close = true;
                     }
                 });
@@ -327,24 +329,86 @@ pub fn choice_row(ui: &mut Ui, selected: bool, label: &str, detail: &str) -> Res
     let w = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, 48.0), Sense::click());
     let p = ui.painter();
-    p.rect_filled(rect, theme::R_ROW, if selected { theme::accent_soft() } else { ELEVATED });
+    p.rect_filled(rect, theme::R_ROW, if selected { SEPARATOR } else { ELEVATED });
     if selected {
-        p.rect_stroke(rect, theme::R_ROW, Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside);
+        p.rect_stroke(rect, theme::R_ROW, Stroke::new(2.0, TEXT), egui::StrokeKind::Inside);
     }
     p.text(Pos2::new(rect.left() + 14.0, rect.center().y), Align2::LEFT_CENTER, label, egui::FontId::proportional(15.0), TEXT);
     let right = if selected { rect.right() - 40.0 } else { rect.right() - 14.0 };
     p.text(Pos2::new(right, rect.center().y), Align2::RIGHT_CENTER, detail, egui::FontId::proportional(13.0), TEXT2);
     if selected {
-        paint(p, Rect::from_center_size(Pos2::new(rect.right() - 22.0, rect.center().y), Vec2::splat(18.0)), Icon::Check, ACCENT);
+        paint(p, Rect::from_center_size(Pos2::new(rect.right() - 22.0, rect.center().y), Vec2::splat(18.0)), Icon::Check, TEXT);
     }
     resp
 }
 
-/// Main action button (accent, full width).
+/// Main action button (white, full width): one per screen.
 pub fn primary_button(ui: &mut Ui, label: &str) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 50.0), Sense::click());
-    let fill = if resp.is_pointer_button_down_on() { theme::ACCENT.gamma_multiply(0.8) } else { ACCENT };
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.0), Sense::click());
+    let fill = if resp.is_pointer_button_down_on() { theme::PRIMARY.gamma_multiply(0.85) } else { theme::PRIMARY };
     ui.painter().rect_filled(rect, theme::R_ROW, fill);
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, label, egui::FontId::proportional(17.0), ON_ACCENT);
+    ui.painter().text(rect.center(), Align2::CENTER_CENTER, label, theme::font(16.0, theme::W::Bold), ON_ACCENT);
+    resp
+}
+
+/// Secondary button (graphite).
+pub fn secondary_button(ui: &mut Ui, label: &str, height: f32) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click());
+    let fill = if resp.hovered() || resp.is_pointer_button_down_on() { SEPARATOR } else { ELEVATED };
+    ui.painter().rect_filled(rect, theme::R_CONTROL, fill);
+    ui.painter().text(rect.center(), Align2::CENTER_CENTER, label, theme::font(14.0, theme::W::Semi), TEXT);
+    resp
+}
+
+/// Plain 44 pt icon button (graphite on hover).
+pub fn icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
+    icon_button_ex(ui, icon, tip, true, None)
+}
+
+/// Icon button with an optional resting fill; disabled ones are dimmed.
+pub fn icon_button_ex(ui: &mut Ui, icon: Icon, tip: &str, enabled: bool, fill: Option<Color32>) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(theme::TOUCH), if enabled { Sense::click() } else { Sense::hover() });
+    let p = ui.painter();
+    let hover = enabled && (resp.hovered() || resp.is_pointer_button_down_on());
+    match (fill, hover) {
+        (_, true) => {
+            p.rect_filled(rect, theme::R_CONTROL, SEPARATOR);
+        }
+        (Some(f), false) => {
+            p.rect_filled(rect, theme::R_CONTROL, f);
+        }
+        _ => {}
+    }
+    paint(p, Rect::from_center_size(rect.center(), Vec2::splat(22.0)), icon, if enabled { TEXT } else { theme::TEXT3 });
+    resp.on_hover_text(tip)
+}
+
+/// An option that is on or off: lime icon and a dot when on.
+pub fn toggle_icon(ui: &mut Ui, icon: Icon, on: bool, tip: &str) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(theme::TOUCH), Sense::click());
+    let p = ui.painter();
+    if on || resp.hovered() {
+        p.rect_filled(rect, theme::R_CONTROL, if on { theme::accent_soft() } else { SEPARATOR });
+    }
+    paint(p, Rect::from_center_size(rect.center() - Vec2::new(0.0, if on { 2.0 } else { 0.0 }), Vec2::splat(22.0)), icon, if on { ACCENT } else { TEXT2 });
+    if on {
+        p.circle_filled(Pos2::new(rect.center().x, rect.bottom() - 7.0), 3.0, ACCENT);
+    }
+    resp.on_hover_text(tip)
+}
+
+/// A labelled pill button (icon + text) on graphite, e.g. "Capas · Tinta".
+pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, icon_color: Color32, dot: bool) -> Response {
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::font(14.0, theme::W::Semi), TEXT);
+    let w = 10.0 + 20.0 + 6.0 + galley.size().x + if dot { 12.0 } else { 0.0 } + 12.0;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, theme::TOUCH), Sense::click());
+    let p = ui.painter();
+    p.rect_filled(rect, theme::R_CONTROL, if resp.hovered() || resp.is_pointer_button_down_on() { SEPARATOR } else { ELEVATED });
+    paint(p, Rect::from_center_size(Pos2::new(rect.left() + 20.0, rect.center().y), Vec2::splat(20.0)), icon, icon_color);
+    let x = rect.left() + 36.0;
+    p.galley(Pos2::new(x, rect.center().y - galley.size().y / 2.0), galley.clone(), TEXT);
+    if dot {
+        p.circle_filled(Pos2::new(x + galley.size().x + 8.0, rect.center().y), 3.0, ACCENT);
+    }
     resp
 }

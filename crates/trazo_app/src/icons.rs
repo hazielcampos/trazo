@@ -93,6 +93,10 @@ pub enum Icon {
 
 /// Draw `icon` filling `rect` (square works best).
 pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
+    // Icons redrawn in the design come from their SVG paths.
+    if crate::svgicon::paint(painter, rect, icon, color) {
+        return;
+    }
     let s = rect.width().min(rect.height()) / 24.0;
     let o = rect.center() - Vec2::splat(12.0 * s);
     let p = |x: f32, y: f32| Pos2::new(o.x + x * s, o.y + y * s);

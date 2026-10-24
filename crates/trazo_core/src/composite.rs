@@ -603,6 +603,30 @@ mod tests {
 }
 
 /// Small preview of one drawing (premultiplied RGBA8 on white), `max_w` wide.
+/// Like [`cel_thumbnail`] but transparent where the cel is (premultiplied
+/// RGBA8), to stack the layers of a frame.
+pub fn cel_thumbnail_alpha(cel: &TiledImage, max_w: u32) -> (usize, usize, Vec<u8>) {
+    let (cw, ch) = (cel.width().max(1) as f32, cel.height().max(1) as f32);
+    let step = (cw / max_w.max(1) as f32).max(1.0);
+    let (tw, th) = (((cw / step) as usize).max(1), ((ch / step) as usize).max(1));
+    let mut out = Vec::with_capacity(tw * th * 4);
+    let offs = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
+    let mut cache = std::collections::HashMap::new();
+    for y in 0..th {
+        for x in 0..tw {
+            let mut sum = [0.0f32; 4];
+            for (ox, oy) in offs {
+                let s = cel.pixel_cached(&mut cache, ((x as f32 + ox) * step) as i32, ((y as f32 + oy) * step) as i32);
+                for i in 0..4 {
+                    sum[i] += s[i] as f32 * 0.25;
+                }
+            }
+            out.extend_from_slice(&[sum[0].round() as u8, sum[1].round() as u8, sum[2].round() as u8, sum[3].round() as u8]);
+        }
+    }
+    (tw, th, out)
+}
+
 pub fn cel_thumbnail(cel: &TiledImage, max_w: u32) -> (usize, usize, Vec<u8>) {
     let (cw, ch) = (cel.width().max(1) as f32, cel.height().max(1) as f32);
     let step = (cw / max_w.max(1) as f32).max(1.0);

@@ -20,6 +20,7 @@ mod platform;
 mod save;
 mod selection;
 mod icons;
+mod svgicon;
 mod files;
 mod import;
 mod theme;

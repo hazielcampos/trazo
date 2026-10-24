@@ -13,7 +13,7 @@ use crate::icons::{paint, Icon, IconButton};
 use crate::theme::{ACCENT, CONTROL, DANGER, ELEVATED, SEPARATOR, TEXT, TEXT2, TEXT3};
 
 /// Width of a drawing thumbnail.
-const THUMB_W: u32 = 48;
+const THUMB_W: u32 = 96;
 /// Thumbnails made per UI frame (keeps the UI responsive).
 const THUMBS_PER_FRAME: usize = 3;
 
@@ -40,7 +40,7 @@ impl ThumbCache {
     }
 
     /// Thumbnail of the drawing of `layer` that starts in frame `index`.
-    fn get(&mut self, ctx: &egui::Context, doc: &Document, index: usize, layer: LayerId) -> Option<TextureHandle> {
+    pub fn get(&mut self, ctx: &egui::Context, doc: &Document, index: usize, layer: LayerId) -> Option<TextureHandle> {
         let f = doc.project.frames.get(index)?;
         let cel = f.cel(layer)?;
         let fp = cel.fingerprint();
@@ -55,7 +55,7 @@ impl ThumbCache {
             return None;
         }
         self.budget -= 1;
-        let (w, h, data) = trazo_core::composite::cel_thumbnail(cel, THUMB_W);
+        let (w, h, data) = trazo_core::composite::cel_thumbnail_alpha(cel, THUMB_W);
         let img = ColorImage::from_rgba_premultiplied([w, h], &data);
         let t = match self.map.remove(&key) {
             Some((_, mut t)) => {

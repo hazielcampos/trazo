@@ -8,6 +8,7 @@ pub mod dialogs;
 pub mod export;
 pub mod layers;
 pub mod phone;
+pub mod phone_up;
 pub mod selection_bar;
 pub mod timeline;
 pub mod toolbar;

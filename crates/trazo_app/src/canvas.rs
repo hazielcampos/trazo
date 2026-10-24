@@ -98,6 +98,8 @@ pub struct CanvasView {
     rotation: f32,
     flip: bool,
     needs_fit: bool,
+    /// Room left around the canvas when it is fitted on screen.
+    pub fit_pad: f32,
     stroke: Option<Stroke>,
     /// For speed-based pressure.
     last_sample: Option<(Pos2, f64, f32)>,
@@ -134,6 +136,7 @@ impl Default for CanvasView {
             rotation: 0.0,
             flip: false,
             needs_fit: true,
+            fit_pad: 40.0,
             stroke: None,
             last_sample: None,
             pen_force: None,
@@ -251,7 +254,7 @@ impl CanvasView {
         let (cw, ch) = (doc.project.canvas.width as f32, doc.project.canvas.height as f32);
 
         if self.needs_fit && rect.width() > 10.0 {
-            let z = ((rect.width() - 40.0) / cw).min((rect.height() - 40.0) / ch);
+            let z = ((rect.width() - self.fit_pad) / cw).min((rect.height() - self.fit_pad) / ch);
             self.zoom = z.clamp(0.05, 16.0);
             self.pan = Vec2::ZERO;
             self.needs_fit = false;
