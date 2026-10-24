@@ -191,27 +191,41 @@ pub fn sheet(ctx: &egui::Context, id: &str, edge: SheetEdge, touch: bool, header
             .fill(theme::SHEET)
             .corner_radius(radius)
             .shadow(egui::Shadow { offset: [0, -10], blur: 40, spread: 0, color: Color32::from_black_alpha(140) })
-            .inner_margin(egui::Margin { left: 16, right: 10, top: 8, bottom: if touch { 26 } else { 12 } });
+            .inner_margin(egui::Margin { left: 8, right: 8, top: 8, bottom: if touch { 26 } else { 12 } });
+        let bottom_pad = if touch { 26.0 } else { 12.0 };
         frame.show(ui, |ui| {
-            ui.set_width(rect.width() - 28.0);
-            ui.set_height(rect.height() - 42.0);
+            ui.set_width(rect.width() - 16.0);
+            ui.set_height(rect.height() - 8.0 - bottom_pad);
             if edge == SheetEdge::Bottom {
                 let (g, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 10.0), Sense::hover());
                 ui.painter().rect_filled(Rect::from_center_size(g.center(), Vec2::new(36.0, 5.0)), 3.0, CONTROL);
             }
             ui.horizontal(|ui| {
                 ui.set_min_height(44.0);
+                ui.add_space(12.0);
                 header(ui);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::widgets::icon_button(ui, Icon::Close, tr("Cerrar")).clicked() {
-                        close = true;
-                    }
-                });
+                if edge == SheetEdge::Right {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if crate::widgets::icon_button(ui, Icon::Close, tr("Cerrar")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
             });
             egui::ScrollArea::vertical().id_salt(id.with("scroll")).auto_shrink([false, false]).show(ui, add);
         });
     });
     close
+}
+
+/// Round the corners of something drawn as a mesh by painting the
+/// background over them.
+fn round_corners(p: &egui::Painter, r: Rect, rad: f32, bg: Color32) {
+    // A thick rounded stroke whose inner edge is the rounded rect, clipped
+    // to the rect: only the corners get covered, with no seams.
+    let rad = rad.min(r.height() / 2.0).min(r.width() / 2.0);
+    let w = rad * 2.0;
+    p.with_clip_rect(r).rect_stroke(r.expand(w / 2.0), CornerRadius::same((rad + w / 2.0).round() as u8), Stroke::new(w, bg), egui::StrokeKind::Middle);
 }
 
 fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
@@ -233,7 +247,7 @@ pub fn hsv_picker(ui: &mut Ui, color: &mut Color32) -> bool {
     let mut changed = false;
 
     // Saturation (x) / brightness (y) square.
-    let (sq, resp) = ui.allocate_exact_size(Vec2::new(w, (w * 0.62).min(260.0)), Sense::click_and_drag());
+    let (sq, resp) = ui.allocate_exact_size(Vec2::new(w, (w * 0.5).min(170.0)), Sense::click_and_drag());
     if let Some(p) = resp.interact_pointer_pos() {
         if resp.dragged() || resp.clicked() {
             hsv[1] = ((p.x - sq.left()) / sq.width()).clamp(0.0, 1.0);
@@ -259,15 +273,18 @@ pub fn hsv_picker(ui: &mut Ui, color: &mut Color32) -> bool {
     }
     let painter = ui.painter();
     painter.add(egui::Shape::mesh(mesh));
-    let knob = Pos2::new(sq.left() + hsv[1] * sq.width(), sq.top() + (1.0 - hsv[2]) * sq.height());
-    painter.circle(knob, 11.0, Color32::from(Hsva::new(hsv[0], hsv[1], hsv[2], 1.0)), Stroke::new(3.0, Color32::WHITE));
+    round_corners(painter, sq, 14.0, theme::SURFACE);
+    let inner = sq.shrink(13.0);
+    let knob = Pos2::new(sq.left() + hsv[1] * sq.width(), sq.top() + (1.0 - hsv[2]) * sq.height()).clamp(inner.min, inner.max);
+    painter.circle(knob, 11.5, Color32::from(Hsva::new(hsv[0], hsv[1], hsv[2], 1.0)), Stroke::new(3.0, Color32::WHITE));
 
-    ui.add_space(10.0);
+    ui.add_space((12.0 - ui.spacing().item_spacing.y).max(0.0));
     // Hue bar.
-    let (bar, resp) = ui.allocate_exact_size(Vec2::new(w, 32.0), Sense::click_and_drag());
+    let (bar, resp) = ui.allocate_exact_size(Vec2::new(w, 20.0), Sense::click_and_drag());
+    let bar_draw = bar;
     if let Some(p) = resp.interact_pointer_pos() {
         if resp.dragged() || resp.clicked() {
-            hsv[0] = ((p.x - bar.left()) / bar.width()).clamp(0.0, 0.9999);
+            hsv[0] = ((p.x - bar.left() - 15.0) / (bar.width() - 30.0)).clamp(0.0, 0.9999);
             changed = true;
         }
     }
@@ -276,9 +293,9 @@ pub fn hsv_picker(ui: &mut Ui, color: &mut Color32) -> bool {
     for i in 0..=m {
         let t = i as f32 / m as f32;
         let c = Color32::from(Hsva::new(t, 1.0, 1.0, 1.0));
-        let x = bar.left() + bar.width() * t;
-        mesh.colored_vertex(Pos2::new(x, bar.top()), c);
-        mesh.colored_vertex(Pos2::new(x, bar.bottom()), c);
+        let x = bar_draw.left() + bar_draw.width() * t;
+        mesh.colored_vertex(Pos2::new(x, bar_draw.top()), c);
+        mesh.colored_vertex(Pos2::new(x, bar_draw.bottom()), c);
     }
     for i in 0..m as u32 {
         let a = i * 2;
@@ -287,8 +304,9 @@ pub fn hsv_picker(ui: &mut Ui, color: &mut Color32) -> bool {
     }
     let painter = ui.painter();
     painter.add(egui::Shape::mesh(mesh));
-    let x = bar.left() + hsv[0] * bar.width();
-    painter.circle(Pos2::new(x, bar.center().y), 14.0, Color32::from(Hsva::new(hsv[0], 1.0, 1.0, 1.0)), Stroke::new(3.0, Color32::WHITE));
+    round_corners(painter, bar_draw, 10.0, theme::SURFACE);
+    let x = bar.left() + 15.0 + hsv[0] * (bar.width() - 30.0);
+    painter.circle(Pos2::new(x, bar.center().y), 13.5, Color32::from(Hsva::new(hsv[0], 1.0, 1.0, 1.0)), Stroke::new(3.0, Color32::WHITE));
 
     if changed {
         *color = Color32::from(Hsva::new(hsv[0], hsv[1], hsv[2], 1.0));
@@ -353,10 +371,21 @@ pub fn primary_button(ui: &mut Ui, label: &str) -> Response {
 
 /// Secondary button (graphite).
 pub fn secondary_button(ui: &mut Ui, label: &str, height: f32) -> Response {
+    secondary_button_icon(ui, None, label, height)
+}
+
+pub fn secondary_button_icon(ui: &mut Ui, icon: Option<Icon>, label: &str, height: f32) -> Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click());
     let fill = if resp.hovered() || resp.is_pointer_button_down_on() { SEPARATOR } else { ELEVATED };
-    ui.painter().rect_filled(rect, theme::R_CONTROL, fill);
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, label, theme::font(14.0, theme::W::Semi), TEXT);
+    let p = ui.painter();
+    p.rect_filled(rect, theme::R_CONTROL, fill);
+    let g = p.layout_no_wrap(label.to_string(), theme::font(14.0, theme::W::Semi), TEXT);
+    let iw = if icon.is_some() { 26.0 } else { 0.0 };
+    let x = rect.center().x - (g.size().x + iw) / 2.0;
+    if let Some(ic) = icon {
+        crate::icons::paint(p, Rect::from_center_size(Pos2::new(x + 9.0, rect.center().y), Vec2::splat(18.0)), ic, TEXT);
+    }
+    p.galley(Pos2::new(x + iw, rect.center().y - g.size().y / 2.0), g, TEXT);
     resp
 }
 
@@ -410,5 +439,30 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, icon_color: Color32, do
     if dot {
         p.circle_filled(Pos2::new(x + galley.size().x + 8.0, rect.center().y), 3.0, ACCENT);
     }
+    resp
+}
+
+/// Labelled horizontal slider: label, white rail with a knob, value.
+pub fn hslider(ui: &mut Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, logarithmic: bool, fmt: impl Fn(f32) -> String) -> Response {
+    let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 28.0), Sense::click_and_drag());
+    let (lo, hi) = (*range.start(), *range.end());
+    let to_t = |v: f32| if logarithmic { (v.max(lo).ln() - lo.ln()) / (hi.ln() - lo.ln()) } else { (v - lo) / (hi - lo) };
+    let from_t = |t: f32| if logarithmic { (lo.ln() + t * (hi.ln() - lo.ln())).exp() } else { lo + t * (hi - lo) };
+    let rail = Rect::from_min_max(Pos2::new(rect.left() + 86.0, rect.center().y - 3.0), Pos2::new(rect.right() - 62.0, rect.center().y + 3.0));
+    if let Some(p) = resp.interact_pointer_pos() {
+        if (resp.dragged() || resp.clicked()) && p.x >= rail.left() - 12.0 {
+            *value = from_t(((p.x - rail.left()) / rail.width()).clamp(0.0, 1.0));
+            resp.mark_changed();
+        }
+    }
+    let t = to_t(*value).clamp(0.0, 1.0);
+    let p = ui.painter();
+    p.text(Pos2::new(rect.left(), rect.center().y), Align2::LEFT_CENTER, label, theme::font(13.0, theme::W::Regular), TEXT2);
+    p.rect_filled(rail, 3.0, SEPARATOR);
+    let x = rail.left() + t * rail.width();
+    p.rect_filled(Rect::from_min_max(rail.min, Pos2::new(x, rail.bottom())), 3.0, TEXT);
+    p.circle_filled(Pos2::new(x, rail.center().y + 1.5), 11.5, Color32::from_black_alpha(90));
+    p.circle_filled(Pos2::new(x, rail.center().y), 11.0, TEXT);
+    p.text(Pos2::new(rect.right(), rect.center().y), Align2::RIGHT_CENTER, fmt(*value), theme::font(14.0, theme::W::Semi), TEXT);
     resp
 }

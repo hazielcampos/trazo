@@ -100,6 +100,8 @@ pub struct CanvasView {
     needs_fit: bool,
     /// Room left around the canvas when it is fitted on screen.
     pub fit_pad: f32,
+    /// Fitted canvas sits at the top of its area (phone) instead of the middle.
+    pub fit_top: bool,
     stroke: Option<Stroke>,
     /// For speed-based pressure.
     last_sample: Option<(Pos2, f64, f32)>,
@@ -137,6 +139,7 @@ impl Default for CanvasView {
             flip: false,
             needs_fit: true,
             fit_pad: 40.0,
+            fit_top: false,
             stroke: None,
             last_sample: None,
             pen_force: None,
@@ -257,6 +260,9 @@ impl CanvasView {
             let z = ((rect.width() - self.fit_pad) / cw).min((rect.height() - self.fit_pad) / ch);
             self.zoom = z.clamp(0.05, 16.0);
             self.pan = Vec2::ZERO;
+            if self.fit_top {
+                self.pan.y = -((rect.height() - ch * self.zoom) / 2.0).max(0.0);
+            }
             self.needs_fit = false;
         }
 

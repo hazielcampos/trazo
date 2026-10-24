@@ -464,6 +464,13 @@ fn first_time(ui: &mut Ui, class: SizeClass) -> Option<Action> {
 // ---- pieces ---------------------------------------------------------------------
 
 /// One line of text cut with "…" to `width`.
+/// One line cut with "…" in any font.
+pub fn one_line_pub(ui: &Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<egui::Galley> {
+    let mut job = LayoutJob::simple_singleline(text.to_string(), font, color);
+    job.wrap = TextWrapping { max_width: width.max(10.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    ui.painter().layout_job(job)
+}
+
 fn one_line(ui: &Ui, text: &str, size: f32, color: Color32, width: f32) -> Arc<egui::Galley> {
     let mut job = LayoutJob::simple_singleline(text.to_string(), FontId::proportional(size), color);
     job.wrap = TextWrapping { max_width: width.max(10.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };

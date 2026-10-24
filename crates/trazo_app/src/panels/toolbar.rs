@@ -75,17 +75,45 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
 
 /// Color tab: HSV picker, palette and recent colors.
 pub fn color_panel(app: &mut TrazoApp, ui: &mut egui::Ui) {
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        let mut c = app.tools.color;
-        if crate::widgets::hsv_picker(ui, &mut c) {
-            app.tools.set_color(c);
+    use crate::theme::{self, ELEVATED, SEPARATOR, TEXT, TEXT2, W};
+    let ctx = ui.ctx().clone();
+    // New and previous color, the color's name, code and eyedropper.
+    let prev_id = egui::Id::unique("color_prev");
+    let prev = ui.data(|d| d.get_temp::<Color32>(prev_id)).unwrap_or(app.tools.color);
+    ui.data_mut(|d| d.insert_temp(prev_id, prev));
+    let hex_id = egui::Id::unique("color_hex_open");
+    let mut hex_open = ui.data(|d| d.get_temp::<bool>(hex_id)).unwrap_or(false);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 10.0;
+        let (r, resp) = ui.allocate_exact_size(Vec2::new(72.0, 40.0), egui::Sense::click());
+        let half = egui::Rect::from_min_max(r.min, egui::pos2(r.center().x, r.bottom()));
+        let p = ui.painter();
+        p.rect_filled(r, 12.0, prev);
+        p.rect_filled(half, egui::CornerRadius { nw: 12, sw: 12, ne: 0, se: 0 }, app.tools.color);
+        p.rect_stroke(r, 12.0, egui::Stroke::new(1.0, Color32::from_white_alpha(30)), egui::StrokeKind::Inside);
+        if resp.on_hover_text(tr("Toca para volver al color anterior")).clicked() {
+            app.tools.set_color(prev);
         }
+        ui.label(egui::RichText::new(color_name(app.tools.color)).font(theme::font(15.0, W::Semi)).color(TEXT));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if crate::widgets::icon_button_ex(ui, Icon::Eyedropper, tr("Tomar un color del dibujo"), true, Some(ELEVATED)).clicked() {
+                app.tools.tool = crate::tools::Tool::Eyedropper;
+                app.ui.sheet = None;
+            }
+            let (r, resp) = ui.allocate_exact_size(Vec2::splat(theme::TOUCH), egui::Sense::click());
+            ui.painter().rect_filled(r, theme::R_CONTROL, if hex_open || resp.hovered() { SEPARATOR } else { ELEVATED });
+            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "#", theme::font(16.0, W::Bold), TEXT2);
+            if resp.on_hover_text(tr("Escribir un código de color")).clicked() {
+                hex_open = !hex_open;
+            }
+        });
+    });
+    if hex_open {
         ui.horizontal(|ui| {
-            ui.label(tr("Hex"));
             let id = egui::Id::unique("hex_edit");
             let current = format!("#{:02X}{:02X}{:02X}", app.tools.color.r(), app.tools.color.g(), app.tools.color.b());
             let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.clone());
-            let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(90.0));
+            let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(120.0).font(theme::font(14.0, W::Medium)).margin(egui::vec2(10.0, 8.0)));
             if r.changed() {
                 if let Some(c) = parse_hex(&text) {
                     app.tools.set_color(c);
@@ -95,66 +123,110 @@ pub fn color_panel(app: &mut TrazoApp, ui: &mut egui::Ui) {
                 ui.data_mut(|d| d.remove::<String>(id));
             }
         });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.label(tr("Mi paleta"));
-            if ui.add(IconButton::new(Icon::Plus).size(24.0)).on_hover_text(tr("Guardar el color actual")).clicked() && !app.tools.user_palette.contains(&app.tools.color) {
-                app.tools.user_palette.push(app.tools.color);
-            }
-            if ui.add_enabled(!app.tools.user_palette.is_empty(), IconButton::new(Icon::Minus).size(24.0)).on_hover_text(tr("Quitar el color actual de mi paleta")).clicked() {
-                let c = app.tools.color;
-                app.tools.user_palette.retain(|x| *x != c);
-            }
+    }
+    ui.data_mut(|d| d.insert_temp(hex_id, hex_open));
+    let mut c = app.tools.color;
+    if crate::widgets::hsv_picker(ui, &mut c) {
+        app.tools.set_color(c);
+    }
+
+    // A palette: mine, the basic one or the recent colors.
+    let which_id = egui::Id::unique("palette_which");
+    let mut which: u8 = ui.data(|d| d.get_temp(which_id)).unwrap_or(if app.tools.user_palette.is_empty() { 1 } else { 0 });
+    ui.horizontal(|ui| {
+        let title = match which {
+            0 => tf!("Colores de «{}»", app.doc.project.name),
+            1 => tr("Paleta básica").to_string(),
+            _ => tr("Recientes").to_string(),
+        };
+        ui.label(egui::RichText::new(title).font(theme::font(13.0, W::Regular)).color(TEXT2));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let r = ui.add(egui::Button::new(egui::RichText::new(tr("Otras paletas")).font(theme::font(13.0, W::Semi)).color(TEXT).underline()).frame(false).min_size(Vec2::new(0.0, 36.0)));
+            egui::Popup::menu(&r).show(|ui| {
+                ui.set_min_width(200.0);
+                for (k, label) in [(0u8, tr("Mi paleta")), (1, tr("Paleta básica")), (2, tr("Recientes"))] {
+                    if ui.add(egui::Button::new(label).selected(which == k).min_size(Vec2::new(200.0, 40.0))).clicked() {
+                        which = k;
+                        ui.close();
+                    }
+                }
+            });
         });
-        if app.tools.user_palette.is_empty() {
-            ui.label(egui::RichText::new(tr("Pulsa + para guardar colores aquí")).small().weak());
-        } else {
-            let mine = app.tools.user_palette.clone();
-            swatches(ui, &mine, &mut app.tools.color);
-        }
-        ui.add_space(6.0);
-        ui.label(tr("Paleta básica"));
-        swatches(ui, &PALETTE, &mut app.tools.color);
-        if !app.tools.recent_colors.is_empty() {
-            ui.add_space(6.0);
-            ui.label(tr("Recientes"));
-            let recent = app.tools.recent_colors.clone();
-            swatches(ui, &recent, &mut app.tools.color);
-        }
-        ui.add_space(6.0);
-        ui.separator();
-        ui.checkbox(&mut app.tools.pick_layer_only, tr("Cuentagotas: solo la capa actual"));
-        ui.separator();
-        ui.label(tr("Relleno y varita mágica"));
-        ui.checkbox(&mut app.tools.fill_all_layers, tr("Detectar bordes de todas las capas"))
-            .on_hover_text(tr("Si alguna capa está marcada como «Líneas para el relleno», se usa esa"));
-        ui.checkbox(&mut app.tools.fill_every_drawing, tr("Rellenar en todos los dibujos de la capa"))
-            .on_hover_text(tr("Un toque rellena el mismo punto en cada dibujo de esta capa (útil para colorear fondos o personajes quietos)"));
-        let mut tol = app.tools.fill.tolerance as i32;
-        if ui.add(egui::Slider::new(&mut tol, 0..=255).text(tr("Tolerancia"))).changed() {
-            app.tools.fill.tolerance = tol as u8;
-        }
-        ui.add(egui::Slider::new(&mut app.tools.fill.grow, 0..=4).text(tr("Expandir (px)")));
-        ui.add(egui::Slider::new(&mut app.tools.fill.gap_close, 0..=8).text(tr("Cerrar huecos (px)")))
-            .on_hover_text(tr("Rellena aunque la línea tenga pequeñas aberturas"));
     });
+    ui.data_mut(|d| d.insert_temp(which_id, which));
+    let colors: Vec<Color32> = match which {
+        0 => app.tools.user_palette.clone(),
+        1 => PALETTE.to_vec(),
+        _ => app.tools.recent_colors.clone(),
+    };
+    let add = swatches(ui, &colors, &mut app.tools.color, which == 0);
+    if add && !app.tools.user_palette.contains(&app.tools.color) {
+        app.tools.user_palette.push(app.tools.color);
+        which = 0;
+        ui.data_mut(|d| d.insert_temp(which_id, which));
+    }
+    if which == 0 && colors.is_empty() {
+        ui.label(egui::RichText::new(tr("Toca + para guardar el color actual")).font(theme::font(12.0, W::Regular)).color(TEXT2));
+    }
+    let _ = ctx;
 }
 
-fn swatches(ui: &mut egui::Ui, colors: &[Color32], current: &mut Color32) {
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::splat(8.0);
-        for &c in colors {
-            let (rect, resp) = ui.allocate_exact_size(Vec2::splat(36.0), egui::Sense::click());
-            ui.painter().circle_filled(rect.center(), 17.0, c);
-            ui.painter().circle_stroke(rect.center(), 17.0, egui::Stroke::new(1.0, crate::theme::SEPARATOR));
+/// A name for a color, in words people use.
+fn color_name(c: Color32) -> String {
+    let h = egui::ecolor::Hsva::from(c);
+    let (hue, s, v) = (h.h * 360.0, h.s, h.v);
+    let base = if v < 0.12 {
+        return tr("Negro").to_string();
+    } else if s < 0.1 {
+        if v > 0.9 { tr("Blanco") } else if v > 0.55 { tr("Gris claro") } else { tr("Gris oscuro") }
+    } else {
+        match hue {
+            h if !(15.0..345.0).contains(&h) => tr("Rojo"),
+            h if h < 40.0 => tr("Naranja"),
+            h if h < 65.0 => tr("Amarillo"),
+            h if h < 160.0 => tr("Verde"),
+            h if h < 200.0 => tr("Turquesa"),
+            h if h < 255.0 => tr("Azul"),
+            h if h < 290.0 => tr("Violeta"),
+            _ => tr("Rosa"),
+        }
+    };
+    let shade = if s >= 0.1 && v < 0.45 { tr(" oscuro") } else if s >= 0.1 && s < 0.4 && v > 0.7 { tr(" claro") } else { "" };
+    format!("{base}{shade}")
+}
+
+/// One row of round 44 pt swatches that fits the width, ending with "+"
+/// (save the current color); returns true when "+" was tapped.
+fn swatches(ui: &mut egui::Ui, colors: &[Color32], current: &mut Color32, _mine: bool) -> bool {
+    let w = ui.available_width();
+    let k = (((w + 5.0) / 49.0).floor() as usize).max(2);
+    let shown = colors.len().min(k - 1);
+    let n = shown + 1;
+    let gap = if n > 1 { ((w - n as f32 * 44.0) / (n as f32 - 1.0)).min(14.0) } else { 0.0 };
+    let mut add = false;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = gap;
+        for &c in &colors[..shown] {
+            let (rect, resp) = ui.allocate_exact_size(Vec2::splat(44.0), egui::Sense::click());
+            let p = ui.painter();
             if *current == c {
-                ui.painter().circle_stroke(rect.center(), 20.0, egui::Stroke::new(2.5, crate::theme::ACCENT));
+                p.circle_filled(rect.center(), 22.0, crate::theme::TEXT);
+                p.circle_filled(rect.center(), 20.0, crate::theme::SURFACE);
+                p.circle_filled(rect.center(), 18.0, c);
+            } else {
+                p.circle_filled(rect.center(), 22.0, c);
+                p.circle_stroke(rect.center(), 21.25, egui::Stroke::new(1.5, Color32::from_white_alpha(56)));
             }
             if resp.clicked() {
                 *current = c;
             }
         }
+        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(44.0), egui::Sense::click());
+        ui.painter().circle_stroke(rect.center(), 21.25, egui::Stroke::new(1.5, Color32::from_rgb(94, 94, 100)));
+        crate::icons::paint(ui.painter(), egui::Rect::from_center_size(rect.center(), Vec2::splat(18.0)), Icon::Plus, Color32::from_rgb(214, 214, 211));
+        add = resp.on_hover_text(tr("Guardar este color")).clicked();
     });
+    add
 }
 
 /// "#RRGGBB" or "RRGGBB" (also 3-digit "#RGB").

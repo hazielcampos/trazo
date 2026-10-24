@@ -21,171 +21,197 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
 }
 
 fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option<u8>) {
-    let doc = &mut app.doc;
-    ui.horizontal(|ui| {
-        if ui.add(IconButton::new(Icon::Plus)).on_hover_text(tr("Nueva capa")).clicked() {
-            let idx = doc.layer_index() + 1;
-            let name = crate::i18n::default_layer_name(doc.project.layers.len() + 1);
-            // A new layer inside a folder joins that folder.
-            let folder = doc.project.layers.get(idx - 1).and_then(|l| l.props.folder.clone());
-            let mark = doc.history.undo_len();
-            doc.layer = ops::add_layer(&mut doc.project, &mut doc.history, idx, name);
-            if folder.is_some() && doc.project.layers.get(idx + 1).and_then(|l| l.props.folder.clone()) == folder {
-                let mut props = doc.project.layers[idx].props.clone();
-                props.folder = folder;
-                ops::set_layer_props(&mut doc.project, &mut doc.history, doc.layer, props);
-            }
-            doc.history.group_since(mark);
-            doc.invalidate_all();
-        }
-        if ui.add(IconButton::new(Icon::Open)).on_hover_text(tr("Meter esta capa en una carpeta nueva")).clicked() {
-            let mut k = 1;
-            let mut name = tf!("Carpeta {}", k);
-            while doc.project.layers.iter().any(|l| l.props.folder.as_deref() == Some(name.as_str())) {
-                k += 1;
-                name = tf!("Carpeta {}", k);
-            }
-            let i = doc.layer_index();
-            let mut props = doc.project.layers[i].props.clone();
-            props.folder = Some(name);
-            let id = doc.project.layers[i].id;
-            ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
-        }
-        if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text(tr("Duplicar capa")).clicked() {
-            if let Some(id) = ops::duplicate_layer(&mut doc.project, &mut doc.history, doc.layer) {
-                doc.layer = id;
-                doc.invalidate_all();
-            }
-        }
-        if ui.add(IconButton::new(Icon::Merge)).on_hover_text(tr("Combinar con la de abajo")).clicked() {
-            if let Some(id) = ops::merge_down(&mut doc.project, &mut doc.history, doc.layer) {
-                doc.layer = id;
-                doc.invalidate_all();
-            }
-        }
-        if ui.add(IconButton::new(Icon::Trash)).on_hover_text(tr("Borrar capa")).clicked() && ops::delete_layer(&mut doc.project, &mut doc.history, doc.layer) {
-            doc.invalidate_all();
-        }
-        if ui.add(IconButton::new(Icon::Clear)).on_hover_text(tr("Limpiar esta capa en este fotograma")).clicked() {
-            let (fid, lid) = (doc.frame_id(), doc.layer);
-            let drawing = doc.project.layer(lid).is_some_and(|l| l.props.video.is_none());
-            if drawing && ops::clear_cel(&mut doc.project, &mut doc.history, fid, lid) {
-                doc.invalidate_frame(fid, None);
-            }
-        }
-    });
-    ui.horizontal_wrapped(|ui| {
-        let ctx = ui.ctx().clone();
-        if ui.add(IconButton::new(Icon::Image).keep_text().text(tr("Imagen"))).on_hover_text(tr("Importar una imagen en una capa nueva")).clicked() {
-            *import_pending = Some(0);
-        }
-        if ui.add(IconButton::new(Icon::Background).keep_text().text(tr("Referencia"))).on_hover_text(tr("Imagen fija y semitransparente para calcar")).clicked() {
-            *import_pending = Some(1);
-        }
-        if ui.add(IconButton::new(Icon::Film).keep_text().text(tr("Rotoscopia"))).on_hover_text(tr("Varias imágenes: una por fotograma")).clicked() {
-            *import_pending = Some(2);
-        }
-        if ui.add(IconButton::new(Icon::Film).keep_text().text(tr("Video"))).on_hover_text(tr("Un video o GIF en una capa, para calcar encima")).clicked() {
-            *import_pending = Some(3);
-        }
-        let _ = ctx;
-    });
-    ui.separator();
+    use crate::theme::{self, ACCENT, ELEVATED, SEPARATOR, TEXT, TEXT2, TEXT3, W};
+    use egui::{Align2, Color32, Pos2, Rect, Sense, Stroke};
+    let ctx = ui.ctx().clone();
 
-    // Top layer first, like every paint app.
+    // "+" in the header opens these choices above the list (nothing is covered).
+    if add_open(&ctx) {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let w = (ui.available_width() - 24.0) / 4.0;
+            let tile = |ui: &mut egui::Ui, icon: Icon, label: &str| -> egui::Response {
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(w, 76.0), Sense::click());
+                ui.painter().rect_filled(r, 14.0, if resp.hovered() { SEPARATOR } else { Color32::from_rgb(35, 35, 38) });
+                crate::icons::paint(ui.painter(), Rect::from_center_size(r.center() - Vec2::new(0.0, 10.0), Vec2::splat(22.0)), icon, TEXT);
+                ui.painter().text(Pos2::new(r.center().x, r.bottom() - 18.0), Align2::CENTER_CENTER, label, theme::font(12.0, W::Medium), TEXT);
+                resp
+            };
+            if tile(ui, Icon::Pencil, tr("Dibujo")).clicked() {
+                add_layer(&mut app.doc);
+                set_add_open(&ctx, false);
+            }
+            if tile(ui, Icon::Open, tr("Carpeta")).clicked() {
+                new_folder(&mut app.doc);
+                set_add_open(&ctx, false);
+            }
+            let img = tile(ui, Icon::Image, tr("Imagen"));
+            egui::Popup::menu(&img).show(|ui| {
+                ui.set_min_width(240.0);
+                if ui.add(IconButton::new(Icon::Image).keep_text().text(tr("Imagen en una capa nueva")).size(40.0)).clicked() {
+                    *import_pending = Some(0);
+                    ui.close();
+                }
+                if ui.add(IconButton::new(Icon::Background).keep_text().text(tr("Referencia para calcar")).size(40.0)).clicked() {
+                    *import_pending = Some(1);
+                    ui.close();
+                }
+                if ui.add(IconButton::new(Icon::Film).keep_text().text(tr("Varias imágenes, una por fotograma")).size(40.0)).clicked() {
+                    *import_pending = Some(2);
+                    ui.close();
+                }
+            });
+            if tile(ui, Icon::Film, tr("Video")).on_hover_text(tr("Un video o GIF en una capa, para calcar encima")).clicked() {
+                *import_pending = Some(3);
+                set_add_open(&ctx, false);
+            }
+        });
+        ui.add_space(8.0);
+        let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
+        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, Color32::from_white_alpha(15)));
+        ui.add_space(4.0);
+    }
+
+    let doc = &mut app.doc;
     let n = doc.project.layers.len();
     let mut action: Option<LayerAction> = None;
     let folded_id = egui::Id::unique("folded_folders");
     let mut folded: std::collections::BTreeSet<String> = ui.data(|d| d.get_temp(folded_id)).unwrap_or_default();
-    egui::ScrollArea::vertical().max_height((ui.available_height() * 0.4).max(110.0)).show(ui, |ui| {
-        for i in (0..n).rev() {
-            let layer = &doc.project.layers[i];
-            // A folder row before the first (topmost) layer of each folder.
-            if let Some(f) = &layer.props.folder {
-                let starts = i + 1 == n || doc.project.layers[i + 1].props.folder.as_ref() != Some(f);
-                if starts {
-                    let members: Vec<usize> = (0..=i).rev().take_while(|&j| doc.project.layers[j].props.folder.as_ref() == Some(f)).collect();
-                    let all_visible = members.iter().all(|&j| doc.project.layers[j].props.visible);
-                    let all_locked = members.iter().all(|&j| doc.project.layers[j].props.locked);
-                    let open = !folded.contains(f);
-                    ui.horizontal(|ui| {
-                        let arrow = if open { Icon::Down } else { Icon::ArrowRight };
-                        if ui.add(IconButton::new(arrow)).on_hover_text(tr("Abrir o cerrar la carpeta")).clicked() {
-                            if open {
-                                folded.insert(f.clone());
-                            } else {
-                                folded.remove(f);
-                            }
-                        }
-                        let (r, _) = ui.allocate_exact_size(Vec2::splat(20.0), egui::Sense::hover());
-                        crate::icons::paint(ui.painter(), r, Icon::Open, ui.visuals().text_color());
-                        ui.label(RichText::new(f).strong());
-                        ui.label(RichText::new(format!("({})", members.len())).weak());
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let lock = if all_locked { Icon::Lock } else { Icon::Unlock };
-                            if ui.add(IconButton::new(lock)).on_hover_text(tr("Bloquear o desbloquear toda la carpeta")).clicked() {
-                                action = Some(LayerAction::FolderLock(f.clone(), !all_locked));
-                            }
-                            let eye = if all_visible { Icon::Eye } else { Icon::EyeOff };
-                            if ui.add(IconButton::new(eye)).on_hover_text(tr("Mostrar u ocultar toda la carpeta")).clicked() {
-                                action = Some(LayerAction::FolderVisible(f.clone(), !all_visible));
-                            }
-                        });
-                    });
-                }
-                if folded.contains(f) {
-                    continue;
+    let drag_id = egui::Id::unique("layer_drag");
+    let mut dragging: Option<usize> = ui.data(|d| d.get_temp(drag_id));
+    let mut row_rects: Vec<(usize, Rect)> = Vec::new();
+    ui.spacing_mut().item_spacing.y = 2.0;
+    for i in (0..n).rev() {
+        let layer = doc.project.layers[i].clone();
+        // A folder row before the first (topmost) layer of each folder.
+        if let Some(f) = &layer.props.folder {
+            let starts = i + 1 == n || doc.project.layers[i + 1].props.folder.as_ref() != Some(f);
+            if starts {
+                let members: Vec<usize> = (0..=i).rev().take_while(|&j| doc.project.layers[j].props.folder.as_ref() == Some(f)).collect();
+                let all_visible = members.iter().all(|&j| doc.project.layers[j].props.visible);
+                let open = !folded.contains(f);
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 48.0), Sense::click());
+                let p = ui.painter();
+                crate::icons::paint(p, Rect::from_center_size(Pos2::new(r.left() + 18.0, r.center().y), Vec2::splat(16.0)), if open { Icon::Down } else { Icon::Next }, TEXT2);
+                crate::icons::paint(p, Rect::from_center_size(Pos2::new(r.left() + 42.0, r.center().y), Vec2::splat(20.0)), Icon::Open, TEXT);
+                p.text(Pos2::new(r.left() + 60.0, r.center().y), Align2::LEFT_CENTER, format!("{f}  ·  {}", members.len()), theme::font(14.0, W::Semi), TEXT);
+                let eye_r = Rect::from_center_size(Pos2::new(r.right() - 22.0, r.center().y), Vec2::splat(44.0));
+                let eye = ui.interact(eye_r, ui.scope_id().with(("folder_eye", f)), Sense::click());
+                crate::icons::paint(ui.painter(), Rect::from_center_size(eye_r.center(), Vec2::splat(20.0)), if all_visible { Icon::Eye } else { Icon::EyeOff }, if all_visible { TEXT } else { TEXT3 });
+                if eye.clicked() {
+                    action = Some(LayerAction::FolderVisible(f.clone(), !all_visible));
+                } else if resp.clicked() {
+                    if open {
+                        folded.insert(f.clone());
+                    } else {
+                        folded.remove(f);
+                    }
                 }
             }
-            let layer = &doc.project.layers[i];
-            let selected = layer.id == doc.layer;
-            let frame = egui::Frame::group(ui.style()).fill(if selected {
-                crate::theme::ACCENT.linear_multiply(0.25)
-            } else {
-                ui.visuals().faint_bg_color
-            });
-            let indent = if layer.props.folder.is_some() { 18.0 } else { 0.0 };
-            let frame = frame.outer_margin(egui::Margin { left: indent as i8, ..Default::default() });
-            frame.show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    let eye = if layer.props.visible { Icon::Eye } else { Icon::EyeOff };
-                    if ui.add(IconButton::new(eye)).on_hover_text(tr("Mostrar / ocultar")).clicked() {
-                        action = Some(LayerAction::ToggleVisible(i));
-                    }
-                    let lock = if layer.props.locked { Icon::Lock } else { Icon::Unlock };
-                    if ui.add(IconButton::new(lock)).on_hover_text(tr("Bloquear")).clicked() {
-                        action = Some(LayerAction::ToggleLock(i));
-                    }
-                    if layer.props.shared || layer.props.video.is_some() {
-                        let icon = if layer.props.video.is_some() { Icon::Film } else { Icon::Background };
-                        let (r, _) = ui.allocate_exact_size(Vec2::splat(20.0), egui::Sense::hover());
-                        crate::icons::paint(ui.painter(), r, icon, ui.visuals().weak_text_color());
-                    }
-                    let name = RichText::new(crate::i18n::layer_name(&layer.props.name));
-                    let name = if selected { name.strong() } else { name };
-                    let name_w = (ui.available_width() - 2.0 * 44.0).max(40.0);
-                    let r = ui.scope(|ui| {
-                        ui.set_max_width(name_w);
-                        ui.add(egui::Label::new(name).truncate().sense(egui::Sense::click()))
-                    });
-                    if r.inner.clicked() {
-                        action = Some(LayerAction::Select(i));
-                    }
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add_enabled(i > 0, IconButton::new(Icon::Down)).on_hover_text(tr("Bajar capa")).clicked() {
-                            action = Some(LayerAction::Move(i, i - 1));
-                        }
-                        if ui.add_enabled(i + 1 < n, IconButton::new(Icon::Up)).on_hover_text(tr("Subir capa")).clicked() {
-                            action = Some(LayerAction::Move(i, i + 1));
-                        }
-                    });
-                });
-            });
+            if folded.contains(f) {
+                continue;
+            }
+        }
+        let selected = layer.id == doc.layer;
+        let indent = if layer.props.folder.is_some() { 16.0 } else { 0.0 };
+        let (full, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 72.0), Sense::click());
+        row_rects.push((i, full));
+        let r = Rect::from_min_max(full.min + Vec2::new(indent, 0.0), full.max);
+        let p = ui.painter().clone();
+        if selected || dragging == Some(i) {
+            p.rect_filled(r, 14.0, Color32::from_rgb(35, 35, 38));
+        } else if resp.hovered() {
+            p.rect_filled(r, 14.0, Color32::from_rgb(30, 30, 33));
+        }
+        // Thumbnail: the layer's drawing at this frame.
+        let th = Rect::from_min_size(Pos2::new(r.left() + 10.0, r.center().y - 27.5), Vec2::new(44.0, 55.0));
+        layer_thumb(&p, th, &layer, doc);
+        if selected {
+            p.rect_stroke(th, 7.0, Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
+        }
+        // Name and what it is.
+        let name = crate::i18n::layer_name(&layer.props.name).into_owned();
+        let sub = if layer.props.video.is_some() {
+            tr("Video para calcar").to_string()
+        } else if layer.props.shared {
+            tr("Fondo · siempre detrás").to_string()
+        } else if layer.props.guide {
+            if layer.props.visible { tr("Boceto · no sale en el video").to_string() } else { tr("Oculta · boceto").to_string() }
+        } else if !layer.props.visible {
+            tr("Oculta").to_string()
+        } else {
+            format!("{} · {} %", tr(layer.props.blend.label()), (layer.props.opacity * 100.0).round() as i32)
+        };
+        let text_x = th.right() + 8.0;
+        let text_w = (r.right() - 3.0 * 44.0 - text_x).max(40.0);
+        let ng = crate::panels::home::one_line_pub(ui, &name, theme::font(15.0, W::Semi), TEXT, text_w);
+        let sg = crate::panels::home::one_line_pub(ui, &sub, theme::font(12.0, W::Regular), TEXT2, text_w);
+        p.galley(Pos2::new(text_x, r.center().y - ng.size().y + 1.0), ng, TEXT);
+        p.galley(Pos2::new(text_x, r.center().y + 3.0), sg, TEXT2);
+        // Eye, options, grip (the grip sits on the right, away from the system back gesture).
+        let slot = |k: f32| {
+            let (cx, w) = match k as i32 { 0 => (r.right() - 14.0, 28.0), 1 => (r.right() - 58.0, 44.0), _ => (r.right() - 110.0, 44.0) };
+            Rect::from_center_size(Pos2::new(cx, r.center().y), Vec2::new(w, 44.0))
+        };
+        let eye = ui.interact(slot(2.0), ui.scope_id().with(("eye", layer.id)), Sense::click());
+        crate::icons::paint(&p, Rect::from_center_size(slot(2.0).center(), Vec2::splat(22.0)), if layer.props.visible { Icon::Eye } else { Icon::EyeOff }, if layer.props.visible { TEXT } else { TEXT2 });
+        if eye.on_hover_text(tr("Mostrar / ocultar")).clicked() {
+            action = Some(LayerAction::ToggleVisible(i));
+        }
+        let more = ui.interact(slot(1.0), ui.scope_id().with(("more", layer.id)), Sense::click());
+        if more.hovered() {
+            p.rect_filled(slot(1.0).shrink(4.0), 10.0, SEPARATOR);
+        }
+        for dy in [-6.0, 0.0, 6.0] {
+            p.circle_filled(slot(1.0).center() + Vec2::new(0.0, dy), 1.9, TEXT2);
+        }
+        if more.clicked() {
+            action = Some(LayerAction::Select(i));
+        }
+        egui::Popup::menu(&more).width(300.0).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+            layer_menu(ui, doc, layer.id);
+        });
+        let grip = ui.interact(slot(0.0), ui.scope_id().with(("grip", layer.id)), Sense::drag());
+        if layer.props.locked {
+            crate::icons::paint(&p, Rect::from_center_size(slot(0.0).center(), Vec2::splat(15.0)), Icon::Lock, TEXT3);
+        } else {
+            for (dx, dy) in [(-3.0, -5.0), (3.0, -5.0), (-3.0, 0.0), (3.0, 0.0), (-3.0, 5.0), (3.0, 5.0)] {
+                p.circle_filled(slot(0.0).center() + Vec2::new(dx, dy), 1.5, TEXT3);
+            }
+        }
+        if grip.drag_started() {
+            dragging = Some(i);
+        }
+        if resp.clicked() {
+            action = Some(LayerAction::Select(i));
+        }
+        let _ = ELEVATED;
+    }
+    // Reorder: drop the dragged row where the pointer is.
+    if let Some(from) = dragging {
+        let released = ui.input(|inp| inp.pointer.any_released());
+        if let Some(pos) = ui.input(|inp| inp.pointer.latest_pos()) {
+            if let Some((to, rr)) = row_rects.iter().find(|(_, rr)| rr.y_range().contains(pos.y)) {
+                ui.painter().hline(rr.x_range(), if *to > from { rr.top() } else { rr.bottom() }, Stroke::new(2.0, TEXT));
+                if released && *to != from {
+                    action = Some(LayerAction::Move(from, *to));
+                }
+            }
+        }
+        if released {
+            dragging = None;
+        }
+        ui.ctx().request_repaint();
+    }
+    ui.data_mut(|d| {
+        d.insert_temp(folded_id, folded);
+        match dragging {
+            Some(v) => {
+                d.insert_temp(drag_id, v);
+            }
+            None => d.remove::<usize>(drag_id),
         }
     });
-
-    ui.data_mut(|d| d.insert_temp(folded_id, folded));
     if let Some(a) = action {
         match a.clone() {
             LayerAction::FolderVisible(f, on) | LayerAction::FolderLock(f, on) => {
@@ -231,15 +257,140 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
             }
         }
     }
+}
 
-    // Properties of the selected layer (scrolls when they don't fit).
-    egui::ScrollArea::vertical().id_salt("layer_props").auto_shrink([false, false]).show(ui, |ui| layer_properties(ui, doc));
+/// Header of the layers sheet / panel: title and the "+" that opens the choices.
+pub fn header(ui: &mut egui::Ui) {
+    let ctx = ui.ctx().clone();
+    ui.label(egui::RichText::new(tr("Capas")).font(crate::theme::font(20.0, crate::theme::W::Semi)).color(crate::theme::TEXT));
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let open = add_open(&ctx);
+        if crate::widgets::icon_button_ex(ui, if open { Icon::Close } else { Icon::Plus }, if open { tr("Cerrar") } else { tr("Añadir") }, true, Some(if open { crate::theme::SEPARATOR } else { crate::theme::ELEVATED })).clicked() {
+            set_add_open(&ctx, !open);
+        }
+    });
+}
+
+fn add_open(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("layers_add"))).unwrap_or(false)
+}
+
+fn set_add_open(ctx: &egui::Context, on: bool) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("layers_add"), on));
+}
+
+fn add_layer(doc: &mut crate::app::Document) {
+    let idx = doc.layer_index() + 1;
+    let name = crate::i18n::default_layer_name(doc.project.layers.len() + 1);
+    // A new layer inside a folder joins that folder.
+    let folder = doc.project.layers.get(idx - 1).and_then(|l| l.props.folder.clone());
+    let mark = doc.history.undo_len();
+    doc.layer = ops::add_layer(&mut doc.project, &mut doc.history, idx, name);
+    if folder.is_some() && doc.project.layers.get(idx + 1).and_then(|l| l.props.folder.clone()) == folder {
+        let mut props = doc.project.layers[idx].props.clone();
+        props.folder = folder;
+        ops::set_layer_props(&mut doc.project, &mut doc.history, doc.layer, props);
+    }
+    doc.history.group_since(mark);
+    doc.invalidate_all();
+}
+
+fn new_folder(doc: &mut crate::app::Document) {
+    let mut k = 1;
+    let mut name = tf!("Carpeta {}", k);
+    while doc.project.layers.iter().any(|l| l.props.folder.as_deref() == Some(name.as_str())) {
+        k += 1;
+        name = tf!("Carpeta {}", k);
+    }
+    let i = doc.layer_index();
+    let mut props = doc.project.layers[i].props.clone();
+    props.folder = Some(name);
+    let id = doc.project.layers[i].id;
+    ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
+}
+
+/// Thumbnail of a layer at the current frame, on the paper color.
+fn layer_thumb(p: &egui::Painter, r: egui::Rect, layer: &trazo_core::Layer, doc: &crate::app::Document) {
+    use crate::theme::TEXT2;
+    let bg = doc.project.canvas.background.to_rgba8();
+    if layer.props.video.is_some() {
+        p.rect_filled(r, 7.0, egui::Color32::from_rgb(42, 42, 45));
+        crate::icons::paint(p, egui::Rect::from_center_size(r.center(), egui::Vec2::splat(20.0)), Icon::Film, TEXT2);
+        return;
+    }
+    p.rect_filled(r, 7.0, egui::Color32::from_rgb(bg[0], bg[1], bg[2]));
+    let tex = p.ctx().data(|d| d.get_temp::<(u64, egui::TextureHandle)>(egui::Id::unique(("layer_thumb", layer.id))));
+    let cel = if layer.props.shared { doc.project.shared_cels.get(&layer.id) } else { doc.project.visible_cel(doc.frame, layer.id) };
+    let Some(cel) = cel else { return };
+    let fp = cel.fingerprint();
+    let t = match tex {
+        Some((have, t)) if have == fp => t,
+        _ => {
+            let (w, h, data) = trazo_core::composite::cel_thumbnail_alpha(cel, 88);
+            let t = p.ctx().load_texture(format!("layer_thumb{}", layer.id), egui::ColorImage::from_rgba_premultiplied([w, h], &data), egui::TextureOptions::LINEAR);
+            p.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(("layer_thumb", layer.id)), (fp, t.clone())));
+            t
+        }
+    };
+    let s = t.size_vec2();
+    let k = (r.width() / s.x).min(r.height() / s.y);
+    let ir = egui::Rect::from_center_size(r.center(), s * k);
+    p.with_clip_rect(r).image(t.id(), ir, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)), egui::Color32::WHITE.gamma_multiply(layer.props.opacity));
+}
+
+/// The "⋯" menu of a layer: its properties and what can be done with it.
+fn layer_menu(ui: &mut egui::Ui, doc: &mut crate::app::Document, id: trazo_core::LayerId) {
+    if doc.layer != id {
+        return;
+    }
+    ui.set_min_width(300.0);
+    layer_properties(ui, doc);
+    ui.separator();
+    ui.horizontal(|ui| {
+        let w = (ui.available_width() - 8.0) / 2.0;
+        if ui.add_sized([w, 44.0], egui::Button::new(tr("Duplicar"))).clicked() {
+            if let Some(nid) = ops::duplicate_layer(&mut doc.project, &mut doc.history, doc.layer) {
+                doc.layer = nid;
+                doc.invalidate_all();
+            }
+            ui.close();
+        }
+        if ui.add_sized([w, 44.0], egui::Button::new(tr("Unir con la de abajo"))).clicked() {
+            if let Some(nid) = ops::merge_down(&mut doc.project, &mut doc.history, doc.layer) {
+                doc.layer = nid;
+                doc.invalidate_all();
+            }
+            ui.close();
+        }
+    });
+    ui.horizontal(|ui| {
+        let w = (ui.available_width() - 8.0) / 2.0;
+        let locked = doc.project.layer(id).is_some_and(|l| l.props.locked);
+        if ui.add_sized([w, 44.0], egui::Button::new(if locked { tr("Desbloquear") } else { tr("Bloquear") })).clicked() {
+            if let Some(l) = doc.project.layer(id) {
+                let mut props = l.props.clone();
+                props.locked = !props.locked;
+                ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
+            }
+        }
+        if ui.add_sized([w, 44.0], egui::Button::new(tr("Limpiar este dibujo"))).clicked() {
+            let fid = doc.frame_id();
+            let drawing = doc.project.layer(id).is_some_and(|l| l.props.video.is_none());
+            if drawing && ops::clear_cel(&mut doc.project, &mut doc.history, fid, id) {
+                doc.invalidate_frame(fid, None);
+            }
+        }
+    });
+    let del = egui::Button::new(egui::RichText::new(tr("Borrar capa")).color(crate::theme::DANGER)).fill(egui::Color32::TRANSPARENT).stroke(egui::Stroke::new(1.0, crate::theme::DANGER.gamma_multiply(0.4)));
+    if ui.add_sized([ui.available_width(), 44.0], del).clicked() && ops::delete_layer(&mut doc.project, &mut doc.history, doc.layer) {
+        doc.invalidate_all();
+        ui.close();
+    }
 }
 
 fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
     // Properties of the selected layer. Changes preview live and become one
     // undo step when the gesture ends (slider released, text field left…).
-    ui.separator();
     let i = doc.layer_index();
     let id = doc.project.layers[i].id;
     let mut props = doc.project.layers[i].props.clone();

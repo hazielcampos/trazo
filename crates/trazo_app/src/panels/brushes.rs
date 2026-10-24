@@ -13,7 +13,7 @@ use egui::{Color32, ColorImage, RichText, TextureHandle, TextureOptions, Vec2};
 use crate::app::TrazoApp;
 use crate::icons::{Icon, IconButton};
 
-const CARD: Vec2 = Vec2::new(124.0, 46.0);
+const CARD: Vec2 = Vec2::new(150.0, 44.0);
 /// Previews rendered per UI frame (keeps scrolling smooth).
 const PREVIEWS_PER_FRAME: usize = 6;
 const PAPER: Color32 = Color32::from_rgb(244, 241, 234);
@@ -26,6 +26,12 @@ pub struct BrushPreviews {
     big: Option<(BigKey, TextureHandle)>,
     big_time: f64,
     confirm_delete: Option<usize>,
+    /// Brushes picked this session, newest first ("Recientes").
+    recent: Vec<usize>,
+    /// Category chip; None = recent.
+    category: Option<BrushCategory>,
+    /// "Ajustar" open: every setting of the brush.
+    tuning: bool,
 }
 
 #[derive(Clone, PartialEq)]
@@ -52,7 +58,7 @@ impl BrushPreviews {
         let scale = 2.0; // render at 2× for sharp previews on high-DPI screens
         let (w, h) = ((CARD.x * scale) as u32, (CARD.y * scale) as u32);
         let size = (b.size * 1.4).clamp(4.0, h as f32 * 0.4);
-        let px = brush_preview(b, w, h, Rgba::new(0.12, 0.12, 0.14, 1.0), size);
+        let px = brush_preview(b, w, h, Rgba::new(0.92, 0.92, 0.9, 1.0), size);
         let img = ColorImage::from_rgba_premultiplied([w as usize, h as usize], &px);
         let tex = ctx.load_texture(format!("brush_card_{i}"), img, TextureOptions::LINEAR);
         let id = tex.id();
@@ -97,75 +103,208 @@ impl BrushPreviews {
     }
 }
 
-pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
+/// Header of the brushes sheet: title, import and "new" (a copy to edit).
+pub fn header(ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
+    ui.label(RichText::new(tr("Pinceles")).font(crate::theme::font(20.0, crate::theme::W::Semi)).color(crate::theme::TEXT));
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        if crate::widgets::icon_button(ui, Icon::Plus, tr("Nuevo pincel (copia del actual)")).clicked() {
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("brush_new"), true));
+        }
+        if crate::widgets::icon_button(ui, Icon::Import, tr("Importar pincel")).clicked() {
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("brush_import"), true));
+        }
+    });
+}
+
+pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
+    use crate::theme::{self, SEPARATOR, TEXT, TEXT2, W};
+    let ctx = ui.ctx().clone();
+    // Header buttons.
+    if ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("brush_import"))).is_some() {
+        crate::files::request(app, &ctx, crate::files::PickPurpose::Brushes);
+    }
+    if ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("brush_new"))).is_some() {
+        copy_brush(app, &ctx);
+    }
     let mut budget = PREVIEWS_PER_FRAME;
     let mut pending = false;
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        // Large preview of the brush in use, with the real size and color.
-        let big = app.previews.big(&ctx, &app.tools);
-        let w = ui.available_width();
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(w, w * 150.0 / 560.0), egui::Sense::hover());
-        ui.painter().rect_filled(rect, 8.0, PAPER);
-        ui.painter().image(big, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-        ui.label(RichText::new(tr(&app.tools.active_brush().name)).strong());
 
-        brush_actions(app, ui, &ctx);
-        ui.separator();
-
-        let active = app.tools.active_index();
-        for cat in BrushCategory::ALL {
-            let members: Vec<usize> = (0..app.tools.library.len()).filter(|&i| app.tools.library[i].category == cat).collect();
-            if members.is_empty() {
-                continue;
+    // Category chips: recent first.
+    egui::ScrollArea::horizontal().id_salt("brush_chips").show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.add_space(12.0);
+            let mut chip = |ui: &mut egui::Ui, label: &str, on: bool| -> bool {
+                let (bg, fg) = if on { (theme::PRIMARY, theme::ON_ACCENT) } else { (crate::theme::ELEVATED, Color32::from_rgb(214, 214, 211)) };
+                let g = ui.painter().layout_no_wrap(label.to_string(), theme::font(13.0, if on { W::Semi } else { W::Medium }), fg);
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(g.size().x + 28.0, 36.0), egui::Sense::click());
+                ui.painter().rect_filled(r, 18.0, if resp.hovered() && !on { SEPARATOR } else { bg });
+                ui.painter().galley(egui::pos2(r.left() + 14.0, r.center().y - g.size().y / 2.0), g, fg);
+                resp.clicked()
+            };
+            if chip(ui, tr("Recientes"), app.previews.category.is_none()) {
+                app.previews.category = None;
             }
-            egui::CollapsingHeader::new(RichText::new(tr(cat.label())).strong()).default_open(true).show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::splat(6.0);
-                    for i in members {
-                        let tex = app.previews.card(&ctx, &app.tools, i, &mut budget);
-                        pending |= tex.is_none();
-                        if brush_card(ui, tex, tr(&app.tools.library[i].name), i == active).clicked() {
-                            app.tools.select_brush(i);
-                        }
-                    }
-                });
-            });
-        }
-
-        ui.separator();
-        ui.label(RichText::new(tr("Ajustes del trazo")).strong());
-        ui.add(egui::Slider::new(&mut app.tools.stabilizer, 0.0..=0.95).text(tr("Estabilizador"))).on_hover_text(tr("Suaviza el temblor de la mano"));
-        ui.add(egui::Slider::new(&mut app.tools.pressure_gamma, 0.3..=3.0).logarithmic(true).text(tr("Curva de presión")))
-            .on_hover_text(tr("Menos de 1: el lápiz se siente más suave. Más de 1: hay que apretar más."));
-        ui.checkbox(&mut app.tools.simulate_pressure, tr("Simular presión con la velocidad (ratón / dedo)"));
-        advanced(app, ui);
+            for cat in BrushCategory::ALL {
+                if (0..app.tools.library.len()).any(|i| app.tools.library[i].category == cat) && chip(ui, tr(cat.label()), app.previews.category == Some(cat)) {
+                    app.previews.category = Some(cat);
+                }
+            }
+        });
     });
+    ui.add_space(6.0);
+
+    let active = app.tools.active_index();
+    let members: Vec<usize> = match app.previews.category {
+        Some(cat) => (0..app.tools.library.len()).filter(|&i| app.tools.library[i].category == cat).collect(),
+        None => {
+            let mut v: Vec<usize> = app.previews.recent.iter().copied().filter(|&i| i < app.tools.library.len()).collect();
+            if !v.contains(&active) {
+                v.insert(0, active);
+            }
+            // Fill up with the first brushes so the list is never short.
+            for i in 0..app.tools.library.len() {
+                if v.len() >= 6 {
+                    break;
+                }
+                if !v.contains(&i) {
+                    v.push(i);
+                }
+            }
+            v
+        }
+    };
+    let bottom_h = if app.previews.tuning { 0.0 } else { 196.0 };
+    egui::ScrollArea::vertical().id_salt("brush_list").max_height((ui.available_height() - bottom_h).max(120.0)).auto_shrink([false, true]).show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        for i in members {
+            let tex = app.previews.card(&ctx, &app.tools, i, &mut budget);
+            pending |= tex.is_none();
+            let b = &app.tools.library[i];
+            let sub = format!("{} · {}", tr(b.category.label()), trait_of(b));
+            if brush_row(ui, tex, tr(&b.name), &sub, i == active).clicked() {
+                app.tools.select_brush(i);
+                app.previews.recent.retain(|&x| x != i);
+                app.previews.recent.insert(0, i);
+                app.previews.recent.truncate(8);
+            }
+        }
+        if app.previews.tuning {
+            ui.add_space(8.0);
+            tuning(app, ui, &ctx);
+        }
+    });
+
+    // Size and opacity, always at hand; "Ajustar" opens every setting.
+    if !app.previews.tuning {
+        ui.add_space(6.0);
+        // Its own surface, edge to edge, down to the bottom of the sheet.
+        let top = ui.cursor().top();
+        let full = egui::Rect::from_min_max(egui::pos2(ui.max_rect().left() - 8.0, top), egui::pos2(ui.max_rect().right() + 8.0, ui.ctx().content_rect().bottom()));
+        let lp = ui.ctx().layer_painter(ui.layer_id());
+        lp.rect_filled(full, 0.0, crate::theme::SURFACE);
+        lp.hline(full.x_range(), top, egui::Stroke::new(1.0, Color32::from_white_alpha(15)));
+        ui.add_space(9.5);
+        let i = app.tools.active_index();
+        let name = tr(&app.tools.active_brush().name).to_string();
+        let mut tune = false;
+        egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 0)).show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            let tw = &mut app.tools.tweaks[i];
+            crate::widgets::hslider(ui, tr("Tamaño"), &mut tw.size, 1.0..=300.0, true, |v| format!("{:.0} px", v));
+            crate::widgets::hslider(ui, tr("Opacidad"), &mut tw.opacity, 0.02..=1.0, false, |v| format!("{:.0} %", v * 100.0));
+            ui.add_space(6.0);
+            tune = crate::widgets::secondary_button_icon(ui, Some(Icon::Sliders), &tf!("Ajustar «{}»", name), 44.0).clicked();
+        });
+        if tune {
+            app.previews.tuning = true;
+        }
+    }
     if pending {
         ctx.request_repaint();
     }
+    let _ = TEXT2;
 }
 
-fn brush_card(ui: &mut egui::Ui, tex: Option<egui::TextureId>, name: &str, selected: bool) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(CARD + Vec2::new(0.0, 18.0), egui::Sense::click());
-    let img_rect = egui::Rect::from_min_size(rect.min, CARD);
-    let p = ui.painter();
-    p.rect_filled(img_rect, 6.0, PAPER);
-    if let Some(t) = tex {
-        p.image(t, img_rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-    }
-    let stroke = if selected {
-        egui::Stroke::new(3.0, crate::theme::ACCENT)
-    } else if resp.hovered() {
-        egui::Stroke::new(1.5, Color32::from_gray(200))
+/// Everything about the brush: big preview, stroke settings, the brush engine.
+fn tuning(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context) {
+    ui.horizontal(|ui| {
+        if crate::widgets::icon_button(ui, Icon::ArrowLeft, tr("Volver a la lista")).clicked() {
+            app.previews.tuning = false;
+        }
+        ui.label(RichText::new(tf!("Ajustar «{}»", tr(&app.tools.active_brush().name))).font(crate::theme::font(16.0, crate::theme::W::Semi)));
+    });
+    let big = app.previews.big(ctx, &app.tools);
+    let w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, w * 150.0 / 560.0), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 10.0, PAPER);
+    ui.painter().image(big, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+    let i = app.tools.active_index();
+    let tw = &mut app.tools.tweaks[i];
+    crate::widgets::hslider(ui, tr("Tamaño"), &mut tw.size, 1.0..=300.0, true, |v| format!("{:.0} px", v));
+    crate::widgets::hslider(ui, tr("Opacidad"), &mut tw.opacity, 0.02..=1.0, false, |v| format!("{:.0} %", v * 100.0));
+    crate::widgets::hslider(ui, tr("Suavizado"), &mut app.tools.stabilizer, 0.0..=0.95, false, |v| format!("{:.0} %", v * 100.0));
+    crate::widgets::hslider(ui, tr("Presión"), &mut app.tools.pressure_gamma, 0.3..=3.0, true, |v| crate::i18n::num(v, 1));
+    crate::widgets::switch_row(ui, tr("Simular presión con la velocidad"), &mut app.tools.simulate_pressure);
+    brush_actions(app, ui, ctx);
+    advanced(app, ui);
+}
+
+/// What the brush is like, in a few words.
+fn trait_of(b: &Brush) -> &'static str {
+    if b.blend == BlendMode::Multiply || b.accumulate == Accumulate::Buildup {
+        tr("se acumula")
+    } else if b.grain > 0.3 {
+        tr("con grano")
+    } else if b.pressure_size {
+        tr("cambia con la presión")
     } else {
-        egui::Stroke::new(1.0, Color32::from_gray(70))
-    };
-    p.rect_stroke(img_rect, 6.0, stroke, egui::StrokeKind::Outside);
-    let font = egui::FontId::proportional(12.0);
-    let color = if selected { crate::theme::ACCENT } else { ui.visuals().text_color() };
-    let label = if name.chars().count() > 18 { format!("{}…", name.chars().take(17).collect::<String>()) } else { name.to_string() };
-    p.text(egui::pos2(img_rect.center().x, img_rect.max.y + 9.0), egui::Align2::CENTER_CENTER, label, font, color);
+        tr("trazo uniforme")
+    }
+}
+
+fn copy_brush(app: &mut TrazoApp, ctx: &egui::Context) {
+    let i = app.tools.active_index();
+    let mut b = app.tools.library[i].clone();
+    b.name = tf!("{} (mío)", tr(&b.name));
+    b.size = app.tools.tweaks[i].size;
+    b.opacity = app.tools.tweaks[i].opacity;
+    match app.tools.add_user_brush(b, &app.platform.brushes_dir) {
+        Ok(n) => {
+            app.tools.select_brush(n);
+            app.previews.tuning = true;
+            app.toast(ctx, tr("Pincel creado en «Mis pinceles»"));
+        }
+        Err(e) => app.toast(ctx, tf!("No se pudo crear: {}", crate::i18n::tr_err(&e.to_string()))),
+    }
+}
+
+fn brush_row(ui: &mut egui::Ui, tex: Option<egui::TextureId>, name: &str, sub: &str, selected: bool) -> egui::Response {
+    use crate::theme::{self, TEXT, TEXT2, W};
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 68.0), egui::Sense::click());
+    let p = ui.painter();
+    if selected {
+        p.rect_filled(rect, 16.0, Color32::from_rgb(35, 35, 38));
+    } else if resp.hovered() {
+        p.rect_filled(rect, 16.0, Color32::from_rgb(30, 30, 33));
+    }
+    let tile = egui::Rect::from_min_size(egui::pos2(rect.left() + 12.0, rect.center().y - CARD.y / 2.0), CARD);
+    p.rect_filled(tile, 10.0, Color32::from_rgb(31, 31, 34));
+    if let Some(t) = tex {
+        p.image(t, tile, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+    }
+    let x = tile.right() + 12.0;
+    let w = (rect.right() - x - 44.0).max(40.0);
+    let ng = crate::panels::home::one_line_pub(ui, name, theme::font(15.0, W::Semi), TEXT, w);
+    let sg = crate::panels::home::one_line_pub(ui, sub, theme::font(12.0, W::Regular), TEXT2, w);
+    p.galley(egui::pos2(x, rect.center().y - ng.size().y + 1.0), ng, TEXT);
+    p.galley(egui::pos2(x, rect.center().y + 3.0), sg, TEXT2);
+    if selected {
+        let c = egui::pos2(rect.right() - 24.0, rect.center().y);
+        p.circle_filled(c, 12.0, theme::PRIMARY);
+        crate::icons::paint(p, egui::Rect::from_center_size(c, Vec2::splat(14.0)), Icon::Check, theme::ON_ACCENT);
+    }
     resp.on_hover_text(name)
 }
 

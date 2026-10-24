@@ -260,6 +260,8 @@ pub struct TrazoApp {
     pub platform: Platform,
     /// Copied frame (for paste in the timeline).
     pub frame_clipboard: Option<trazo_core::Frame>,
+    /// A drawing copied from the drawing menu, with its length.
+    pub drawing_clipboard: Option<(trazo_core::raster::TiledImage, usize)>,
     pub export_ui: panels::export::ExportUi,
     pub video_import: panels::video_import::VideoImportUi,
     /// In-app file browser (Android import).
@@ -332,6 +334,7 @@ impl TrazoApp {
             thumbs: Default::default(),
             previews: Default::default(),
             frame_clipboard: None,
+            drawing_clipboard: None,
             file_browser: None,
             video_import: Default::default(),
             export_ui: {
@@ -991,6 +994,15 @@ impl eframe::App for TrazoApp {
             if let Some(p) = std::env::var_os("TRAZO_ABRIR") {
                 self.open_from_home(&ctx, std::path::Path::new(&p), 7);
             }
+            match std::env::var("TRAZO_PANEL").as_deref() {
+                Ok("pinceles") => self.ui.sheet = Some(panels::SideTab::Brushes),
+                Ok("capas") => self.ui.sheet = Some(panels::SideTab::Layers),
+                Ok("color") => self.ui.sheet = Some(panels::SideTab::Color),
+                Ok("pistas") => self.ui.dock_open = true,
+                Ok("menu") => self.ui.drawing_menu = Some(self.doc.frame),
+                Ok("exportar") => self.export_ui.open = true,
+                _ => {}
+            }
         }
         self.poll_save(&ctx);
         self.shortcuts(&ctx);
@@ -1085,7 +1097,11 @@ impl eframe::App for TrazoApp {
                 }
             }
         }
-        let canvas_margin = if class == crate::widgets::SizeClass::Phone { panels::phone_up::CANVAS_MARGIN } else { egui::Margin::ZERO };
+        let canvas_margin = if class == crate::widgets::SizeClass::Phone {
+            if self.ui.dock_open { egui::Margin { left: 24, right: 24, top: 8, bottom: 24 } } else { panels::phone_up::CANVAS_MARGIN }
+        } else {
+            egui::Margin::ZERO
+        };
         let canvas_rect = egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(crate::theme::CANVAS_BG).inner_margin(canvas_margin))
             .show(ui, |ui| {
@@ -1094,6 +1110,7 @@ impl eframe::App for TrazoApp {
                 self.canvas.camera_view = self.ui.camera.view_on();
                 // On the phone the margins already leave room for the floating controls.
                 self.canvas.fit_pad = if class == crate::widgets::SizeClass::Phone { 0.0 } else { 40.0 };
+                self.canvas.fit_top = class == crate::widgets::SizeClass::Phone;
                 self.canvas.show(ui, &mut self.doc, &mut self.tools, frame, onion, self.playback.playing);
                 if let Some(g) = self.canvas.take_gesture() {
                     match g {
@@ -1150,8 +1167,11 @@ impl eframe::App for TrazoApp {
             || self.file_browser.is_some();
         match if modal { crate::widgets::SizeClass::Wide } else { class } {
             crate::widgets::SizeClass::Phone => {
-                panels::phone_up::size_rail(self, &ctx, canvas_rect);
-                panels::phone_up::island(self, &ctx, canvas_rect);
+                if !self.ui.dock_open {
+                    panels::phone_up::size_rail(self, &ctx, canvas_rect);
+                    panels::phone_up::island(self, &ctx, canvas_rect);
+                }
+                panels::phone_up::drawing_menu(self, &ctx);
                 panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Bottom);
             }
             crate::widgets::SizeClass::PhoneLandscape => {

@@ -270,8 +270,32 @@ fn tool_options(app: &mut TrazoApp, ui: &mut Ui) {
                 widgets::switch(ui, &mut app.tools.shape_constrain);
             });
         }
+        Tool::Fill => {
+            ui.set_max_width(300.0);
+            ui.checkbox(&mut app.tools.fill_all_layers, tr("Detectar bordes de todas las capas"))
+                .on_hover_text(tr("Si alguna capa está marcada como «Líneas para el relleno», se usa esa"));
+            ui.checkbox(&mut app.tools.fill_every_drawing, tr("Rellenar en todos los dibujos de la capa"))
+                .on_hover_text(tr("Un toque rellena el mismo punto en cada dibujo de esta capa (útil para colorear fondos o personajes quietos)"));
+            let mut tol = app.tools.fill.tolerance as f32;
+            widgets::hslider(ui, tr("Tolerancia"), &mut tol, 0.0..=255.0, false, |v| format!("{v:.0}"));
+            app.tools.fill.tolerance = tol as u8;
+            let mut g = app.tools.fill.grow as f32;
+            widgets::hslider(ui, tr("Expandir"), &mut g, 0.0..=4.0, false, |v| format!("{v:.0} px"));
+            app.tools.fill.grow = g.round() as _;
+            let mut gc = app.tools.fill.gap_close as f32;
+            widgets::hslider(ui, tr("Cerrar huecos"), &mut gc, 0.0..=8.0, false, |v| format!("{v:.0} px"));
+            app.tools.fill.gap_close = gc.round() as _;
+        }
+        Tool::Eyedropper => {
+            ui.checkbox(&mut app.tools.pick_layer_only, tr("Cuentagotas: solo la capa actual"));
+        }
         _ => {}
     }
+}
+
+/// Whether a tool has options worth a popup.
+pub fn has_options(t: Tool) -> bool {
+    matches!(t, Tool::Fill | Tool::Lasso | Tool::Shape | Tool::Eyedropper)
 }
 
 /// Brush size and opacity on the left edge of the canvas (Procreate style).
@@ -493,20 +517,22 @@ pub fn floating_strip(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
 /// The panel sheet (layers / brushes / color) for the phone layouts.
 pub fn panel_sheet(app: &mut TrazoApp, ctx: &egui::Context, edge: SheetEdge) {
     let Some(tab) = app.ui.sheet else { return };
+    if tab == SideTab::Color && edge == SheetEdge::Bottom {
+        crate::panels::phone_up::color_popover(app, ctx);
+        return;
+    }
     let touch = app.platform.touch_first;
-    let mut idx = match tab {
-        SideTab::Layers => 0,
-        SideTab::Brushes => 1,
-        SideTab::Color => 2,
-    };
     let closed = widgets::sheet(
         ctx,
         "panels",
         edge,
         touch,
-        |ui| {
-            let w = (ui.available_width() - 76.0).min(320.0);
-            widgets::segmented(ui, &mut idx, &[tr("Capas"), tr("Pinceles"), tr("Color")], w);
+        |ui| match tab {
+            SideTab::Layers => crate::panels::layers::header(ui),
+            SideTab::Brushes => crate::panels::brushes::header(ui),
+            SideTab::Color => {
+                ui.label(RichText::new(tr("Color")).font(crate::theme::font(20.0, crate::theme::W::Semi)).color(TEXT));
+            }
         },
         |ui| match tab {
             SideTab::Layers => crate::panels::layers::show(app, ui),
@@ -516,7 +542,5 @@ pub fn panel_sheet(app: &mut TrazoApp, ctx: &egui::Context, edge: SheetEdge) {
     );
     if closed {
         app.ui.sheet = None;
-    } else {
-        app.ui.sheet = Some([SideTab::Layers, SideTab::Brushes, SideTab::Color][idx]);
     }
 }
