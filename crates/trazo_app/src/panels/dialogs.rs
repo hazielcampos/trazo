@@ -8,6 +8,8 @@ use crate::i18n::{self, tr, Lang};
 
 pub struct NewProject {
     pub name: String,
+    /// Start from an example instead of a blank canvas.
+    pub template: Option<trazo_core::templates::Template>,
     pub preset: usize,
     pub width: u32,
     pub height: u32,
@@ -25,7 +27,7 @@ const PRESETS: [(&str, u32, u32); 6] = [
 
 impl Default for NewProject {
     fn default() -> Self {
-        Self { name: tr("Nueva animación").into(), preset: 0, width: 1280, height: 720, fps: 12 }
+        Self { name: tr("Nueva animación").into(), template: None, preset: 0, width: 1280, height: 720, fps: 12 }
     }
 }
 
@@ -243,6 +245,23 @@ fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {
         // The list scrolls; "Crear" stays visible at the bottom.
         let list_h = (ui.available_height() - 66.0).max(120.0);
         egui::ScrollArea::vertical().id_salt("new_project_list").max_height(list_h).auto_shrink([false, true]).show(ui, |ui| {
+        ui.label(RichText::new(tr("Empezar con")).size(13.0).color(crate::theme::TEXT2));
+        if crate::widgets::choice_row(ui, dlg.template.is_none(), tr("Lienzo en blanco"), "").clicked() {
+            if dlg.template.is_some() {
+                dlg.name = tr("Nueva animación").into();
+            }
+            dlg.template = None;
+        }
+        for t in trazo_core::templates::Template::ALL {
+            if crate::widgets::choice_row(ui, dlg.template == Some(t), tr(t.name()), tr(t.hint())).clicked() {
+                dlg.template = Some(t);
+                dlg.name = tr(t.name()).into();
+            }
+        }
+        if dlg.template.is_some() {
+            ui.label(RichText::new(tr("El ejemplo va en la capa «Guía»: dibuja encima en la capa «Dibujo». Oculta o borra la guía antes de exportar.")).size(12.0).color(crate::theme::TEXT2));
+        } else {
+        ui.add_space(4.0);
         ui.label(RichText::new(tr("Tamaño del lienzo")).size(13.0).color(crate::theme::TEXT2));
         for (i, (name, w, h)) in PRESETS.iter().enumerate() {
             let detail = if *w == 0 { format!("{} × {}", dlg.width, dlg.height) } else { format!("{w}×{h}") };
@@ -269,6 +288,7 @@ fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {
         if crate::widgets::segmented(ui, &mut idx, &labels, ui.available_width()) {
             dlg.fps = options[idx];
         }
+        }
         });
         ui.add_space(10.0);
         if crate::widgets::primary_button(ui, tr("Crear")).clicked() {
@@ -278,8 +298,13 @@ fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {
     if create {
         let dlg = app.ui.new_project_dialog.take().expect("dialog open");
         let name = if dlg.name.trim().is_empty() { tr("Nueva animación").to_string() } else { dlg.name.trim().to_string() };
-        let canvas = CanvasSettings { width: dlg.width, height: dlg.height, fps: dlg.fps, background: Rgba::WHITE };
-        app.new_project(ctx, name, canvas);
+        match dlg.template {
+            Some(t) => app.open_new_project(ctx, t.build(&name)),
+            None => {
+                let canvas = CanvasSettings { width: dlg.width, height: dlg.height, fps: dlg.fps, background: Rgba::WHITE };
+                app.new_project(ctx, name, canvas);
+            }
+        }
         app.save_async(true);
     } else if !open {
         app.ui.new_project_dialog = None;

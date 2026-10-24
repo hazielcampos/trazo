@@ -475,6 +475,12 @@ impl TrazoApp {
     }
 
     pub fn new_project(&mut self, ctx: &egui::Context, name: String, canvas: CanvasSettings) {
+        let p = Project::new(name, canvas);
+        self.open_new_project(ctx, p);
+    }
+
+    /// Switch to a project that isn't saved yet (blank or from a template).
+    pub fn open_new_project(&mut self, ctx: &egui::Context, project: Project) {
         if self.audio_ui.is_recording() {
             panels::audio::cancel_recording(self);
         }
@@ -486,8 +492,13 @@ impl TrazoApp {
                 return;
             }
         }
-        let path = unique_project_path(&self.platform.projects_dir, &name);
-        self.doc = Document::new(Project::new(name, canvas), path);
+        let path = unique_project_path(&self.platform.projects_dir, &project.name);
+        // Start on the drawing layer (the top one).
+        let top = project.layers.last().map(|l| l.id);
+        self.doc = Document::new(project, path);
+        if let Some(l) = top {
+            self.doc.layer = l;
+        }
         // Save immediately so it shows up in the project list.
         self.doc.settings_dirty = true;
         self.after_document_change();
