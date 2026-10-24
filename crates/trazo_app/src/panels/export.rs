@@ -155,6 +155,13 @@ fn human_bytes(b: u64) -> String {
 }
 
 /// "nombre_AAAAMMDD_HHMM" from the system clock (UTC; no time-zone crate needed).
+impl ExportUi {
+    /// Another project was opened: its own name is suggested next time.
+    pub fn reset_name(&mut self) {
+        self.file_name.clear();
+    }
+}
+
 fn default_file_name(project: &str) -> String {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let days = (secs / 86_400) as i64;

@@ -94,6 +94,8 @@ pub struct ProjectInfo {
     /// Small picture of the first frame: (width, height, straight RGBA8).
     pub thumb: Option<(u32, u32, Vec<u8>)>,
     pub background: crate::Rgba,
+    /// Made by a newer version of the app (can't be opened here).
+    pub newer: bool,
 }
 
 impl ProjectInfo {
@@ -124,8 +126,78 @@ pub fn read_info(path: &Path) -> Result<ProjectInfo> {
         layers: manifest.layers.len(),
         last_frame: manifest.last_frame,
         background: manifest.canvas.background,
+        newer: manifest.version > FORMAT_VERSION,
         thumb,
     })
+}
+
+/// The first frame, small, made from the file without loading the project:
+/// one drawing decoded at a time (for files saved before they had a picture).
+pub fn render_first_frame(path: &Path) -> Result<(u32, u32, Vec<u8>)> {
+    let mut zip = zip::ZipArchive::new(File::open(path)?)?;
+    let manifest: Manifest = serde_json::from_slice(&read_entry(&mut zip, "project.json", MAX_JSON_BYTES)?)?;
+    let (w, h) = (manifest.canvas.width.max(1), manifest.canvas.height.max(1));
+    let step = w.div_ceil(THUMB_W).max(1);
+    let (tw, th) = (w.div_ceil(step), h.div_ceil(step));
+    let bg = manifest.canvas.background.premul8(1.0);
+    let mut acc: Vec<[f32; 4]> = vec![[bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0, bg[3] / 255.0]; (tw * th) as usize];
+    let first = manifest.frames.first();
+    for layer in &manifest.layers {
+        let p = &layer.props;
+        if !p.visible || p.opacity <= 0.0 || p.guide || p.video.is_some() {
+            continue;
+        }
+        let cel = if p.shared {
+            manifest.shared_cels.iter().find(|c| c.layer == layer.id)
+        } else {
+            first.and_then(|f| f.cels.iter().find(|c| c.layer == layer.id))
+        };
+        let Some(c) = cel else { continue };
+        let Ok(bytes) = read_entry(&mut zip, &c.file, MAX_IMAGE_BYTES) else { continue };
+        let Ok((cw, ch, data)) = decode_png(&bytes) else { continue };
+        for oy in 0..th {
+            let y = (oy * step) as i32 - c.y;
+            if y < 0 || y >= ch as i32 {
+                continue;
+            }
+            for ox in 0..tw {
+                let x = (ox * step) as i32 - c.x;
+                if x < 0 || x >= cw as i32 {
+                    continue;
+                }
+                let o = ((y as u32 * cw + x as u32) * 4) as usize;
+                let a = data[o + 3] as f32 / 255.0 * p.opacity;
+                if a <= 0.0 {
+                    continue;
+                }
+                let d = &mut acc[(oy * tw + ox) as usize];
+                for i in 0..3 {
+                    d[i] = data[o + i] as f32 / 255.0 * a + d[i] * (1.0 - a);
+                }
+                d[3] = a + d[3] * (1.0 - a);
+            }
+        }
+    }
+    let mut out = Vec::with_capacity((tw * th * 4) as usize);
+    for px in acc {
+        let a = px[3].max(1e-6);
+        // Straight color for the picture.
+        out.extend_from_slice(&[(px[0] / a * 255.0).clamp(0.0, 255.0) as u8, (px[1] / a * 255.0).clamp(0.0, 255.0) as u8, (px[2] / a * 255.0).clamp(0.0, 255.0) as u8, (px[3] * 255.0) as u8]);
+    }
+    Ok((tw, th, out))
+}
+
+/// Changes when anything the first-frame picture shows changes.
+fn thumb_fingerprint(p: &Project) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (p.canvas.width, p.canvas.height, p.canvas.background.to_rgba8()).hash(&mut h);
+    for l in &p.layers {
+        (l.id, l.props.visible, l.props.opacity.to_bits(), l.props.blend as u8, l.props.clip, l.props.guide, l.props.shared, l.props.video.is_some()).hash(&mut h);
+        let cel = if l.props.shared { p.shared_cels.get(&l.id) } else { p.visible_cel(0, l.id) };
+        cel.map(|c| c.fingerprint()).hash(&mut h);
+    }
+    h.finish()
 }
 
 /// The first frame, small (straight RGBA8), as shown on the home screen.
@@ -551,10 +623,27 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path, last_frame: usize) ->
             audio,
             last_frame: last_frame.min(p.frames.len().saturating_sub(1)),
         };
-        // A small picture for the home screen (read without opening the project).
-        if let Ok(png) = thumbnail_png(p) {
-            zip.start_file(THUMB_FILE, stored)?;
-            zip.write_all(&png)?;
+        // A small picture for the home screen (read without opening the
+        // project); copied from the last save when the first frame didn't change.
+        let tfp = thumb_fingerprint(p);
+        let mut copied = false;
+        if let (Some(&saved), Some(old)) = (known.get(THUMB_FILE), old.as_mut()) {
+            if saved.fingerprint == tfp {
+                if let Ok(entry) = old.by_name(THUMB_FILE) {
+                    if entry.crc32() == saved.crc && entry.size() == saved.size {
+                        zip.raw_copy_file(entry)?;
+                        written.insert(THUMB_FILE.into(), saved);
+                        copied = true;
+                    }
+                }
+            }
+        }
+        if !copied {
+            if let Ok(png) = thumbnail_png(p) {
+                zip.start_file(THUMB_FILE, stored)?;
+                zip.write_all(&png)?;
+                written.insert(THUMB_FILE.into(), SavedCel { fingerprint: tfp, x: 0, y: 0, crc: crc32fast::hash(&png), size: png.len() as u64 });
+            }
         }
         zip.start_file("project.json", deflated)?;
         zip.write_all(&serde_json::to_vec_pretty(&manifest)?)?;
@@ -760,6 +849,13 @@ mod tests {
         assert!((info.duration_secs() - 2.0).abs() < 1e-6);
         let (tw, th, px) = info.thumb.expect("thumbnail");
         assert!(tw <= 320 && th > 0 && px.len() == (tw * th * 4) as usize);
+        // Made from the file alone, the picture shows the same red mark.
+        let (fw, fh, fpx) = render_first_frame(&path).unwrap();
+        assert_eq!((fw, fh), (tw, th));
+        assert!(fpx.chunks_exact(4).any(|q| q[0] > 200 && q[1] < 60));
+        // Saving again without changes copies the stored picture.
+        save_project_at(&p, &path, 7).unwrap();
+        assert!(read_info(&path).unwrap().thumb.is_some());
         std::fs::remove_dir_all(&dir).ok();
     }
 

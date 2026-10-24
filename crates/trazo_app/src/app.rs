@@ -453,7 +453,8 @@ impl TrazoApp {
     /// Open a project picked on the home screen, at the frame it was left on.
     pub fn open_from_home(&mut self, ctx: &egui::Context, path: &Path, frame: usize) {
         self.open_project(ctx, path);
-        if self.doc.path == path {
+        if self.doc.path == path && path.exists() {
+            self.home.leave();
             self.doc.set_frame(frame.min(self.doc.project.frames.len().saturating_sub(1)));
             self.ui.home = false;
             self.ui.sheet = None;
@@ -472,9 +473,13 @@ impl TrazoApp {
         if self.doc.is_modified() || self.doc.path.exists() {
             if let Err(e) = self.save_blocking() {
                 self.toast(ctx, tf!("No se pudo guardar: {}", tr_err(&e)));
-                return;
+                // Unsaved drawing stays open; with nothing new to lose, go anyway.
+                if self.doc.is_modified() {
+                    return;
+                }
             }
         }
+        self.home.refresh();
         self.doc = blank_document(&self.platform.projects_dir);
         self.after_document_change();
         self.ui.home = true;
@@ -579,6 +584,7 @@ impl TrazoApp {
         self.canvas.reset_view();
         self.thumbs.clear();
         self.playback.playing = false;
+        self.export_ui.reset_name();
     }
 
     // ---- playback -------------------------------------------------------
@@ -1009,12 +1015,26 @@ impl eframe::App for TrazoApp {
         }
 
         if self.ui.home {
+            // Android back: close what is open on the home screen.
+            if ctx.input(|i| i.key_pressed(egui::Key::BrowserBack)) {
+                self.home.back();
+            }
             panels::home::show(self, ui);
             crate::files::show_browser(self, &ctx);
             panels::export::show(self, &ctx);
             panels::dialogs::show(self, &ctx);
             self.draw_toast(&ctx);
             return;
+        }
+
+        // Android back in the editor: close the open panel, else go home.
+        if ctx.input(|i| i.key_pressed(egui::Key::BrowserBack)) {
+            if self.ui.sheet.is_some() {
+                self.ui.sheet = None;
+            } else {
+                self.go_home(&ctx);
+                return;
+            }
         }
 
         // One layout per screen shape (see the design canvas).
@@ -1193,7 +1213,8 @@ pub fn unique_project_path(dir: &Path, name: &str) -> PathBuf {
     let slug = if slug.trim_matches('_').is_empty() { "animacion".to_string() } else { slug };
     let mut path = dir.join(format!("{slug}.{FILE_EXTENSION}"));
     let mut n = 2;
-    while path.exists() {
+    // A leftover folder of earlier versions would be taken by the new project.
+    while path.exists() || crate::versions::dir_for(&path).exists() {
         path = dir.join(format!("{slug}_{n}.{FILE_EXTENSION}"));
         n += 1;
     }
