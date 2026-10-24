@@ -22,8 +22,9 @@ pub struct Compactor {
 }
 
 impl Compactor {
-    /// Call once per UI frame. `idle` is false while drawing or playing.
-    pub fn tick(&mut self, now: f64, doc: &Document, idle: bool) {
+    /// Call once per UI frame. `idle` is false while drawing or playing;
+    /// `ghosts` is how many onion-skin drawings are shown before and after.
+    pub fn tick(&mut self, now: f64, doc: &Document, idle: bool, ghosts: (usize, usize)) {
         if !idle || now - self.last < EVERY || self.busy.load(Ordering::Acquire) {
             return;
         }
@@ -34,13 +35,16 @@ impl Compactor {
         self.last = now;
         self.last_key = Some(key);
         let keep = doc.frame.saturating_sub(KEEP_NEAR)..=doc.frame + KEEP_NEAR;
-        let tiles = trazo_core::memory::cold_tiles(&doc.project, Some(&doc.history), keep);
-        if tiles.is_empty() {
+        let hot = trazo_core::memory::hot_packed_tiles(&doc.project, keep.clone(), ghosts);
+        let tiles = trazo_core::memory::cold_tiles(&doc.project, Some(&doc.history), keep, ghosts);
+        if tiles.is_empty() && hot.is_empty() {
             return;
         }
         self.busy.store(true, Ordering::Release);
         let busy = self.busy.clone();
         let spawned = std::thread::Builder::new().name("compactar".into()).spawn(move || {
+            // First open what is about to be drawn on, then pack the rest.
+            trazo_core::memory::open(&hot);
             let saved = trazo_core::memory::pack(&tiles);
             log::debug!("packed {} tiles, {} KB saved", tiles.len(), saved / 1024);
             busy.store(false, Ordering::Release);

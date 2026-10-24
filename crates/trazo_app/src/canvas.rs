@@ -3,10 +3,9 @@
 
 use crate::i18n::tr;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use trazo_core::brush::BrushMode;
-use trazo_core::composite::{flatten_frame, render_region, OnionSkin, RenderOptions};
+use trazo_core::composite::{flatten_frame, render_region, render_region_scaled, OnionSkin, RenderOptions};
 use trazo_core::fill::flood_fill;
 use trazo_core::history::{Edit, PixelEditBuilder};
 use trazo_core::raster::{tile_rect, TiledImage};
@@ -25,7 +24,23 @@ const TEX_OPTIONS: TextureOptions = TextureOptions {
 };
 
 /// Memory allowed for pre-rendered playback frames.
-/// Rendered frames kept for looping playback (smaller on phones).
+/// A rendered frame kept for looping playback.
+struct CachedFrame {
+    step: usize,
+    w: usize,
+    h: usize,
+    /// LZ4 of the premultiplied RGBA pixels.
+    data: Vec<u8>,
+}
+
+impl CachedFrame {
+    fn unpack(&self) -> Option<ColorImage> {
+        let px = lz4_flex::decompress_size_prepended(&self.data).ok()?;
+        (px.len() == self.w * self.h * 4).then(|| ColorImage::from_rgba_premultiplied([self.w, self.h], &px))
+    }
+}
+
+/// Compressed bytes of rendered frames kept for looping playback (smaller on phones).
 const PLAYBACK_CACHE_BYTES: usize = if cfg!(target_os = "android") { 96 * 1024 * 1024 } else { 384 * 1024 * 1024 };
 
 /// Multi-finger taps recognised on touch screens.
@@ -96,8 +111,13 @@ pub struct CanvasView {
     pub camera_view: bool,
     stop_playback: bool,
     scratch: Vec<u8>,
-    playback_cache: HashMap<usize, Arc<ColorImage>>,
+    /// Frames rendered while playing, LZ4-compressed (a whole loop fits).
+    playback_cache: HashMap<usize, CachedFrame>,
+    playback_cache_bytes: usize,
     cache_version: u64,
+    /// The texture holds every `tex_step`-th pixel (2 while playing a canvas
+    /// shown at half size or less).
+    tex_step: usize,
     pub select: SelectTool,
     /// Shape being dragged: start point and the preview stroke.
     /// (start, preview stroke, last end point)
@@ -125,7 +145,9 @@ impl Default for CanvasView {
             stop_playback: false,
             scratch: Vec::new(),
             playback_cache: HashMap::new(),
+            playback_cache_bytes: 0,
             cache_version: u64::MAX,
+            tex_step: 1,
             select: SelectTool::default(),
             shape: None,
         }
@@ -724,13 +746,24 @@ impl CanvasView {
         let (w, h) = (doc.project.canvas.width, doc.project.canvas.height);
         let shown = Shown { frame, onion };
         let full_rect = IRect::from_size(w, h);
-        let size_ok = self.texture.as_ref().is_some_and(|t| t.size() == [w as usize, h as usize]);
-        let redraw = if !size_ok || self.shown != Some(shown) { Redraw::Full } else { doc.redraw };
+        // While playing, render at the size the canvas is shown on screen
+        // (a phone shows a 1080p canvas at about half size: 4× less work).
+        let step = if playing && onion.is_none() {
+            let screen_px_per_canvas_px = self.zoom * ctx.pixels_per_point();
+            ((1.0 / screen_px_per_canvas_px.max(0.01)) + 0.25).floor().clamp(1.0, 4.0) as usize
+        } else {
+            1
+        };
+        let (tw, th) = ((w as usize).div_ceil(step), (h as usize).div_ceil(step));
+        let size_ok = self.texture.as_ref().is_some_and(|t| t.size() == [tw, th]);
+        let redraw = if !size_ok || self.shown != Some(shown) || self.tex_step != step { Redraw::Full } else { doc.redraw };
         doc.redraw = Redraw::None;
         self.shown = Some(shown);
+        self.tex_step = step;
 
         if self.cache_version != doc.content_version {
             self.playback_cache.clear();
+            self.playback_cache_bytes = 0;
             self.cache_version = doc.content_version;
         }
 
@@ -738,23 +771,23 @@ impl CanvasView {
         match redraw {
             Redraw::None => {}
             Redraw::Full => {
-                let img = if playing && onion.is_none() {
-                    // Playback: reuse frames rendered on a previous loop.
-                    match self.playback_cache.get(&frame) {
-                        Some(img) => img.clone(),
-                        None => {
-                            render_region(&doc.project, frame, full_rect, &opts, &mut self.scratch);
-                            let img = Arc::new(ColorImage::from_rgba_premultiplied([w as usize, h as usize], &self.scratch));
-                            let frame_bytes = (w * h * 4) as usize;
-                            if (self.playback_cache.len() + 1) * frame_bytes <= PLAYBACK_CACHE_BYTES {
-                                self.playback_cache.insert(frame, img.clone());
+                let cached = (playing && onion.is_none()).then(|| self.playback_cache.get(&frame).filter(|c| c.step == step)).flatten();
+                let img = match cached.and_then(|c| c.unpack()) {
+                    Some(img) => img,
+                    None => {
+                        let (ow, oh) = render_region_scaled(&doc.project, frame, full_rect, step, &opts, &mut self.scratch);
+                        if playing && onion.is_none() {
+                            // Keep it (compressed) for the next loop.
+                            let data = lz4_flex::compress_prepend_size(&self.scratch);
+                            if self.playback_cache_bytes + data.len() <= PLAYBACK_CACHE_BYTES {
+                                self.playback_cache_bytes += data.len();
+                                if let Some(old) = self.playback_cache.insert(frame, CachedFrame { step, w: ow, h: oh, data }) {
+                                    self.playback_cache_bytes -= old.data.len();
+                                }
                             }
-                            img
                         }
+                        ColorImage::from_rgba_premultiplied([ow, oh], &self.scratch)
                     }
-                } else {
-                    render_region(&doc.project, frame, full_rect, &opts, &mut self.scratch);
-                    Arc::new(ColorImage::from_rgba_premultiplied([w as usize, h as usize], &self.scratch))
                 };
                 match &mut self.texture {
                     Some(t) if size_ok => t.set(img, TEX_OPTIONS),

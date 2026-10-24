@@ -563,7 +563,7 @@ impl Stroke {
                 continue;
             }
             let tile = img.tile_mut(idx).px_mut();
-            let original = original.as_ref().map(|t| t.px_cold());
+            let original = original.as_ref().map(|t| t.px());
             for y in r.y0..r.y1 {
                 for x in r.x0..r.x1 {
                     let mut a = shape_alpha(&self.brush, angle, x as f32 + 0.5 - cx, y as f32 + 0.5 - cy, radius, spray_dot);

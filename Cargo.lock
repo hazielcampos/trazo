@@ -2653,6 +2653,7 @@ dependencies = [
  "gif",
  "jni 0.21.1",
  "log",
+ "lz4_flex",
  "ndk",
  "ndk-context",
  "ndk-sys",

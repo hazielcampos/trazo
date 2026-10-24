@@ -69,15 +69,22 @@ pub fn usage(p: &Project, h: Option<&History>) -> Usage {
 }
 
 /// Open tiles that can be packed: everything except the frames in `keep`
-/// (indices) and fixed backgrounds, which are on screen all the time.
-pub fn cold_tiles(p: &Project, h: Option<&History>, keep: std::ops::RangeInclusive<usize>) -> Vec<Arc<Tile>> {
+/// (indices), their onion-skin drawings (`ghosts` before/after) and fixed
+/// backgrounds, which are on screen all the time.
+pub fn cold_tiles(p: &Project, h: Option<&History>, keep: std::ops::RangeInclusive<usize>, ghosts: (usize, usize)) -> Vec<Arc<Tile>> {
     let mut hot: HashSet<*const Tile> = HashSet::new();
     for i in keep {
         if let Some(f) = p.frames.get(i) {
-            // The drawings shown in those frames (they may start earlier).
+            // The drawings shown in those frames (they may start earlier),
+            // and the onion-skin drawings around them.
             for l in &p.layers {
                 if let Some(c) = p.visible_cel(i, l.id) {
                     hot.extend(c.tiles().map(Arc::as_ptr));
+                }
+                for k in (1..=ghosts.0 as i32).map(|k| -k).chain(1..=ghosts.1 as i32) {
+                    if let Some(c) = p.neighbor_drawing(i, l.id, k).and_then(|s| p.frames[s].cel(l.id)) {
+                        hot.extend(c.tiles().map(Arc::as_ptr));
+                    }
                 }
             }
             hot.extend(f.cels.values().flat_map(|c| c.tiles().map(Arc::as_ptr)));
@@ -93,6 +100,44 @@ pub fn cold_tiles(p: &Project, h: Option<&History>, keep: std::ops::RangeInclusi
         }
     });
     out
+}
+
+/// Packed tiles that are about to be used: the drawings shown in the frames
+/// of `keep` and, with onion skin, their neighbouring drawings (`ghosts`
+/// before and after). Opening them ahead keeps drawing on them fast.
+pub fn hot_packed_tiles(p: &Project, keep: std::ops::RangeInclusive<usize>, ghosts: (usize, usize)) -> Vec<Arc<Tile>> {
+    let mut seen: HashSet<*const Tile> = HashSet::new();
+    let mut out = Vec::new();
+    let mut add = |img: &TiledImage| {
+        for t in img.tiles() {
+            if t.is_packed() && seen.insert(Arc::as_ptr(t)) {
+                out.push(t.clone());
+            }
+        }
+    };
+    for i in keep {
+        if i >= p.frames.len() {
+            break;
+        }
+        for l in &p.layers {
+            if let Some(c) = p.visible_cel(i, l.id) {
+                add(c);
+            }
+            for k in (1..=ghosts.0 as i32).map(|k| -k).chain(1..=ghosts.1 as i32) {
+                if let Some(c) = p.neighbor_drawing(i, l.id, k).and_then(|s| p.frames[s].cel(l.id)) {
+                    add(c);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Open packed tiles (off the UI thread), so drawing on them doesn't decode.
+pub fn open(tiles: &[Arc<Tile>]) {
+    for t in tiles {
+        drop(t.px());
+    }
 }
 
 /// Pack tiles (run it off the UI thread). Returns the bytes saved.
@@ -155,7 +200,7 @@ mod tests {
             p.frames[i as usize].cels.insert(layer, c);
         }
         let before = usage(&p, Some(&h));
-        let cold = cold_tiles(&p, Some(&h), 4..=5);
+        let cold = cold_tiles(&p, Some(&h), 4..=5, (0, 0));
         assert_eq!(cold.len(), 8 * 4, "8 far frames × 4 tiles");
         let saved = pack(&cold);
         let after = usage(&p, Some(&h));

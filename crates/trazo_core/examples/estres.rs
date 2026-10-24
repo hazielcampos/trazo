@@ -282,12 +282,12 @@ fn main() {
     println!("  Personaje avg {:.1} tiles/drawing", ch_tiles as f64 / FRAMES as f64);
     report_mem("after build");
     let t = Instant::now();
-    let saved = trazo_core::memory::pack(&trazo_core::memory::cold_tiles(&p, None, 0..=4));
+    let saved = trazo_core::memory::pack(&trazo_core::memory::cold_tiles(&p, None, 0..=4, (0, 0)));
     let u = trazo_core::memory::usage(&p, None);
     println!("pack: {:.1} MB saved in {:.2} s -> pixels now {:.1} MB", mb(saved), t.elapsed().as_secs_f64(), u.megabytes());
     report_mem("after pack");
     let t = Instant::now();
-    let again = trazo_core::memory::cold_tiles(&p, None, 600..=604);
+    let again = trazo_core::memory::cold_tiles(&p, None, 600..=604, (0, 0));
     println!("cold_tiles scan (UI thread, nothing left to pack): {:.1} ms, {} tiles", t.elapsed().as_secs_f64() * 1e3, again.len());
 
     // ---- render ----

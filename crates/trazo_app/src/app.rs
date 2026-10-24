@@ -948,7 +948,8 @@ impl eframe::App for TrazoApp {
         // Autosave while idle.
         let now = ctx.input(|i| i.time);
         let idle = !self.canvas.is_stroking() && !self.playback.playing && !self.canvas.select.is_busy();
-        self.compactor.tick(now, &self.doc, idle);
+        let ghosts = if self.onion.enabled { (self.onion.before as usize, self.onion.after as usize) } else { (0, 0) };
+        self.compactor.tick(now, &self.doc, idle, ghosts);
         if self.doc.is_modified() && !self.canvas.is_stroking() && now - self.last_autosave > AUTOSAVE_SECS {
             self.last_autosave = now;
             let keep = self.doc.history.audio_assets();

@@ -47,55 +47,114 @@ pub struct RenderOptions {
 
 /// Composite one region of a frame into premultiplied RGBA8 (`rect` sized).
 pub fn render_region(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, out: &mut Vec<u8>) {
+    render_region_scaled(p, frame_index, rect, 1, opts, out);
+}
+
+/// Like [`render_region`] but only every `step`-th pixel in each direction
+/// (a smaller picture for a canvas shown smaller than its size, e.g. while
+/// playing on a phone). Returns the size of `out` in pixels.
+pub fn render_region_scaled(p: &Project, frame_index: usize, rect: IRect, step: usize, opts: &RenderOptions, out: &mut Vec<u8>) -> (usize, usize) {
     let rect = rect.intersect(&IRect::from_size(p.canvas.width, p.canvas.height));
-    let (w, h) = (rect.width() as usize, rect.height() as usize);
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
-    // Small areas (a brush stroke) aren't worth the threads.
-    if threads > 1 && w * h >= 200_000 && h >= threads * 16 {
-        let band = h.div_ceil(threads);
-        let mut parts: Vec<Vec<u8>> = (0..threads).map(|_| Vec::new()).collect();
-        std::thread::scope(|s| {
-            for (i, part) in parts.iter_mut().enumerate() {
-                let y0 = rect.y0 + (i * band) as i32;
-                let y1 = (y0 + band as i32).min(rect.y1);
-                if y0 >= y1 {
-                    continue;
-                }
-                let r = IRect::new(rect.x0, y0, rect.x1, y1);
-                s.spawn(move || render_band(p, frame_index, r, opts, part));
-            }
-        });
-        out.clear();
-        out.reserve(w * h * 4);
-        for part in &parts {
-            out.extend_from_slice(part);
-        }
-        return;
+    let s = step.max(1);
+    let (ow, oh) = ((rect.width().max(0) as usize).div_ceil(s), (rect.height().max(0) as usize).div_ceil(s));
+    out.clear();
+    out.resize(ow * oh * 4, 0);
+    if ow == 0 || oh == 0 {
+        return (ow, oh);
     }
-    render_band(p, frame_index, rect, opts, out);
+    // Decode video pictures once here, not once per thread.
+    if !opts.hide_video {
+        warm_video(p, frame_index);
+    }
+    let cap = if cfg!(target_os = "android") { 4 } else { 8 };
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(cap);
+    // Work items: output rows covering 64 canvas rows (one row of tiles, so
+    // no tile is decoded twice). Threads take the next item when done, so a
+    // slow core doesn't hold everyone back.
+    let rows = (TILE / s).max(1);
+    let items = oh.div_ceil(rows);
+    let render_item = |k: usize, dst: &mut [u8]| {
+        let j0 = k * rows;
+        let j1 = (j0 + rows).min(oh);
+        let y0 = rect.y0 + (j0 * s) as i32;
+        let y1 = (rect.y0 + (j1 * s) as i32).min(rect.y1);
+        render_band(p, frame_index, IRect::new(rect.x0, y0, rect.x1, y1), s, ow, j1 - j0, opts, dst);
+    };
+    if threads <= 1 || ow * oh < 150_000 || items < 2 {
+        for (k, dst) in out.chunks_mut(rows * ow * 4).enumerate() {
+            render_item(k, dst);
+        }
+        return (ow, oh);
+    }
+    let chunks: Vec<std::sync::Mutex<&mut [u8]>> = out.chunks_mut(rows * ow * 4).map(std::sync::Mutex::new).collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|sc| {
+        for _ in 0..threads.min(items) {
+            sc.spawn(|| loop {
+                let k = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let Some(c) = chunks.get(k) else { break };
+                let mut dst = c.lock().unwrap_or_else(|e| e.into_inner());
+                render_item(k, &mut dst);
+            });
+        }
+    });
+    (ow, oh)
+}
+
+/// Decode (into the video cache) the pictures video layers show in this frame.
+fn warm_video(p: &Project, frame_index: usize) {
+    let tick = p.tick_of_frame(frame_index);
+    for l in &p.layers {
+        if let Some(v) = &l.props.video {
+            if let (Some(media), Some(idx)) = (&v.data, v.picture_at(tick, p.canvas.fps)) {
+                let _ = crate::video::picture(media, idx);
+            }
+        }
+    }
 }
 
 /// Buffers reused by the rendering threads (no big allocation per frame).
 static BAND_BUFFERS: std::sync::Mutex<Vec<Vec<[f32; 4]>>> = std::sync::Mutex::new(Vec::new());
 
-fn render_band(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, out: &mut Vec<u8>) {
-    let (w, h) = (rect.width() as usize, rect.height() as usize);
+/// Render `rect` sampled every `step` px into `out` (`ow`×`oh` pixels, RGBA8).
+#[allow(clippy::too_many_arguments)]
+fn render_band(p: &Project, frame_index: usize, rect: IRect, step: usize, ow: usize, oh: usize, opts: &RenderOptions, out: &mut [u8]) {
     let mut acc = BAND_BUFFERS.lock().unwrap_or_else(|e| e.into_inner()).pop().unwrap_or_default();
     acc.clear();
-    acc.resize(w * h, [0.0; 4]);
-    render_into(p, frame_index, rect, opts, &mut acc);
-    out.clear();
-    out.reserve(w * h * 4);
-    for px in acc.iter() {
-        out.extend_from_slice(&pack(*px));
+    acc.resize(ow * oh, [0.0; 4]);
+    render_into(p, frame_index, Grid { rect, step, w: ow }, opts, &mut acc);
+    for (o, px) in out.chunks_exact_mut(4).zip(acc.iter()) {
+        o.copy_from_slice(&pack(*px));
     }
     let mut pool = BAND_BUFFERS.lock().unwrap_or_else(|e| e.into_inner());
-    if pool.len() < 16 {
+    if pool.len() < 8 {
         pool.push(acc);
     }
 }
 
-fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, acc: &mut [[f32; 4]]) {
+/// The pixels being rendered: `rect` of the canvas, every `step` px; the
+/// accumulator holds `w` samples per row.
+#[derive(Clone, Copy)]
+struct Grid {
+    rect: IRect,
+    step: usize,
+    w: usize,
+}
+
+impl Grid {
+    /// Sampled coordinates inside `[a, b)` along one axis starting at `origin`.
+    fn samples(&self, origin: i32, a: i32, b: i32) -> std::iter::StepBy<std::ops::Range<i32>> {
+        let s = self.step as i32;
+        let first = origin + (a - origin + s - 1).div_euclid(s) * s;
+        (first..b.max(first)).step_by(self.step)
+    }
+
+    fn index(&self, x: i32, y: i32) -> usize {
+        ((y - self.rect.y0) as usize / self.step) * self.w + (x - self.rect.x0) as usize / self.step
+    }
+}
+
+fn render_into(p: &Project, frame_index: usize, grid: Grid, opts: &RenderOptions, acc: &mut [[f32; 4]]) {
 
     if opts.background {
         let bg = p.canvas.background;
@@ -112,7 +171,7 @@ fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOption
             let fade = 1.0 - (k - 1) as f32 / n.max(1) as f32;
             let tint = (!onion.keep_colors).then_some(tint);
             let cel_of = |l: LayerId| p.neighbor_drawing(frame_index, l, step).and_then(|s| p.frames[s].cel(l));
-            composite_frame(p, &cel_of, rect, acc, onion.opacity * fade.max(0.3), tint, None);
+            composite_frame(p, &cel_of, grid, acc, onion.opacity * fade.max(0.3), tint, None);
         }
     }
 
@@ -122,7 +181,7 @@ fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOption
         hide_reference: opts.hide_reference,
     });
     let cel_of = |l: LayerId| p.visible_cel(frame_index, l);
-    composite_frame(p, &cel_of, rect, acc, 1.0, None, video);
+    composite_frame(p, &cel_of, grid, acc, 1.0, None, video);
 }
 
 /// Which pictures video layers show in this render.
@@ -136,8 +195,8 @@ struct VideoPass {
 
 /// Composite all visible layers of `frame` into `acc` (covering `rect`).
 /// Video layers are drawn only with a `video` pass (never in onion ghosts).
-fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a TiledImage>, rect: IRect, acc: &mut [[f32; 4]], opacity: f32, tint: Option<Rgba>, video: Option<VideoPass>) {
-    let w = rect.width() as usize;
+fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a TiledImage>, grid: Grid, acc: &mut [[f32; 4]], opacity: f32, tint: Option<Rgba>, video: Option<VideoPass>) {
+    let rect = grid.rect;
     // Cel that clipping layers are masked by (the nearest non-clipped layer below).
     let mut base: Option<&TiledImage> = None;
     let mut base_visible = false;
@@ -153,7 +212,7 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
             }
             let shown = layer.props.visible && layer.props.opacity > 0.0;
             if let Some(pass) = video.filter(|pass| shown && !(pass.hide_reference && v.reference)) {
-                draw_video(p, v, pass, rect, acc, layer.props.opacity * opacity, layer.props.blend);
+                draw_video(p, v, pass, grid, acc, layer.props.opacity * opacity, layer.props.blend);
             }
             continue;
         }
@@ -190,19 +249,23 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
             let Some(tile) = cel.tile_ref(cel.tile_index(tx, ty)) else { continue };
             // Read without opening: playing many frames keeps them packed.
             let tile = tile.px_cold();
+            // The clip base has the same tile grid: its tile, read once.
+            let base_px = clip_to.map(|b| b.tile_ref(b.tile_index(tx, ty)).as_ref().map(|t| t.px_cold()));
+            if matches!(base_px, Some(None)) {
+                continue; // nothing below here to clip to
+            }
             let trect = IRect::new((tx * TILE) as i32, (ty * TILE) as i32, ((tx + 1) * TILE) as i32, ((ty + 1) * TILE) as i32);
             let r = trect.intersect(&rect);
-            for y in r.y0..r.y1 {
+            for y in grid.samples(rect.y0, r.y0, r.y1) {
                 let trow = (y as usize % TILE) * TILE;
-                let arow = (y - rect.y0) as usize * w;
-                for x in r.x0..r.x1 {
+                for x in grid.samples(rect.x0, r.x0, r.x1) {
                     let o = (trow + x as usize % TILE) * 4;
                     let mut src = [tile[o], tile[o + 1], tile[o + 2], tile[o + 3]];
                     if src[3] == 0 {
                         continue;
                     }
-                    if let Some(b) = clip_to {
-                        let ba = b.pixel(x, y)[3] as u32;
+                    if let Some(Some(b)) = &base_px {
+                        let ba = b[o + 3] as u32;
                         if ba == 0 {
                             continue;
                         }
@@ -212,7 +275,7 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
                         let a = src[3] as f32;
                         src = [(t.r * a) as u8, (t.g * a) as u8, (t.b * a) as u8, src[3]];
                     }
-                    let ai = arow + (x - rect.x0) as usize;
+                    let ai = grid.index(x, y);
                     if fast && src[3] == 255 {
                         // Opaque pixel, normal blend, full opacity: plain copy.
                         acc[ai] = [src[0] as f32 / 255.0, src[1] as f32 / 255.0, src[2] as f32 / 255.0, 1.0];
@@ -226,7 +289,8 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
 }
 
 /// Draw the picture a video layer shows in this render.
-fn draw_video(p: &Project, v: &crate::video::VideoLayer, pass: VideoPass, rect: IRect, acc: &mut [[f32; 4]], op: f32, mode: BlendMode) {
+fn draw_video(p: &Project, v: &crate::video::VideoLayer, pass: VideoPass, grid: Grid, acc: &mut [[f32; 4]], op: f32, mode: BlendMode) {
+    let rect = grid.rect;
     let Some(media) = &v.data else { return };
     let fps = p.canvas.fps;
     let Some(idx) = v.picture_at(pass.tick, fps) else { return };
@@ -242,17 +306,19 @@ fn draw_video(p: &Project, v: &crate::video::VideoLayer, pass: VideoPass, rect: 
     let same = (pw, ph) == (v.w as usize, v.h as usize);
     let (sx, sy) = (pw as f32 / v.w as f32, ph as f32 / v.h as f32);
     // Horizontal sample positions are the same for every row: compute once.
-    let cols: Vec<(usize, usize, f32)> = (dst.x0..dst.x1)
-        .map(|x| {
+    let xs: Vec<i32> = grid.samples(rect.x0, dst.x0, dst.x1).collect();
+    let cols: Vec<(usize, usize, f32)> = xs
+        .iter()
+        .map(|&x| {
             let f = (((x - v.x) as f32 + 0.5) * sx - 0.5).clamp(0.0, (pw - 1) as f32);
             let x0 = f as usize;
             (x0, (x0 + 1).min(pw - 1), f - x0 as f32)
         })
         .collect();
-    let w = rect.width() as usize;
     let tint = v.tint;
-    for y in dst.y0..dst.y1 {
-        let arow = (y - rect.y0) as usize * w + (dst.x0 - rect.x0) as usize;
+    for y in grid.samples(rect.y0, dst.y0, dst.y1) {
+        let Some(&first_x) = xs.first() else { break };
+        let arow = grid.index(first_x, y);
         let fy = (((y - v.y) as f32 + 0.5) * sy - 0.5).clamp(0.0, (ph - 1) as f32);
         let (y0, ty) = (fy as usize, fy - (fy as usize) as f32);
         let y1 = (y0 + 1).min(ph - 1);
@@ -260,7 +326,7 @@ fn draw_video(p: &Project, v: &crate::video::VideoLayer, pass: VideoPass, rect: 
         let srow = if same { (y - v.y) as usize * pw * 4 } else { 0 };
         for (k, &(x0, x1, tx)) in cols.iter().enumerate() {
             let src = if same {
-                let o = srow + (dst.x0 - v.x) as usize * 4 + k * 4;
+                let o = srow + (xs[k] - v.x) as usize * 4;
                 [px[o], px[o + 1], px[o + 2], px[o + 3]]
             } else {
                 let mut s = [0u8; 4];
@@ -426,6 +492,56 @@ pub fn premultiply(data: &mut [u8]) {
 mod tests {
     use super::*;
     use crate::document::CanvasSettings;
+
+    /// A big canvas (threaded path) with a clipping layer over a base layer.
+    fn big_project() -> Project {
+        let (w, h) = (700u32, 500u32);
+        let mut p = Project::new("t", CanvasSettings { width: w, height: h, ..Default::default() });
+        let base = p.layers[0].id;
+        for y in 50..450 {
+            for x in 100..600 {
+                p.frames[0].cel_mut(base, w, h).set_pixel(x, y, [0, 0, 200, 255]);
+            }
+        }
+        let top = p.alloc_id();
+        let mut props = crate::document::LayerProps::named("clip");
+        props.clip = true;
+        p.layers.push(crate::document::Layer { id: top, props });
+        for y in 0..h as i32 {
+            p.frames[0].cel_mut(top, w, h).set_pixel((y * 3) % w as i32, y, [255, 0, 0, 255]);
+        }
+        p
+    }
+
+    #[test]
+    fn threaded_packed_and_scaled_renders_agree() {
+        let p = big_project();
+        let full = render_frame(&p, 0, true);
+        // Same picture from small pieces (single-threaded path).
+        let mut pieces = vec![0u8; full.len()];
+        for y0 in (0..500).step_by(37) {
+            let r = IRect::new(0, y0, 700, (y0 + 37).min(500));
+            let mut out = Vec::new();
+            render_region(&p, 0, r, &RenderOptions { background: true, hide_reference: true, ..Default::default() }, &mut out);
+            pieces[y0 as usize * 700 * 4..][..out.len()].copy_from_slice(&out);
+        }
+        assert!(full == pieces, "threaded render differs from piecewise render");
+        // Packing changes nothing, and rendering keeps tiles packed.
+        for c in p.frames[0].cels.values() {
+            c.pack_all();
+        }
+        assert!(render_frame(&p, 0, true) == full, "packed render differs");
+        assert!(p.frames[0].cels.values().all(|c| c.tiles().all(|t| t.is_packed())), "rendering opened tiles");
+        // Every second pixel of the full picture.
+        let mut half = Vec::new();
+        let (w2, h2) = render_region_scaled(&p, 0, IRect::new(0, 0, 700, 500), 2, &RenderOptions { background: true, hide_reference: true, ..Default::default() }, &mut half);
+        assert_eq!((w2, h2), (350, 250));
+        for (j, i) in [(0usize, 0usize), (40, 100), (100, 77), (249, 349)] {
+            let a = &half[(j * w2 + i) * 4..][..4];
+            let b = &full[((j * 2) * 700 + i * 2) * 4..][..4];
+            assert_eq!(a, b, "sample ({i}, {j})");
+        }
+    }
 
     #[test]
     fn background_and_layers() {
