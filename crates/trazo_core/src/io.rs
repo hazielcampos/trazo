@@ -75,6 +75,72 @@ struct Manifest {
     shared_cels: Vec<CelManifest>,
     #[serde(default)]
     audio: AudioManifest,
+    /// Frame that was open when the project was saved ("continue where you left off").
+    #[serde(default)]
+    last_frame: usize,
+}
+
+/// What the home screen shows about a project, read without opening it.
+#[derive(Debug, Clone)]
+pub struct ProjectInfo {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    /// Length in frames (project ticks).
+    pub frames: usize,
+    pub layers: usize,
+    pub last_frame: usize,
+    /// Small picture of the first frame: (width, height, straight RGBA8).
+    pub thumb: Option<(u32, u32, Vec<u8>)>,
+    pub background: crate::Rgba,
+}
+
+impl ProjectInfo {
+    pub fn duration_secs(&self) -> f32 {
+        self.frames as f32 / self.fps.max(1) as f32
+    }
+}
+
+/// Name of the small picture stored in project files.
+const THUMB_FILE: &str = "thumb.png";
+/// Width of that picture, in pixels.
+const THUMB_W: u32 = 320;
+
+/// Read a project's description and picture without loading its drawings.
+pub fn read_info(path: &Path) -> Result<ProjectInfo> {
+    let mut zip = zip::ZipArchive::new(File::open(path)?)?;
+    let manifest: Manifest = serde_json::from_slice(&read_entry(&mut zip, "project.json", MAX_JSON_BYTES)?)?;
+    if manifest.format != FORMAT_NAME && manifest.format != OLD_FORMAT_NAME {
+        return Err(ProjectError::Invalid("no es un proyecto de Trazo".into()));
+    }
+    let thumb = read_entry(&mut zip, THUMB_FILE, 4 * 1024 * 1024).ok().and_then(|b| decode_png(&b).ok());
+    Ok(ProjectInfo {
+        name: manifest.name,
+        width: manifest.canvas.width,
+        height: manifest.canvas.height,
+        fps: manifest.canvas.fps,
+        frames: manifest.frames.iter().map(|f| f.hold.max(1) as usize).sum(),
+        layers: manifest.layers.len(),
+        last_frame: manifest.last_frame,
+        background: manifest.canvas.background,
+        thumb,
+    })
+}
+
+/// The first frame, small (straight RGBA8), as shown on the home screen.
+pub fn thumbnail(p: &Project) -> (u32, u32, Vec<u8>) {
+    let step = (p.canvas.width.div_ceil(THUMB_W)).max(1) as usize;
+    let opts = crate::composite::RenderOptions { background: true, hide_reference: true, ..Default::default() };
+    let mut px = Vec::new();
+    let (w, h) = crate::composite::render_region_scaled(p, 0, crate::geom::IRect::from_size(p.canvas.width, p.canvas.height), step, &opts, &mut px);
+    crate::composite::unpremultiply(&mut px);
+    (w as u32, h as u32, px)
+}
+
+fn thumbnail_png(p: &Project) -> Result<Vec<u8>> {
+    let (w, h, px) = thumbnail(p);
+    encode_png(w, h, &px)
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -234,11 +300,16 @@ pub fn png_bytes(w: u32, h: u32, straight_rgba: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn save_project(p: &Project, path: &Path) -> Result<()> {
+    save_project_at(p, path, 0)
+}
+
+/// Save, remembering `frame` as the one to come back to.
+pub fn save_project_at(p: &Project, path: &Path, frame: usize) -> Result<()> {
     // Unique temp name so two saves can never write the same file.
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let tmp = path.with_extension(format!("anim.{}.{n}.tmp", std::process::id()));
-    let written = match write_archive(p, &tmp, path) {
+    let written = match write_archive(p, &tmp, path, frame) {
         Ok(w) => w,
         Err(e) => {
             let _ = std::fs::remove_file(&tmp);
@@ -387,7 +458,7 @@ fn remember_cels(path: &Path, cels: SavedCels) {
     m.insert(path.to_path_buf(), cels);
 }
 
-fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<SavedCels> {
+fn write_archive(p: &Project, tmp: &Path, previous: &Path, last_frame: usize) -> Result<SavedCels> {
     let known = saved_cels(previous);
     let mut written = SavedCels::new();
     {
@@ -478,7 +549,13 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<SavedCels> 
             frames,
             shared_cels,
             audio,
+            last_frame: last_frame.min(p.frames.len().saturating_sub(1)),
         };
+        // A small picture for the home screen (read without opening the project).
+        if let Ok(png) = thumbnail_png(p) {
+            zip.start_file(THUMB_FILE, stored)?;
+            zip.write_all(&png)?;
+        }
         zip.start_file("project.json", deflated)?;
         zip.write_all(&serde_json::to_vec_pretty(&manifest)?)?;
         let file = zip.finish()?;
@@ -660,6 +737,29 @@ mod tests {
         let s = load_project(&path).unwrap();
         assert_eq!(s.frames[5].cel(lid).unwrap().pixel(110, 50), [200, 0, 0, 255], "our drawing, not the stranger's");
         assert_eq!(s.frames[5].cel(lid).unwrap().pixel(5, 5)[3], 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn info_reads_without_loading_drawings() {
+        let dir = std::env::temp_dir().join(format!("trazo_info_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("i.anim");
+        let mut p = Project::new("Datos", CanvasSettings { width: 640, height: 360, fps: 12, ..Default::default() });
+        let lid = p.layers[0].id;
+        for i in 0..23 {
+            let id = p.alloc_id();
+            p.frames.push(Frame::new(id));
+            let _ = i;
+        }
+        p.frames[0].cel_mut(lid, 640, 360).set_pixel(10, 10, [255, 0, 0, 255]);
+        save_project_at(&p, &path, 7).unwrap();
+        let info = read_info(&path).unwrap();
+        assert_eq!(info.name, "Datos");
+        assert_eq!((info.width, info.height, info.fps, info.frames, info.last_frame), (640, 360, 12, 24, 7));
+        assert!((info.duration_secs() - 2.0).abs() < 1e-6);
+        let (tw, th, px) = info.thumb.expect("thumbnail");
+        assert!(tw <= 320 && th > 0 && px.len() == (tw * th * 4) as usize);
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -13,6 +13,8 @@ use trazo_core::{io, Project};
 struct Job {
     project: Project,
     path: PathBuf,
+    /// Frame open in the editor (stored for "continue editing").
+    frame: usize,
     revision: u64,
     doc_serial: u64,
     announce: bool,
@@ -41,7 +43,7 @@ impl Default for SaveWorker {
             .name("guardado".into())
             .spawn(move || {
                 for job in rx {
-                    let result = io::save_project(&job.project, &job.path).map_err(|e| e.to_string());
+                    let result = io::save_project_at(&job.project, &job.path, job.frame).map_err(|e| e.to_string());
                     if result.is_ok() {
                         // Keep an earlier version now and then (every few minutes).
                         if let Err(e) = crate::versions::snapshot(&job.path, false) {
@@ -70,19 +72,19 @@ impl SaveWorker {
     }
 
     /// Queue a save. `project` is a cheap clone (tiles are shared).
-    pub fn save(&mut self, project: Project, path: PathBuf, revision: u64, doc_serial: u64, announce: bool) {
+    pub fn save(&mut self, project: Project, path: PathBuf, frame: usize, revision: u64, doc_serial: u64, announce: bool) {
         self.in_flight += 1;
-        let job = Job { project, path, revision, doc_serial, announce, reply: None };
+        let job = Job { project, path, frame, revision, doc_serial, announce, reply: None };
         if self.tx.send(job).is_err() {
             self.in_flight -= 1;
         }
     }
 
     /// Save and wait until it (and anything queued before it) is written.
-    pub fn save_and_wait(&mut self, project: Project, path: PathBuf, revision: u64, doc_serial: u64) -> Result<(), String> {
+    pub fn save_and_wait(&mut self, project: Project, path: PathBuf, frame: usize, revision: u64, doc_serial: u64) -> Result<(), String> {
         let (reply, wait) = mpsc::channel();
         self.in_flight += 1;
-        let job = Job { project, path, revision, doc_serial, announce: false, reply: Some(reply) };
+        let job = Job { project, path, frame, revision, doc_serial, announce: false, reply: Some(reply) };
         self.tx.send(job).map_err(|_| tr("el hilo de guardado no responde").to_string())?;
         wait.recv().map_err(|_| tr("el hilo de guardado se detuvo").to_string())?
     }

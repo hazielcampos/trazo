@@ -58,8 +58,8 @@ pub fn top_bar(app: &mut TrazoApp, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             let ctx = ui.ctx().clone();
-            if icon(ui, Icon::Open, true, TEXT, tr("Mis proyectos")).clicked() {
-                app.ui.open_dialog = true;
+            if icon(ui, Icon::ArrowLeft, true, TEXT, tr("Inicio: mis animaciones")).clicked() {
+                app.go_home(&ctx);
             }
             let title_w = (ui.available_width() - 4.0 * theme::TOUCH).max(80.0);
             let title = title_button(app, ui, title_w);
@@ -108,9 +108,9 @@ pub fn project_menu(app: &mut TrazoApp, ui: &mut Ui) {
         app.ui.new_project_dialog = Some(Default::default());
         ui.close();
     }
-    if item(ui, Icon::Open, tr("Mis proyectos…")) {
-        app.ui.open_dialog = true;
+    if item(ui, Icon::ArrowLeft, tr("Inicio: mis animaciones")) {
         ui.close();
+        app.go_home(&ctx);
     }
     if item(ui, Icon::Save, tr("Guardar")) {
         app.save_async(true);

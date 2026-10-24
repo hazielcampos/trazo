@@ -301,6 +301,7 @@ fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {
     if create {
         let dlg = app.ui.new_project_dialog.take().expect("dialog open");
         let name = if dlg.name.trim().is_empty() { tr("Nueva animación").to_string() } else { dlg.name.trim().to_string() };
+        app.ui.home = false;
         match dlg.template {
             Some(t) => app.open_new_project(ctx, t.build(&name)),
             None => {

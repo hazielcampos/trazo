@@ -19,9 +19,9 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                     app.ui.new_project_dialog = Some(Default::default());
                     ui.close();
                 }
-                if ui.add(IconButton::new(Icon::Open).text(tr("Abrir…"))).clicked() {
-                    app.ui.open_dialog = true;
+                if ui.add(IconButton::new(Icon::ArrowLeft).text(tr("Inicio: mis animaciones"))).clicked() {
                     ui.close();
+                    app.go_home(&ctx);
                 }
                 if ui.add(IconButton::new(Icon::Save).text(tr("Guardar (Ctrl+S)"))).clicked() {
                     app.save_async(true);

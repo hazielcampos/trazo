@@ -220,6 +220,8 @@ pub struct UiState {
     pub settings_dialog: bool,
     /// Language picker; `Some(true)` the first time the app opens.
     pub language_dialog: Option<bool>,
+    /// The home screen (the project gallery) is showing instead of the editor.
+    pub home: bool,
     /// Options for generating in-betweens from the selection.
     pub tween_dialog: Option<panels::dialogs::TweenDialog>,
     /// Earlier versions of the project.
@@ -266,6 +268,8 @@ pub struct TrazoApp {
     /// Frames picked with Ctrl/Shift-click or long press (indices).
     pub frame_selection: std::collections::BTreeSet<usize>,
     saver: crate::save::SaveWorker,
+    /// Projects on the home screen.
+    pub home: panels::home::HomeState,
     /// Packs drawings away from the current frame (memory on big projects).
     compactor: crate::compactor::Compactor,
     last_autosave: f64,
@@ -284,20 +288,9 @@ impl TrazoApp {
             let upgrading = !list_projects(&platform.projects_dir).is_empty();
             crate::i18n::set_lang(if upgrading { crate::i18n::Lang::Es } else { crate::i18n::system_guess() });
         }
-        // Reopen the most recent project, or start a new one.
-        let doc = most_recent_project(&platform.projects_dir)
-            .and_then(|path| match io::load_project(&path) {
-                Ok(p) => Some(Document::new(p, path)),
-                Err(e) => {
-                    log::warn!("no se pudo abrir {}: {e}", path.display());
-                    None
-                }
-            })
-            .unwrap_or_else(|| {
-                let name = tr("Mi animación").to_string();
-                let path = unique_project_path(&platform.projects_dir, &name);
-                Document::new(Project::new(name, CanvasSettings::default()), path)
-            });
+        // The app opens on the home screen: no project is loaded until one is
+        // chosen (this empty one is never saved unless it gets drawn on).
+        let doc = blank_document(&platform.projects_dir);
         let has_audio = !doc.project.audio.tracks.is_empty();
         Self {
             doc,
@@ -317,6 +310,7 @@ impl TrazoApp {
                 open_dialog: false,
                 settings_dialog: false,
                 language_dialog: first_run.then_some(true),
+                home: true,
                 tween_dialog: None,
                 versions_dialog: false,
                 versions_list: None,
@@ -354,6 +348,7 @@ impl TrazoApp {
             frame_selection: Default::default(),
             platform,
             saver: Default::default(),
+            home: Default::default(),
             compactor: Default::default(),
             last_autosave: 0.0,
         }
@@ -377,14 +372,14 @@ impl TrazoApp {
         }
         let d = &mut self.doc;
         d.settings_dirty = false;
-        self.saver.save(d.project.clone(), d.path.clone(), d.history.revision(), d.serial, announce);
+        self.saver.save(d.project.clone(), d.path.clone(), d.frame, d.history.revision(), d.serial, announce);
     }
 
     pub fn save_blocking(&mut self) -> Result<(), String> {
         self.canvas.select.commit(&mut self.doc);
         let d = &mut self.doc;
         let rev = d.history.revision();
-        let r = self.saver.save_and_wait(d.project.clone(), d.path.clone(), rev, d.serial);
+        let r = self.saver.save_and_wait(d.project.clone(), d.path.clone(), d.frame, rev, d.serial);
         if r.is_ok() {
             d.saved_revision = rev;
             d.settings_dirty = false;
@@ -453,6 +448,39 @@ impl TrazoApp {
         self.tools.tool = Tool::Select;
         self.ui.text_return = true;
         self.tools.push_recent();
+    }
+
+    /// Open a project picked on the home screen, at the frame it was left on.
+    pub fn open_from_home(&mut self, ctx: &egui::Context, path: &Path, frame: usize) {
+        self.open_project(ctx, path);
+        if self.doc.path == path {
+            self.doc.set_frame(frame.min(self.doc.project.frames.len().saturating_sub(1)));
+            self.ui.home = false;
+            self.ui.sheet = None;
+        }
+    }
+
+    /// Back to the home screen: save, then let go of the project (memory).
+    pub fn go_home(&mut self, ctx: &egui::Context) {
+        if self.audio_ui.is_recording() {
+            panels::audio::cancel_recording(self);
+        }
+        self.stop_playback();
+        self.canvas.select.commit(&mut self.doc);
+        // Saved even when unchanged if it exists, so its picture and the
+        // frame to come back to are current.
+        if self.doc.is_modified() || self.doc.path.exists() {
+            if let Err(e) = self.save_blocking() {
+                self.toast(ctx, tf!("No se pudo guardar: {}", tr_err(&e)));
+                return;
+            }
+        }
+        self.doc = blank_document(&self.platform.projects_dir);
+        self.after_document_change();
+        self.ui.home = true;
+        self.ui.sheet = None;
+        self.export_ui.open = false;
+        self.home.refresh();
     }
 
     /// Go back to an earlier version. What is open now is kept as a version
@@ -687,7 +715,7 @@ impl TrazoApp {
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
         // Nothing reaches the drawing while the language is being chosen.
-        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() || self.ui.text_dialog.is_some() || self.ui.versions_dialog || self.ui.camera.open {
+        if ctx.egui_wants_keyboard_input() || self.ui.home || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() || self.ui.text_dialog.is_some() || self.ui.versions_dialog || self.ui.camera.open {
             return;
         }
         use egui::{Key, KeyboardShortcut, Modifiers};
@@ -980,6 +1008,15 @@ impl eframe::App for TrazoApp {
             egui::Panel::bottom("system_nav_bar").exact_size(22.0).resizable(false).show_separator_line(false).frame(bg).show(ui, |_| {});
         }
 
+        if self.ui.home {
+            panels::home::show(self, ui);
+            crate::files::show_browser(self, &ctx);
+            panels::export::show(self, &ctx);
+            panels::dialogs::show(self, &ctx);
+            self.draw_toast(&ctx);
+            return;
+        }
+
         // One layout per screen shape (see the design canvas).
         let class = crate::widgets::SizeClass::of(&ctx);
         match class {
@@ -1126,6 +1163,13 @@ impl eframe::App for TrazoApp {
     }
 }
 
+/// An empty, unsaved project (what the editor holds while the home screen shows).
+fn blank_document(dir: &Path) -> Document {
+    let name = tr("Mi animación").to_string();
+    let path = unique_project_path(dir, &name);
+    Document::new(Project::new(name, CanvasSettings::default()), path)
+}
+
 // ---- project folder helpers ----------------------------------------------
 
 pub fn list_projects(dir: &Path) -> Vec<(PathBuf, std::time::SystemTime)> {
@@ -1140,9 +1184,6 @@ pub fn list_projects(dir: &Path) -> Vec<(PathBuf, std::time::SystemTime)> {
     v
 }
 
-fn most_recent_project(dir: &Path) -> Option<PathBuf> {
-    list_projects(dir).into_iter().next().map(|(p, _)| p)
-}
 
 pub fn unique_project_path(dir: &Path, name: &str) -> PathBuf {
     let slug: String = name

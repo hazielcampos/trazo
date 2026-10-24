@@ -88,6 +88,7 @@ pub enum Icon {
     Text,
     Camera,
     Clock,
+    Search,
 }
 
 /// Draw `icon` filling `rect` (square works best).
@@ -462,6 +463,10 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             line(&meridian);
             let back: Vec<(f32, f32)> = meridian.iter().map(|&(x, y)| (24.0 - x, y)).collect();
             line(&back);
+        }
+        Icon::Search => {
+            circle(11.0, 11.0, 7.0);
+            line(&[(16.0, 16.0), (20.5, 20.5)]);
         }
         Icon::Clock => {
             circle(12.0, 12.0, 8.5);
