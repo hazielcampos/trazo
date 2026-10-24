@@ -98,6 +98,9 @@ pub struct CanvasView {
     rotation: f32,
     flip: bool,
     needs_fit: bool,
+    /// Size of the area at the last fit; refit when it changes until the
+    /// user zooms or moves the canvas.
+    fitted_for: Option<Vec2>,
     /// Room left around the canvas when it is fitted on screen.
     pub fit_pad: f32,
     /// Fitted canvas sits at the top of its area (phone) instead of the middle.
@@ -138,6 +141,7 @@ impl Default for CanvasView {
             rotation: 0.0,
             flip: false,
             needs_fit: true,
+            fitted_for: None,
             fit_pad: 40.0,
             fit_top: false,
             stroke: None,
@@ -256,6 +260,9 @@ impl CanvasView {
         let response = ui.allocate_rect(rect, Sense::click_and_drag());
         let (cw, ch) = (doc.project.canvas.width as f32, doc.project.canvas.height as f32);
 
+        if self.fitted_for.is_some_and(|s| (s - rect.size()).length() > 0.5) {
+            self.needs_fit = true;
+        }
         if self.needs_fit && rect.width() > 10.0 {
             let z = ((rect.width() - self.fit_pad) / cw).min((rect.height() - self.fit_pad) / ch);
             self.zoom = z.clamp(0.05, 16.0);
@@ -264,9 +271,14 @@ impl CanvasView {
                 self.pan.y = -((rect.height() - ch * self.zoom) / 2.0).max(0.0);
             }
             self.needs_fit = false;
+            self.fitted_for = Some(rect.size());
         }
 
+        let before = (self.zoom, self.pan, self.rotation);
         self.handle_view_gestures(ui, &response, rect, tools, doc, cw, ch);
+        if before != (self.zoom, self.pan, self.rotation) {
+            self.fitted_for = None;
+        }
 
         let xf = self.xf(rect, cw, ch);
         if !playing {

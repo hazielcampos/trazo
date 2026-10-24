@@ -175,7 +175,7 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
             v
         }
     };
-    let bottom_h = if app.previews.tuning { 0.0 } else { 196.0 };
+    let bottom_h = if app.previews.tuning { 0.0 } else { 150.0 };
     egui::ScrollArea::vertical().id_salt("brush_list").max_height((ui.available_height() - bottom_h).max(120.0)).auto_shrink([false, true]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         for i in members {

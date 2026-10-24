@@ -309,24 +309,177 @@ fn search_field(ui: &mut Ui, h: &mut HomeState) {
 }
 
 fn phone(ui: &mut Ui, h: &mut HomeState, order: &[usize]) -> Option<Action> {
-    let mut action = header(ui, h, tr("Mis animaciones"), true);
-    ui.add_space(10.0);
+    use crate::theme::{font, W};
+    let mut action = None;
+    // Title, search and settings.
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        ui.add_space(4.0);
+        ui.label(RichText::new(tr("Mis animaciones")).font(font(26.0, W::Bold)).color(TEXT));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if crate::widgets::icon_button(ui, Icon::Sliders, tr("Ajustes e idioma")).clicked() {
+                action = Some(Action::Language);
+            }
+            let open = h.search.is_some();
+            if crate::widgets::icon_button(ui, if open { Icon::Close } else { Icon::Search }, if open { tr("Cerrar la búsqueda") } else { tr("Buscar") }).clicked() {
+                h.search = if open { None } else { Some(String::new()) };
+                h.focus_search = !open;
+            }
+        });
+    });
+    search_field(ui, h);
+    ui.add_space(14.0);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        ui.spacing_mut().item_spacing.y = 12.0;
+        ui.spacing_mut().item_spacing.y = 0.0;
         if h.search.is_none() {
-            if let Some(a) = continue_card(ui, h, false) {
+            if let Some(a) = continue_row(ui, h) {
                 action = Some(a);
             }
-            if new_button(ui, 52.0).clicked() {
-                action = Some(Action::New);
-            }
+            ui.add_space(20.0);
         }
-        grid_header(ui, h, order.len());
-        if let Some(a) = grid(ui, h, order, 2) {
+        // How many, and the order.
+        ui.horizontal(|ui| {
+            ui.set_height(40.0);
+            ui.add_space(4.0);
+            ui.label(RichText::new(tf!("{} animaciones", order.len())).font(font(13.0, W::Regular)).color(TEXT2));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let label = if h.by_name { tr("Por nombre") } else { tr("Más recientes") };
+                let g = ui.painter().layout_no_wrap(label.to_string(), font(13.0, W::Medium), Color32::from_rgb(214, 214, 211));
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(g.size().x + 38.0, 40.0), Sense::click());
+                if resp.hovered() || resp.is_pointer_button_down_on() {
+                    ui.painter().rect_filled(r, 12.0, ELEVATED);
+                }
+                ui.painter().galley(Pos2::new(r.left() + 10.0, r.center().y - g.size().y / 2.0), g, TEXT);
+                paint(ui.painter(), Rect::from_center_size(Pos2::new(r.right() - 17.0, r.center().y), Vec2::splat(14.0)), Icon::Down, TEXT2);
+                egui::Popup::menu(&resp).show(|ui| {
+                    ui.set_min_width(200.0);
+                    for (by_name, l) in [(false, tr("Más recientes")), (true, tr("Por nombre"))] {
+                        if ui.add(egui::Button::new(l).selected(h.by_name == by_name).min_size(Vec2::new(200.0, 40.0))).clicked() {
+                            h.by_name = by_name;
+                            ui.close();
+                        }
+                    }
+                });
+            });
+        });
+        ui.add_space(10.0);
+        if let Some(a) = tall_grid(ui, h, order, 2) {
             action = Some(a);
         }
         ui.add_space(24.0);
     });
+    action
+}
+
+/// "Seguir con «X»": a quiet row back into the last animation.
+fn continue_row(ui: &mut Ui, h: &mut HomeState) -> Option<Action> {
+    use crate::theme::{font, W};
+    let latest = (0..h.cards.len()).filter(|&i| h.cards[i].openable()).max_by_key(|&i| h.cards[i].modified)?;
+    let busy = h.is_running(&h.cards[latest].path);
+    let ctx = ui.ctx().clone();
+    let (r, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 64.0), Sense::click());
+    let p = ui.painter().clone();
+    p.rect_filled(r, 16.0, if resp.hovered() || resp.is_pointer_button_down_on() { ELEVATED } else { SURFACE });
+    let card = &mut h.cards[latest];
+    let th = Rect::from_min_size(Pos2::new(r.left() + 8.0, r.center().y - 25.0), Vec2::new(40.0, 50.0));
+    let bg = card.background();
+    thumb(&p, th, card.texture(&ctx), bg);
+    let x = th.right() + 12.0;
+    let w = (r.right() - 56.0 - x).max(40.0);
+    let frame = card.info.as_ref().map_or(0, |i| i.last_frame);
+    let name = one_line_pub(ui, &tf!("Seguir con «{}»", card.name), font(15.0, W::Semi), TEXT, w);
+    let sub = one_line_pub(ui, &tf!("Donde lo dejaste: dibujo {}", frame + 1), font(12.0, W::Regular), TEXT2, w);
+    p.galley(Pos2::new(x, r.center().y - name.size().y), name, TEXT);
+    p.galley(Pos2::new(x, r.center().y + 2.0), sub, TEXT2);
+    let c = Pos2::new(r.right() - 28.0, r.center().y);
+    p.circle_filled(c, 22.0, if busy { ELEVATED } else { crate::theme::PRIMARY });
+    paint(&p, Rect::from_center_size(c, Vec2::splat(20.0)), Icon::ArrowRight, if busy { TEXT3 } else { ON_ACCENT });
+    (resp.on_hover_text(tr("Abrir")).clicked() && !busy).then(|| Action::Open(card.path.clone(), frame))
+}
+
+/// Cards with tall pictures; the first one makes a new animation.
+fn tall_grid(ui: &mut Ui, h: &mut HomeState, order: &[usize], cols: usize) -> Option<Action> {
+    use crate::theme::{font, W};
+    if order.is_empty() && h.search.is_some() {
+        return grid(ui, h, order, cols);
+    }
+    let mut action = None;
+    let ctx = ui.ctx().clone();
+    let gap = 12.0;
+    let w = ((ui.available_width() - gap * (cols as f32 - 1.0)) / cols as f32).floor();
+    let th = (w * 1.22).round();
+    let mut items: Vec<Option<usize>> = Vec::new();
+    if h.search.is_none() {
+        items.push(None);
+    }
+    items.extend(order.iter().map(|&i| Some(i)));
+    for row in items.chunks(cols) {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for item in row {
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(w, th + 54.0), Sense::click());
+                if !ui.is_rect_visible(r) {
+                    continue;
+                }
+                let p = ui.painter().clone();
+                let pic = Rect::from_min_size(r.min, Vec2::new(w, th));
+                let pressed = resp.hovered() || resp.is_pointer_button_down_on();
+                let Some(i) = *item else {
+                    p.rect_filled(pic, 16.0, if pressed { ELEVATED } else { SURFACE });
+                    p.rect_stroke(pic, 16.0, Stroke::new(1.5, crate::theme::SEPARATOR), egui::StrokeKind::Inside);
+                    let c = Pos2::new(pic.center().x, pic.center().y - 20.0);
+                    p.circle_filled(c, 28.0, crate::theme::PRIMARY);
+                    paint(&p, Rect::from_center_size(c, Vec2::splat(26.0)), Icon::Plus, ON_ACCENT);
+                    let g = p.layout(tr("Eliges forma: vertical, cuadrada o ancha").to_string(), font(13.0, W::Regular), TEXT2, w - 32.0);
+                    let gw = g.size().x;
+                    p.galley(Pos2::new(pic.center().x - gw / 2.0, c.y + 44.0), g, TEXT2);
+                    let name = one_line_pub(ui, tr("Nueva animación"), font(15.0, W::Semi), TEXT, w);
+                    p.galley(Pos2::new(r.left(), pic.bottom() + 8.0), name, TEXT);
+                    if resp.clicked() {
+                        action = Some(Action::New);
+                    }
+                    continue;
+                };
+                let busy = h.is_running(&h.cards[i].path);
+                let card = &mut h.cards[i];
+                let bg = card.background();
+                p.rect_filled(pic, 16.0, bg);
+                if let Some(t) = card.texture(&ctx) {
+                    let s = t.size_vec2();
+                    let k = (pic.width() / s.x).min(pic.height() / s.y);
+                    let ir = Rect::from_center_size(pic.center(), s * k);
+                    p.with_clip_rect(pic).image(t.id(), ir, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+                }
+                // Round the picture's corners over the page.
+                p.with_clip_rect(pic).rect_stroke(pic.expand(8.0), 24.0, Stroke::new(16.0, crate::theme::BG), egui::StrokeKind::Middle);
+                if pressed {
+                    p.rect_stroke(pic, 16.0, Stroke::new(2.0, crate::theme::TEXT), egui::StrokeKind::Inside);
+                }
+                if let Some(info) = &card.info {
+                    let secs = info.duration_secs().round() as u32;
+                    let g = p.layout_no_wrap(format!("{}:{:02}", secs / 60, secs % 60), font(11.0, W::Semi), TEXT);
+                    let br = Rect::from_min_size(pic.right_bottom() - Vec2::new(g.size().x + 14.0 + 8.0, 22.0 + 8.0), Vec2::new(g.size().x + 14.0, 22.0));
+                    p.rect_filled(br, 7.0, Color32::from_rgba_unmultiplied(14, 14, 15, 204));
+                    p.galley(Pos2::new(br.left() + 7.0, br.center().y - g.size().y / 2.0), g, TEXT);
+                }
+                p.galley(Pos2::new(r.left(), pic.bottom() + 8.0), one_line_pub(ui, &card.name, font(15.0, W::Semi), TEXT, w), TEXT);
+                let (detail, color) = match &card.info {
+                    _ if busy => (tr("Trabajando…").to_string(), TEXT2),
+                    Some(i) if i.newer => (tr("Hecha con una versión más nueva de Trazo").to_string(), DANGER),
+                    Some(_) => (crate::versions::age(card.modified), TEXT2),
+                    None => (tr("No se puede leer").to_string(), DANGER),
+                };
+                p.galley(Pos2::new(r.left(), pic.bottom() + 30.0), one_line_pub(ui, &detail, font(12.0, W::Regular), color, w), color);
+                let frame = card.info.as_ref().map_or(0, |i| i.last_frame);
+                if resp.long_touched() || resp.secondary_clicked() {
+                    action = Some(Action::Menu(card.path.clone()));
+                } else if resp.clicked() && !busy {
+                    action = Some(if card.openable() { Action::Open(card.path.clone(), frame) } else { Action::Menu(card.path.clone()) });
+                }
+            }
+        });
+        ui.add_space(18.0);
+    }
     action
 }
 

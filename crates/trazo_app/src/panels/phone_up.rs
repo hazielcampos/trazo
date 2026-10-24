@@ -249,6 +249,7 @@ pub fn dock(app: &mut TrazoApp, ui: &mut Ui) {
                 tracks(app, ui);
                 ui.add_space(12.0);
                 action_bar(app, ui);
+                ui.add_space(20.0);
             } else {
                 strip(app, ui);
             }
@@ -817,7 +818,7 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui) {
         ui.add_space(LABEL_W + 12.0);
         ui.label(egui::RichText::new(tr("Pellizca: acercar · flecha blanca: alargar")).font(theme::font(11.0, W::Regular)).color(TEXT2));
     });
-    let visible_rows = rows.len().min(5) as f32;
+    let visible_rows = rows.len().min(6) as f32;
     let (area, bg) = ui.allocate_exact_size(Vec2::new(ui.available_width(), RULER_H + visible_rows * ROW_H), Sense::click_and_drag());
     let lanes = Rect::from_min_max(Pos2::new(area.left() + LABEL_W, area.top()), area.max);
     let n_frames = app.doc.project.frames.len();
