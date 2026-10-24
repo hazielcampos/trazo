@@ -1874,7 +1874,7 @@ fn kbd(ui: &mut Ui, text: &str) {
 
 /// Panels of the desktop layout: top bar, tools, inspector, timeline, status.
 pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
-    let bar = Frame::new().fill(theme::BG);
+    let bar = Frame::new().fill(theme::PANEL);
     // Top bar.
     egui::Panel::top("pc_top").exact_size(44.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(10, 0))).show(ui, |ui| {
         let r = ui.max_rect();
@@ -1972,7 +1972,7 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
         });
     });
     // Timeline.
-    egui::Panel::bottom("pc_timeline").default_size(300.0).min_size(150.0).max_size(520.0).resizable(true).show_separator_line(false)
+    egui::Panel::bottom("pc_timeline").default_size(292.0).min_size(240.0).max_size(520.0).resizable(true).show_separator_line(false)
         .frame(Frame::new().fill(theme::PANEL))
         .show(ui, |ui| {
             let r = ui.max_rect();
@@ -2134,7 +2134,7 @@ fn pc_inspector(app: &mut TrazoApp, ui: &mut Ui) {
     // Current layer.
     let li = app.doc.layer_index();
     let lname = crate::i18n::layer_name(&app.doc.project.layers[li].props.name).into_owned();
-    if section(ui, "layer", &tf!("Capa «{}»", lname), false, |_| {}) {
+    if section(ui, "layer", &tf!("Capa «{}»", lname), true, |_| {}) {
         let doc = &mut app.doc;
         let i = doc.layer_index();
         let id = doc.project.layers[i].id;
@@ -2269,13 +2269,23 @@ fn pc_transport(app: &mut TrazoApp, ui: &mut Ui) {
         ui.label(job);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(14.0);
-            ui.spacing_mut().slider_width = 110.0;
-            let mut z = app.ui.tracks.ppf.clamp(12.0, 64.0);
-            if ui.add(egui::Slider::new(&mut z, 12.0..=64.0).show_value(false)).on_hover_text(tr("Acercar la línea de tiempo")).changed() {
-                app.ui.tracks.ppf = z;
+            // Zoom: thin rail, small solid knob, magnifier.
+            let (zr, zresp) = ui.allocate_exact_size(Vec2::new(110.0, 28.0), Sense::click_and_drag());
+            let t = (app.ui.tracks.ppf.clamp(12.0, 64.0) - 12.0) / 52.0;
+            if let Some(pt) = zresp.interact_pointer_pos() {
+                if zresp.dragged() || zresp.clicked() {
+                    app.ui.tracks.ppf = 12.0 + 52.0 * ((pt.x - zr.left() - 6.0) / (zr.width() - 12.0)).clamp(0.0, 1.0);
+                }
             }
-            paint(ui.painter(), Rect::from_center_size(ui.cursor().right_center() - Vec2::new(10.0, 0.0), Vec2::splat(15.0)), Icon::Search, TEXT2);
-            ui.add_space(22.0);
+            let rail = Rect::from_center_size(zr.center(), Vec2::new(zr.width() - 12.0, 3.0));
+            ui.painter().rect_filled(rail, 2.0, SEPARATOR);
+            let kx = rail.left() + t * rail.width();
+            ui.painter().rect_filled(Rect::from_min_max(rail.min, Pos2::new(kx, rail.bottom())), 2.0, TEXT2);
+            ui.painter().circle_filled(Pos2::new(kx, zr.center().y), 6.0, TEXT);
+            zresp.on_hover_text(tr("Acercar la línea de tiempo"));
+            let (mr, _) = ui.allocate_exact_size(Vec2::new(18.0, 28.0), Sense::hover());
+            paint(ui.painter(), Rect::from_center_size(mr.center(), Vec2::splat(14.0)), Icon::Search, TEXT2);
+            ui.add_space(8.0);
             let (sr, _) = ui.allocate_exact_size(Vec2::new(9.0, 24.0), Sense::hover());
             ui.painter().vline(sr.center().x, sr.y_range(), Stroke::new(1.0, SEPARATOR));
             if widgets::icon_button(ui, Icon::Mic, tr("Grabar voz y sonido")).clicked() {
