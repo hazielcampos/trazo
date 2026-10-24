@@ -80,9 +80,9 @@ impl ExportUi {
     }
 }
 
-/// MP4 uses the platform encoder (Android MediaCodec).
+/// MP4 uses the platform encoder (Android MediaCodec, Windows Media Foundation).
 pub fn mp4_available() -> bool {
-    cfg!(target_os = "android")
+    cfg!(any(target_os = "android", windows))
 }
 
 const FORMATS: [ExportFormat; 6] = [ExportFormat::Mp4, ExportFormat::Gif, ExportFormat::Png, ExportFormat::PngSequence, ExportFormat::Avi, ExportFormat::Wav];
@@ -445,6 +445,8 @@ fn run_export(
     match format {
         #[cfg(target_os = "android")]
         ExportFormat::Mp4 => crate::android_mp4::export_mp4(project, settings, path, report)?,
+        #[cfg(windows)]
+        ExportFormat::Mp4 => crate::windows_mp4::export_mp4(project, settings, path, report)?,
         _ => trazo_core::export::export(project, settings, path, report).map_err(|e| e.to_string())?,
     }
     #[cfg(target_os = "android")]

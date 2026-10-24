@@ -25,6 +25,8 @@ mod theme;
 mod widgets;
 mod tools;
 mod versions;
+#[cfg(windows)]
+mod windows_mp4;
 
 pub use app::TrazoApp;
 pub use platform::Platform;

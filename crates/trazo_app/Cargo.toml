@@ -27,6 +27,10 @@ rtrb = "0.4"
 [target.'cfg(not(target_os = "android"))'.dependencies]
 rfd = "0.17"
 
+# MP4 export through Media Foundation (already in the build through cpal).
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_Foundation"] }
+
 [target.'cfg(target_os = "android")'.dependencies]
 eframe = { workspace = true, features = ["android-native-activity"] }
 winit = { version = "0.30", features = ["android-native-activity"] }

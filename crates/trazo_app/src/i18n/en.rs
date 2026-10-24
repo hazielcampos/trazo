@@ -507,6 +507,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    ("demasiado pequeño para MP4", "too small for MP4"),
     // ---- layer folders ------------------------------------------------------
     ("Abrir o cerrar la carpeta", "Open or close the folder"),
     ("Bloquear o desbloquear toda la carpeta", "Lock or unlock the whole folder"),
