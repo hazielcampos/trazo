@@ -84,6 +84,7 @@ pub enum Icon {
     Background,
     More,
     Globe,
+    Tween,
 }
 
 /// Draw `icon` filling `rect` (square works best).
@@ -458,6 +459,13 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             line(&meridian);
             let back: Vec<(f32, f32)> = meridian.iter().map(|&(x, y)| (24.0 - x, y)).collect();
             line(&back);
+        }
+        Icon::Tween => {
+            dot(5.0, 17.0, 1.6);
+            dot(9.5, 13.5, 2.0);
+            circle(15.0, 10.0, 2.6);
+            rrect(16.5, 3.5, 22.0, 9.0, 1.0);
+            line(&[(3.0, 21.0), (21.0, 3.5)]);
         }
         Icon::Check => line(&[(4.5, 12.5), (9.5, 17.5), (19.5, 6.5)]),
         Icon::Close => {

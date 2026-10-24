@@ -113,6 +113,23 @@ impl Xform {
         *self == Xform::default()
     }
 
+    /// The pose a fraction `t` (0..=1) of the way from `self` to `to`.
+    /// Scale changes geometrically (a zoom feels even), unless it mirrors.
+    pub fn lerp(&self, to: &Xform, t: f32) -> Xform {
+        let mix = |a: f32, b: f32| a + (b - a) * t;
+        let scale = |a: f32, b: f32| {
+            if a > 0.0 && b > 0.0 {
+                a * (b / a).powf(t)
+            } else {
+                // A flip squashes through the middle like a turning card;
+                // keep a sliver so that drawing isn't empty.
+                let s = mix(a, b);
+                if s.abs() < 0.1 { 0.1f32.copysign(if t < 0.5 { a } else { b }) } else { s }
+            }
+        };
+        Xform { dx: mix(self.dx, to.dx), dy: mix(self.dy, to.dy), sx: scale(self.sx, to.sx), sy: scale(self.sy, to.sy), angle: mix(self.angle, to.angle) }
+    }
+
     fn forward(&self, c: (f32, f32), p: (f32, f32)) -> (f32, f32) {
         let (vx, vy) = ((p.0 - c.0) * self.sx, (p.1 - c.1) * self.sy);
         let (s, co) = self.angle.sin_cos();
@@ -126,6 +143,39 @@ impl Xform {
         let sx = if self.sx.abs() < 1e-4 { 1e-4 } else { self.sx };
         let sy = if self.sy.abs() < 1e-4 { 1e-4 } else { self.sy };
         (c.0 + rx / sx, c.1 + ry / sy)
+    }
+}
+
+/// Timing of in-betweens: how the motion speeds up or slows down.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Ease {
+    #[default]
+    Linear,
+    /// Starts slow, speeds up (slow out of the first pose).
+    In,
+    /// Slows down into the last pose (slow in).
+    Out,
+    /// Slow at both ends.
+    InOut,
+}
+
+impl Ease {
+    pub const ALL: [Ease; 4] = [Ease::Linear, Ease::In, Ease::Out, Ease::InOut];
+
+    /// Eased progress for `t` in 0..=1.
+    pub fn apply(self, t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+        match self {
+            Ease::Linear => t,
+            Ease::In => t * t,
+            Ease::Out => 1.0 - (1.0 - t) * (1.0 - t),
+            Ease::InOut => t * t * (3.0 - 2.0 * t),
+        }
+    }
+
+    /// Progress of each of `steps` in-betweens plus the final pose (the last value is 1).
+    pub fn spacing(self, steps: usize) -> Vec<f32> {
+        (1..=steps + 1).map(|i| self.apply(i as f32 / (steps + 1) as f32)).collect()
     }
 }
 
@@ -172,6 +222,11 @@ impl Transform {
         let mut t = Self { owner, layer, edit: PixelEditBuilder::new(), rect, pixels, mask: None, xf: Xform::default(), last: rect, cleared: false };
         t.redraw(img, rect);
         t
+    }
+
+    /// The content was erased (nothing left to move).
+    pub fn is_cleared(&self) -> bool {
+        self.cleared
     }
 
     /// Lifted from the layer and never moved or erased: applying it would change nothing.
@@ -325,6 +380,53 @@ impl Transform {
         self.edit.finish(img, owner, layer)
     }
 
+    /// In-betweens from the selection's starting pose to its current one.
+    ///
+    /// `img` becomes the first pose: the drawing as it was before the
+    /// selection, or, for pasted pixels, with them stamped where they were
+    /// pasted (that change is returned as an undo record). Returns one cel per
+    /// value of `progress` (0 = start, 1 = the current pose): the rest of the
+    /// drawing stays put and the selected part moves.
+    pub fn tween(self, img: &mut TiledImage, progress: &[f32]) -> (Vec<TiledImage>, Option<PixelEdit>) {
+        let (owner, layer, end) = (self.owner, self.layer, self.xf);
+        let mut t = Transform {
+            owner,
+            layer,
+            edit: PixelEditBuilder::new(),
+            rect: self.rect,
+            pixels: self.pixels.clone(),
+            mask: self.mask.clone(),
+            xf: Xform::default(),
+            last: self.rect,
+            cleared: self.cleared,
+        };
+        self.cancel(img);
+        let base = img.clone();
+        fn render(t: &mut Transform, cel: &mut TiledImage, xf: Xform) {
+            t.edit = PixelEditBuilder::new();
+            t.xf = xf;
+            t.last = t.rect;
+            let area = t.target_bounds().union(&t.rect);
+            t.redraw(cel, area);
+        }
+        let cels = progress
+            .iter()
+            .map(|&p| {
+                let mut cel = base.clone();
+                render(&mut t, &mut cel, Xform::default().lerp(&end, p));
+                cel
+            })
+            .collect();
+        // Pasted pixels weren't part of the drawing: put them in at the start pose.
+        let stamp = if t.mask.is_none() {
+            render(&mut t, img, Xform::default());
+            std::mem::take(&mut t.edit).finish(img, owner, layer)
+        } else {
+            None
+        };
+        (cels, stamp)
+    }
+
     /// Throw the transform away and restore the cel. Returns the area to redraw.
     pub fn cancel(self, img: &mut TiledImage) -> IRect {
         let area = self.last.union(&self.rect);
@@ -372,6 +474,65 @@ mod tests {
         t.cancel(&mut img);
         assert_eq!(img.pixel(15, 15), [255, 0, 0, 255]);
         assert_eq!(img.pixel(95, 15), [0; 4]);
+    }
+
+    #[test]
+    fn tween_moves_in_steps_and_restores_the_start() {
+        let mut img = img_with_dot();
+        // Something that stays put while the dot moves.
+        img.set_pixel(150, 150, [0, 255, 0, 255]);
+        let mask = Mask::from_rect(IRect::new(5, 5, 25, 25), img.bounds()).unwrap();
+        let mut t = Transform::lift(&mut img, 1, 1, mask).unwrap();
+        t.set_xform(&mut img, Xform { dx: 100.0, ..Default::default() });
+        let (cels, stamp) = t.tween(&mut img, &Ease::Linear.spacing(3));
+        assert!(stamp.is_none(), "lifted pixels need no extra undo record");
+        assert_eq!(cels.len(), 4, "3 in-betweens + the final pose");
+        // The start drawing is back as it was.
+        assert_eq!(img.pixel(15, 15), [255, 0, 0, 255]);
+        assert_eq!(img.pixel(115, 15), [0; 4]);
+        // Evenly spaced: 25, 50, 75, 100 px to the right.
+        for (i, cel) in cels.iter().enumerate() {
+            let x = 15 + 25 * (i as i32 + 1);
+            assert_eq!(cel.pixel(x, 15), [255, 0, 0, 255], "step {i}");
+            assert_eq!(cel.pixel(15, 15), [0; 4], "step {i}: no copy left at the start");
+            assert_eq!(cel.pixel(150, 150), [0, 255, 0, 255], "step {i}: the rest stays");
+        }
+    }
+
+    #[test]
+    fn tween_keeps_pasted_pixels_in_the_first_pose() {
+        let mut img = TiledImage::new(200, 200);
+        let px = vec![255u8; 10 * 10 * 4];
+        let mut t = Transform::paste(&mut img, 1, 1, IRect::new(10, 10, 20, 20), px);
+        t.set_xform(&mut img, Xform { dx: 50.0, ..Default::default() });
+        let (cels, stamp) = t.tween(&mut img, &[1.0]);
+        assert!(stamp.is_some());
+        assert_eq!(img.pixel(15, 15)[3], 255, "first pose has the pasted pixels");
+        assert_eq!(cels[0].pixel(65, 15)[3], 255);
+        assert_eq!(cels[0].pixel(15, 15)[3], 0, "the in-between has no copy at the start");
+    }
+
+    #[test]
+    fn flip_never_collapses() {
+        let flip = Xform { sx: -1.0, ..Default::default() };
+        for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            assert!(Xform::default().lerp(&flip, t).sx.abs() >= 0.1, "t = {t}");
+        }
+        assert_eq!(Xform::default().lerp(&flip, 1.0).sx, -1.0);
+    }
+
+    #[test]
+    fn ease_spacing() {
+        let lin = Ease::Linear.spacing(3);
+        assert_eq!(lin, vec![0.25, 0.5, 0.75, 1.0]);
+        let slow_in = Ease::Out.spacing(3);
+        assert!(slow_in[0] > 0.25 && slow_in[2] > 0.75, "eases into the end: big steps first");
+        let slow_out = Ease::In.spacing(3);
+        assert!(slow_out[0] < 0.25, "starts slowly");
+        assert_eq!(Ease::InOut.spacing(1), vec![0.5, 1.0]);
+        // Zoom: geometric halfway between 1x and 4x is 2x.
+        let half = Xform::default().lerp(&Xform { sx: 4.0, sy: 4.0, ..Default::default() }, 0.5);
+        assert!((half.sx - 2.0).abs() < 1e-5);
     }
 
     #[test]

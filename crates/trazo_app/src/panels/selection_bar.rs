@@ -55,6 +55,11 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                     }
                     if app.canvas.select.is_active() {
                         ui.separator();
+                        let can = app.canvas.select.can_tween(&app.doc);
+                        let tip = if can { tr("Generar los dibujos intermedios hasta esta posición") } else { tr("Mueve, escala o gira la selección para marcar la posición final") };
+                        if ui.add_enabled(can, IconButton::new(Icon::Tween).keep_text().text(tr("Intermedios"))).on_hover_text(tip).on_disabled_hover_text(tip).clicked() {
+                            app.ui.tween_dialog = Some(Default::default());
+                        }
                         if ui.add(IconButton::new(Icon::Check).keep_text().text(tr("Aplicar")).selected(true)).on_hover_text(tr("Fijar (Enter)")).clicked() {
                             app.canvas.select.commit(&mut app.doc);
                         }

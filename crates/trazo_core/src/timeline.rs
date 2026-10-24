@@ -222,6 +222,27 @@ pub fn insert_drawing(p: &mut Project, h: &mut History, layer: LayerId, frame: u
     start
 }
 
+/// Insert `cels` as new drawings of `len` frames each, right after the
+/// drawing starting at `start`, in one undo step. Later drawings of the same
+/// layer move along. Returns where the first new drawing starts.
+pub fn insert_drawings_after(p: &mut Project, h: &mut History, layer: LayerId, start: usize, len: usize, cels: Vec<TiledImage>) -> Option<usize> {
+    let mut sp = spans(p, layer);
+    let i = span_index(&sp, start)?;
+    if cels.is_empty() {
+        return None;
+    }
+    let first = start + sp[i].len;
+    let new = cels.into_iter().map(|c| Span { cel: Some(c), len: len.max(1) });
+    sp.splice(i + 1..i + 1, new);
+    apply_spans(p, h, layer, sp);
+    Some(first)
+}
+
+/// Whether `layer` has drawings after the one starting at `start`.
+pub fn has_drawings_after(p: &Project, layer: LayerId, start: usize) -> bool {
+    blocks(p, layer).iter().any(|b| b.start > start)
+}
+
 /// Add a drawing at the end of a layer's row. Returns where it starts.
 pub fn append_drawing(p: &mut Project, h: &mut History, layer: LayerId) -> usize {
     let end = content_end(p, layer);
@@ -375,4 +396,24 @@ mod tests {
         let f2 = p.frames[2].id;
         assert_eq!(p.cel_owner(f2, a), p.frames[0].id);
     }
+
+    #[test]
+    fn insert_several_after_in_one_step() {
+        let mut p = Project::new("t", crate::CanvasSettings::default());
+        let mut h = History::new(100);
+        let layer = p.layers[0].id;
+        assert_eq!(insert_drawing(&mut p, &mut h, layer, 0, 2, None), 0);
+        let next = insert_drawing(&mut p, &mut h, layer, 0, 1, None);
+        assert_eq!(next, 2);
+        let undo_before = h.undo_len();
+        let (w, ht) = (p.canvas.width, p.canvas.height);
+        let first = insert_drawings_after(&mut p, &mut h, layer, 0, 2, vec![TiledImage::new(w, ht), TiledImage::new(w, ht)]);
+        assert_eq!(first, Some(2));
+        assert_eq!(h.undo_len(), undo_before + 1, "one undo step");
+        let b = blocks(&p, layer);
+        assert_eq!(b.iter().map(|b| (b.start, b.len)).collect::<Vec<_>>(), vec![(0, 2), (2, 2), (4, 2), (6, 1)]);
+        assert!(has_drawings_after(&p, layer, 0));
+        assert!(!has_drawings_after(&p, layer, 6));
+    }
+
 }

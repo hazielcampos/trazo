@@ -217,6 +217,8 @@ pub struct UiState {
     pub settings_dialog: bool,
     /// Language picker; `Some(true)` the first time the app opens.
     pub language_dialog: Option<bool>,
+    /// Options for generating in-betweens from the selection.
+    pub tween_dialog: Option<panels::dialogs::TweenDialog>,
     pub toast: Option<Toast>,
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
@@ -298,6 +300,7 @@ impl TrazoApp {
                 open_dialog: false,
                 settings_dialog: false,
                 language_dialog: first_run.then_some(true),
+                tween_dialog: None,
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
@@ -577,7 +580,7 @@ impl TrazoApp {
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
         // Nothing reaches the drawing while the language is being chosen.
-        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() {
+        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() {
             return;
         }
         use egui::{Key, KeyboardShortcut, Modifiers};
@@ -923,6 +926,7 @@ impl eframe::App for TrazoApp {
             || self.ui.open_dialog
             || self.ui.settings_dialog
             || self.ui.language_dialog.is_some()
+            || self.ui.tween_dialog.is_some()
             || self.export_ui.open
             || self.video_import.is_busy()
             || self.file_browser.is_some();

@@ -34,6 +34,118 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
     open_project(app, ctx);
     settings(app, ctx);
     language(app, ctx);
+    tween(app, ctx);
+}
+
+/// How the in-betweens are made.
+pub struct TweenDialog {
+    pub steps: usize,
+    pub ease: trazo_core::transform::Ease,
+    /// Also add a drawing with the final pose (off when it is already drawn).
+    pub with_end: bool,
+}
+
+impl Default for TweenDialog {
+    fn default() -> Self {
+        Self { steps: 3, ease: trazo_core::transform::Ease::InOut, with_end: true }
+    }
+}
+
+fn ease_label(e: trazo_core::transform::Ease) -> &'static str {
+    use trazo_core::transform::Ease;
+    match e {
+        Ease::Linear => tr("Lineal"),
+        Ease::In => tr("Acelera"),
+        Ease::Out => tr("Frena"),
+        Ease::InOut => tr("Suave"),
+    }
+}
+
+/// "Generate in-betweens": the drawing is the first pose, where the selection
+/// was moved to is the last one.
+fn tween(app: &mut TrazoApp, ctx: &egui::Context) {
+    use trazo_core::transform::Ease;
+    if app.ui.tween_dialog.is_none() {
+        return;
+    }
+    // The selection was applied or dropped meanwhile: nothing to tween.
+    let Some((layer, block)) = app.canvas.select.tween_source(&app.doc).filter(|_| app.canvas.select.can_tween(&app.doc)) else {
+        app.ui.tween_dialog = None;
+        return;
+    };
+    let later = trazo_core::timeline::has_drawings_after(&app.doc.project, layer, block.start);
+    let Some(dlg) = &mut app.ui.tween_dialog else { return };
+    let mut open = true;
+    let mut go = false;
+    let fps = app.doc.project.canvas.fps.max(1) as f32;
+    crate::widgets::backdrop(ctx);
+    crate::widgets::dialog(ctx, tr("Generar intermedios"), 400.0).min_height(0.0).open(&mut open).show(ctx, |ui| {
+        ui.spacing_mut().item_spacing.y = 8.0;
+        ui.label(RichText::new(tr("Este dibujo es el inicio; donde dejaste la selección es el final. Los dibujos nuevos van después de este, en la misma capa.")).size(13.0).color(crate::theme::TEXT2));
+        ui.add_space(4.0);
+        ui.label(RichText::new(tr("Dibujos intermedios")).size(13.0).color(crate::theme::TEXT2));
+        ui.horizontal(|ui| {
+            if ui.add_enabled(dlg.steps > 1, egui::Button::new("−").min_size(egui::vec2(44.0, 40.0))).clicked() {
+                dlg.steps -= 1;
+            }
+            ui.add(egui::DragValue::new(&mut dlg.steps).range(1..=48).speed(0.1));
+            if ui.add_enabled(dlg.steps < 48, egui::Button::new("+").min_size(egui::vec2(44.0, 40.0))).clicked() {
+                dlg.steps += 1;
+            }
+        });
+        ui.label(RichText::new(tr("Espaciado")).size(13.0).color(crate::theme::TEXT2));
+        let labels: Vec<&str> = Ease::ALL.iter().map(|e| ease_label(*e)).collect();
+        let mut idx = Ease::ALL.iter().position(|e| *e == dlg.ease).unwrap_or(0);
+        if crate::widgets::segmented(ui, &mut idx, &labels, ui.available_width()) {
+            dlg.ease = Ease::ALL[idx];
+        }
+        ui.label(RichText::new(match dlg.ease {
+            Ease::Linear => tr("Velocidad constante"),
+            Ease::In => tr("Arranca despacio y acelera"),
+            Ease::Out => tr("Va rápido y frena al llegar"),
+            Ease::InOut => tr("Arranca y llega despacio"),
+        }).size(12.0).color(crate::theme::TEXT2));
+        // Timing chart: a tick per pose, spaced as they will move.
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.0), egui::Sense::hover());
+        let p = ui.painter();
+        let (x0, x1, y) = (rect.left() + 10.0, rect.right() - 10.0, rect.center().y);
+        p.line_segment([egui::pos2(x0, y), egui::pos2(x1, y)], egui::Stroke::new(1.0, crate::theme::SEPARATOR));
+        p.circle_filled(egui::pos2(x0, y), 6.0, crate::theme::TEXT);
+        for (i, t) in dlg.ease.spacing(dlg.steps).iter().enumerate() {
+            let last = i == dlg.steps;
+            let pos = egui::pos2(x0 + (x1 - x0) * t, y);
+            if last && !dlg.with_end {
+                p.circle_stroke(pos, 6.0, egui::Stroke::new(1.5, crate::theme::TEXT2));
+            } else {
+                p.circle_filled(pos, if last { 6.0 } else { 4.0 }, if last { crate::theme::TEXT } else { crate::theme::ACCENT });
+            }
+        }
+        crate::widgets::switch_row(ui, tr("Añadir también el dibujo final"), &mut dlg.with_end);
+        let count = dlg.steps + dlg.with_end as usize;
+        let total = count * block.len;
+        ui.label(RichText::new(tf!("{} dibujos nuevos · +{} fotogramas · {} s", count, total, crate::i18n::num(total as f32 / fps, 2))).size(12.0).color(crate::theme::TEXT2));
+        if later {
+            ui.label(RichText::new(tf!("Los dibujos siguientes de esta capa se correrán {} fotogramas; las demás capas no cambian.", total)).size(12.0).color(ui.visuals().warn_fg_color));
+        }
+        ui.add_space(6.0);
+        if crate::widgets::primary_button(ui, tr("Generar")).clicked() {
+            go = true;
+        }
+    });
+    if go {
+        let dlg = app.ui.tween_dialog.take().expect("dialog open");
+        app.stop_playback();
+        match app.canvas.select.tween(&mut app.doc, dlg.steps, dlg.ease, dlg.with_end) {
+            Ok((first, n)) => {
+                // Land on the first new drawing so it can be checked right away.
+                app.doc.frame = first.min(app.doc.project.frames.len().saturating_sub(1));
+                app.toast(ctx, tf!("{} dibujos creados: pulsa reproducir para verlos", n));
+            }
+            Err(e) => app.toast(ctx, e),
+        }
+    } else if !open {
+        app.ui.tween_dialog = None;
+    }
 }
 
 fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {

@@ -3,7 +3,7 @@
 use crate::i18n::tr;
 use trazo_core::fill::{flood_region, paint_mask, FillOptions};
 use trazo_core::history::{Edit, PixelEditBuilder};
-use trazo_core::transform::{Mask, Transform, Xform};
+use trazo_core::transform::{Ease, Mask, Transform, Xform};
 use trazo_core::{IRect, Rgba};
 use egui::{Color32, Pos2, Shape, Stroke, Vec2};
 
@@ -236,7 +236,10 @@ impl SelectTool {
             DragMode::Rotate => {
                 let a0 = (drag.start - center).angle();
                 let a1 = (c - center).angle();
-                Xform { angle: s.angle + a1 - a0, ..s }
+                // atan2 jumps at ±180°: take the short way so a small turn
+                // isn't stored as almost a full one (in-betweens would spin).
+                let d = (a1 - a0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                Xform { angle: s.angle + d, ..s }
             }
         }
     }
@@ -341,6 +344,59 @@ impl SelectTool {
         }
         doc.invalidate_frame(owner, Some(area));
         doc.redraw = crate::app::Redraw::Full;
+    }
+
+    /// Where in-betweens of the floating selection would go: its layer and
+    /// the drawing it belongs to. None on fixed background layers (they have
+    /// no timing), on layers that can't be painted, or if the content was erased.
+    pub fn tween_source(&self, doc: &Document) -> Option<(trazo_core::LayerId, trazo_core::timeline::Block)> {
+        let t = self.active.as_ref()?;
+        let (owner, layer) = (t.owner(), t.layer());
+        if owner == trazo_core::document::SHARED_FRAME || t.is_cleared() || !doc.project.layer(layer)?.props.paintable() {
+            return None;
+        }
+        let start = doc.project.frame_index(owner)?;
+        Some((layer, trazo_core::timeline::block_at(&doc.project, layer, start)?))
+    }
+
+    /// The selection was moved, scaled or turned somewhere it can make in-betweens.
+    pub fn can_tween(&self, doc: &Document) -> bool {
+        self.active.as_ref().is_some_and(|t| !t.xform().is_identity()) && self.tween_source(doc).is_some()
+    }
+
+    /// In-betweens from where the selection started to where it is now: the
+    /// drawing keeps the first pose and `steps` new drawings (plus the final
+    /// pose if `with_end`) follow it on the same layer, each as long as the
+    /// first one, in one undo step. Returns where the first new drawing starts
+    /// and how many were added.
+    pub fn tween(&mut self, doc: &mut Document, steps: usize, ease: Ease, with_end: bool) -> Result<(usize, usize), String> {
+        let Some((layer, block)) = self.tween_source(doc).filter(|_| self.can_tween(doc)) else {
+            return Err(tr("Mueve, escala o gira la selección para marcar la posición final").into());
+        };
+        let Some(t) = self.active.take() else { return Err(String::new()) };
+        self.drag = None;
+        self.drawing = None;
+        let owner = t.owner();
+        let Some(cel) = doc.project.cel_at_mut(owner, layer) else {
+            // Can't happen (checked above); keep the selection rather than lose it.
+            self.active = Some(t);
+            return Err(tr("La capa está vacía en este fotograma").into());
+        };
+        let mut progress = ease.spacing(steps);
+        if !with_end {
+            progress.pop();
+        }
+        let (cels, stamp) = t.tween(cel, &progress);
+        let added = cels.len();
+        let mark = doc.history.undo_len();
+        if let Some(e) = stamp {
+            doc.history.push_applied(Edit::Pixels(e));
+        }
+        let first = trazo_core::timeline::insert_drawings_after(&mut doc.project, &mut doc.history, layer, block.start, block.len, cels);
+        doc.history.group_since(mark);
+        doc.invalidate_all();
+        doc.redraw = crate::app::Redraw::Full;
+        Ok((first.unwrap_or(block.end()), added))
     }
 
     /// Undo the transform and put the pixels back where they were.
