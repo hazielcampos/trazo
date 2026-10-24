@@ -302,6 +302,11 @@ impl History {
         self.revision
     }
 
+    /// Every stored step (undo and redo).
+    pub fn steps(&self) -> impl Iterator<Item = &Edit> + '_ {
+        self.undo.iter().map(|(e, _)| e).chain(self.redo.iter().map(|(e, _)| e))
+    }
+
     pub fn memory_bytes(&self) -> usize {
         self.bytes
     }

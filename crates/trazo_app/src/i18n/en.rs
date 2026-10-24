@@ -521,6 +521,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} MB · Restaurar", "{} MB · Restore"),
     ("Guía para calcar (no se exporta)", "Tracing guide (not exported)"),
     ("Meter esta capa en una carpeta nueva", "Put this layer in a new folder"),
+    ("{} fotogramas · los dibujos ocupan {} MB de memoria", "{} frames · drawings use {} MB of memory"),
     // ---- layer folders ------------------------------------------------------
     ("Abrir o cerrar la carpeta", "Open or close the folder"),
     ("Bloquear o desbloquear toda la carpeta", "Lock or unlock the whole folder"),

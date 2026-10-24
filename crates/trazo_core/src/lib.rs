@@ -15,6 +15,7 @@ pub mod fill;
 pub mod geom;
 pub mod history;
 pub mod io;
+pub mod memory;
 pub mod ops;
 pub mod preview;
 pub mod raster;

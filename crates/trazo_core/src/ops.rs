@@ -268,15 +268,16 @@ fn merge_into(dst: &mut TiledImage, src: &TiledImage, opacity: f32, mode: crate:
     for idx in 0..src.tile_count() {
         let Some(st) = src.tile_ref(idx).clone() else { continue };
         b.touch(dst, idx);
-        let dt = dst.tile_mut(idx);
+        let dt = dst.tile_mut(idx).px_mut();
+        let st = st.px_cold();
         for i in 0..TILE * TILE {
             let o = i * 4;
-            let s = [st.px[o], st.px[o + 1], st.px[o + 2], st.px[o + 3]];
+            let s = [st[o], st[o + 1], st[o + 2], st[o + 3]];
             if s[3] == 0 {
                 continue;
             }
-            let d = [dt.px[o], dt.px[o + 1], dt.px[o + 2], dt.px[o + 3]].map(|v| v as f32 / 255.0);
-            dt.px[o..o + 4].copy_from_slice(&pack(blend_px(d, s, opacity, mode)));
+            let d = [dt[o], dt[o + 1], dt[o + 2], dt[o + 3]].map(|v| v as f32 / 255.0);
+            dt[o..o + 4].copy_from_slice(&pack(blend_px(d, s, opacity, mode)));
         }
     }
 }

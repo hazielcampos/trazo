@@ -562,7 +562,8 @@ impl Stroke {
             if alpha_lock && original.is_none() {
                 continue;
             }
-            let tile = img.tile_mut(idx);
+            let tile = img.tile_mut(idx).px_mut();
+            let original = original.as_ref().map(|t| t.px_cold());
             for y in r.y0..r.y1 {
                 for x in r.x0..r.x1 {
                     let mut a = shape_alpha(&self.brush, angle, x as f32 + 0.5 - cx, y as f32 + 0.5 - cy, radius, spray_dot);
@@ -583,7 +584,7 @@ impl Stroke {
                     let alpha = *c * opacity;
                     let o = li * 4;
                     let before = match &original {
-                        Some(t) => [t.px[o] as f32, t.px[o + 1] as f32, t.px[o + 2] as f32, t.px[o + 3] as f32],
+                        Some(t) => [t[o] as f32, t[o + 1] as f32, t[o + 2] as f32, t[o + 3] as f32],
                         None => [0.0; 4],
                     };
                     let out = if erase {
@@ -610,7 +611,7 @@ impl Stroke {
                         ]
                     };
                     for i in 0..4 {
-                        tile.px[o + i] = (out[i] + 0.5).clamp(0.0, 255.0) as u8;
+                        tile[o + i] = (out[i] + 0.5).clamp(0.0, 255.0) as u8;
                     }
                 }
             }

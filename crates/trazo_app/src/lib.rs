@@ -14,6 +14,7 @@ mod android_video;
 mod app;
 mod audio_engine;
 mod canvas;
+mod compactor;
 pub(crate) mod panels;
 mod platform;
 mod save;

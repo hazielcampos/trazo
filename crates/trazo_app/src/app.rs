@@ -65,7 +65,7 @@ impl Document {
         let stale_frames = project.frames.iter().map(|f| f.id).collect();
         Self {
             project,
-            history: History::default(),
+            history: if cfg!(target_os = "android") { History::with_budget(300, 192 * 1024 * 1024) } else { History::default() },
             path,
             frame: 0,
             layer,
@@ -266,6 +266,8 @@ pub struct TrazoApp {
     /// Frames picked with Ctrl/Shift-click or long press (indices).
     pub frame_selection: std::collections::BTreeSet<usize>,
     saver: crate::save::SaveWorker,
+    /// Packs drawings away from the current frame (memory on big projects).
+    compactor: crate::compactor::Compactor,
     last_autosave: f64,
 }
 
@@ -352,6 +354,7 @@ impl TrazoApp {
             frame_selection: Default::default(),
             platform,
             saver: Default::default(),
+            compactor: Default::default(),
             last_autosave: 0.0,
         }
     }
@@ -944,6 +947,8 @@ impl eframe::App for TrazoApp {
 
         // Autosave while idle.
         let now = ctx.input(|i| i.time);
+        let idle = !self.canvas.is_stroking() && !self.playback.playing && !self.canvas.select.is_busy();
+        self.compactor.tick(now, &self.doc, idle);
         if self.doc.is_modified() && !self.canvas.is_stroking() && now - self.last_autosave > AUTOSAVE_SECS {
             self.last_autosave = now;
             let keep = self.doc.history.audio_assets();

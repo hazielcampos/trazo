@@ -25,7 +25,8 @@ const TEX_OPTIONS: TextureOptions = TextureOptions {
 };
 
 /// Memory allowed for pre-rendered playback frames.
-const PLAYBACK_CACHE_BYTES: usize = 384 * 1024 * 1024;
+/// Rendered frames kept for looping playback (smaller on phones).
+const PLAYBACK_CACHE_BYTES: usize = if cfg!(target_os = "android") { 96 * 1024 * 1024 } else { 384 * 1024 * 1024 };
 
 /// Multi-finger taps recognised on touch screens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

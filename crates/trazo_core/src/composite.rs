@@ -49,22 +49,50 @@ pub struct RenderOptions {
 pub fn render_region(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, out: &mut Vec<u8>) {
     let rect = rect.intersect(&IRect::from_size(p.canvas.width, p.canvas.height));
     let (w, h) = (rect.width() as usize, rect.height() as usize);
-    SCRATCH.with(|s| {
-        let mut acc = s.borrow_mut();
-        acc.clear();
-        acc.resize(w * h, [0.0; 4]);
-        render_into(p, frame_index, rect, opts, &mut acc);
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
+    // Small areas (a brush stroke) aren't worth the threads.
+    if threads > 1 && w * h >= 200_000 && h >= threads * 16 {
+        let band = h.div_ceil(threads);
+        let mut parts: Vec<Vec<u8>> = (0..threads).map(|_| Vec::new()).collect();
+        std::thread::scope(|s| {
+            for (i, part) in parts.iter_mut().enumerate() {
+                let y0 = rect.y0 + (i * band) as i32;
+                let y1 = (y0 + band as i32).min(rect.y1);
+                if y0 >= y1 {
+                    continue;
+                }
+                let r = IRect::new(rect.x0, y0, rect.x1, y1);
+                s.spawn(move || render_band(p, frame_index, r, opts, part));
+            }
+        });
         out.clear();
         out.reserve(w * h * 4);
-        for px in acc.iter() {
-            out.extend_from_slice(&pack(*px));
+        for part in &parts {
+            out.extend_from_slice(part);
         }
-    });
+        return;
+    }
+    render_band(p, frame_index, rect, opts, out);
 }
 
-thread_local! {
-    /// Reused accumulation buffer (avoids a large allocation per redraw).
-    static SCRATCH: std::cell::RefCell<Vec<[f32; 4]>> = const { std::cell::RefCell::new(Vec::new()) };
+/// Buffers reused by the rendering threads (no big allocation per frame).
+static BAND_BUFFERS: std::sync::Mutex<Vec<Vec<[f32; 4]>>> = std::sync::Mutex::new(Vec::new());
+
+fn render_band(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, out: &mut Vec<u8>) {
+    let (w, h) = (rect.width() as usize, rect.height() as usize);
+    let mut acc = BAND_BUFFERS.lock().unwrap_or_else(|e| e.into_inner()).pop().unwrap_or_default();
+    acc.clear();
+    acc.resize(w * h, [0.0; 4]);
+    render_into(p, frame_index, rect, opts, &mut acc);
+    out.clear();
+    out.reserve(w * h * 4);
+    for px in acc.iter() {
+        out.extend_from_slice(&pack(*px));
+    }
+    let mut pool = BAND_BUFFERS.lock().unwrap_or_else(|e| e.into_inner());
+    if pool.len() < 16 {
+        pool.push(acc);
+    }
 }
 
 fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOptions, acc: &mut [[f32; 4]]) {
@@ -160,6 +188,8 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
         let fast = mode == BlendMode::Normal && op >= 1.0 && clip_to.is_none();
         for (tx, ty) in cel.tiles_in_rect(&rect).collect::<Vec<_>>() {
             let Some(tile) = cel.tile_ref(cel.tile_index(tx, ty)) else { continue };
+            // Read without opening: playing many frames keeps them packed.
+            let tile = tile.px_cold();
             let trect = IRect::new((tx * TILE) as i32, (ty * TILE) as i32, ((tx + 1) * TILE) as i32, ((ty + 1) * TILE) as i32);
             let r = trect.intersect(&rect);
             for y in r.y0..r.y1 {
@@ -167,7 +197,7 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
                 let arow = (y - rect.y0) as usize * w;
                 for x in r.x0..r.x1 {
                     let o = (trow + x as usize % TILE) * 4;
-                    let mut src = [tile.px[o], tile.px[o + 1], tile.px[o + 2], tile.px[o + 3]];
+                    let mut src = [tile[o], tile[o + 1], tile[o + 2], tile[o + 3]];
                     if src[3] == 0 {
                         continue;
                     }
@@ -463,11 +493,12 @@ pub fn cel_thumbnail(cel: &TiledImage, max_w: u32) -> (usize, usize, Vec<u8>) {
     let (tw, th) = (((cw / step) as usize).max(1), ((ch / step) as usize).max(1));
     let mut out = Vec::with_capacity(tw * th * 4);
     let offs = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
+    let mut cache = std::collections::HashMap::new();
     for y in 0..th {
         for x in 0..tw {
             let mut sum = [0.0f32; 4];
             for (ox, oy) in offs {
-                let s = cel.pixel(((x as f32 + ox) * step) as i32, ((y as f32 + oy) * step) as i32);
+                let s = cel.pixel_cached(&mut cache, ((x as f32 + ox) * step) as i32, ((y as f32 + oy) * step) as i32);
                 let acc = blend_px([1.0, 1.0, 1.0, 1.0], s, 1.0, BlendMode::Normal);
                 for i in 0..4 {
                     sum[i] += acc[i] * 0.25;

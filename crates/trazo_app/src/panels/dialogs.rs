@@ -372,6 +372,19 @@ fn settings(app: &mut TrazoApp, ctx: &egui::Context) {
             }
         });
         ui.label(tf!("Lienzo: {} × {} px", p.canvas.width, p.canvas.height));
+        // Memory the drawings take (measured at most once a second).
+        let now = ui.input(|i| i.time);
+        let mem_id = egui::Id::unique("drawing_memory");
+        let cached: Option<(f64, f32, usize)> = ui.data(|d| d.get_temp(mem_id));
+        let (mb, frames) = match cached {
+            Some((t, mb, n)) if now - t < 1.0 => (mb, n),
+            _ => {
+                let u = trazo_core::memory::usage(p, None);
+                ui.data_mut(|d| d.insert_temp(mem_id, (now, u.megabytes(), p.frames.len())));
+                (u.megabytes(), p.frames.len())
+            }
+        };
+        ui.label(RichText::new(tf!("{} fotogramas · los dibujos ocupan {} MB de memoria", frames, crate::i18n::num(mb, 1))).small().weak());
         ui.horizontal(|ui| {
             ui.label(tr("Color de fondo"));
             let c = p.canvas.background.to_rgba8();

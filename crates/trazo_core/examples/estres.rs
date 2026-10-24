@@ -281,6 +281,14 @@ fn main() {
     let ch_tiles: usize = p.frames.iter().filter_map(|f| f.cel(ch)).map(|c| c.allocated_tiles()).sum();
     println!("  Personaje avg {:.1} tiles/drawing", ch_tiles as f64 / FRAMES as f64);
     report_mem("after build");
+    let t = Instant::now();
+    let saved = trazo_core::memory::pack(&trazo_core::memory::cold_tiles(&p, None, 0..=4));
+    let u = trazo_core::memory::usage(&p, None);
+    println!("pack: {:.1} MB saved in {:.2} s -> pixels now {:.1} MB", mb(saved), t.elapsed().as_secs_f64(), u.megabytes());
+    report_mem("after pack");
+    let t = Instant::now();
+    let again = trazo_core::memory::cold_tiles(&p, None, 600..=604);
+    println!("cold_tiles scan (UI thread, nothing left to pack): {:.1} ms, {} tiles", t.elapsed().as_secs_f64() * 1e3, again.len());
 
     // ---- render ----
     bench_render(&p, "background, no onion", &RenderOptions { background: true, ..Default::default() });
@@ -309,6 +317,10 @@ fn main() {
     let q = load_project(&out).expect("load");
     println!("load_project: {:.2} s ({} frames, {} layers)", t.elapsed().as_secs_f64(), q.frames.len(), q.layers.len());
     report_tiles("after load", &q);
+    let u = trazo_core::memory::usage(&q, None);
+    println!("pixel memory after load (packed): {:.1} MB ({} open, {} packed tiles)", u.megabytes(), u.open_tiles, u.packed_tiles);
     report_mem("after load");
-    bench_render(&q, "loaded, background, no onion", &RenderOptions { background: true, ..Default::default() });
+    bench_render(&q, "loaded (packed), background, no onion", &RenderOptions { background: true, ..Default::default() });
+    let u = trazo_core::memory::usage(&q, None);
+    println!("pixel memory after playing (cold reads): {:.1} MB", u.megabytes());
 }

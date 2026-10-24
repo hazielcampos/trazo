@@ -456,7 +456,11 @@ pub fn load_project(path: &Path) -> Result<Project> {
     for fm in &manifest.frames {
         let mut frame = Frame { id: fm.id, hold: fm.hold.max(1), cels: Default::default(), cont: fm.cont.iter().copied().collect() };
         for c in &fm.cels {
-            frame.cels.insert(c.layer, read_cel(c)?);
+            // Packed right away: a long animation never needs all its
+            // drawings open at once (fixed backgrounds below stay open).
+            let img = read_cel(c)?;
+            img.pack_all();
+            frame.cels.insert(c.layer, img);
         }
         for &lid in &fm.empty {
             frame.cels.entry(lid).or_insert_with(|| TiledImage::new(w, h));
