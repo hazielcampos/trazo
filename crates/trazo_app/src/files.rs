@@ -26,6 +26,17 @@ pub enum PickPurpose {
 }
 
 impl PickPurpose {
+    /// What the system picker shows.
+    #[cfg_attr(not(target_os = "android"), allow(dead_code))]
+    pub fn mimes(self) -> &'static [&'static str] {
+        match self {
+            PickPurpose::Audio => &["audio/*"],
+            PickPurpose::Video => &["video/*"],
+            PickPurpose::ImageLayer | PickPurpose::ImageReference | PickPurpose::ImageSequence => &["image/*"],
+            PickPurpose::Brushes => &["*/*"],
+        }
+    }
+
     pub fn title(self) -> &'static str {
         match self {
             PickPurpose::Audio => tr("Importar audio"),
@@ -62,13 +73,19 @@ pub fn request(app: &mut TrazoApp, ctx: &egui::Context, purpose: PickPurpose) {
     }
     #[cfg(target_os = "android")]
     {
-        let _ = ctx;
-        let perms = crate::android::media_permissions();
-        if !perms.iter().all(|p| crate::android::has_permission(p)) {
-            let _ = crate::android::request_permissions(&perms);
+        // Android's own picker: previews, every folder, Drive, Downloads…
+        match crate::android::open_picker(ctx, purpose.mimes(), purpose.multi()) {
+            Ok(()) => app.pending_pick = Some(purpose),
+            Err(_) => {
+                // Fallback: Trazo's own browser.
+                let perms = crate::android::media_permissions();
+                if !perms.iter().all(|p| crate::android::has_permission(p)) {
+                    let _ = crate::android::request_permissions(&perms);
+                }
+                let start = app.file_browser.as_ref().map(|b| b.dir.clone()).unwrap_or_else(|| shared_root().join("Download"));
+                app.file_browser = Some(FileBrowser::new(purpose, start));
+            }
         }
-        let start = app.file_browser.as_ref().map(|b| b.dir.clone()).unwrap_or_else(|| shared_root().join("Download"));
-        app.file_browser = Some(FileBrowser::new(purpose, start));
     }
 }
 
@@ -134,6 +151,15 @@ impl FileBrowser {
 
 /// The browser window (Android). Returns nothing; imports run on "Abrir".
 pub fn show_browser(app: &mut TrazoApp, ctx: &egui::Context) {
+    // Files chosen in Android's picker.
+    #[cfg(target_os = "android")]
+    if let Some(files) = crate::android::take_picked() {
+        if let Some(purpose) = app.pending_pick.take() {
+            if !files.is_empty() {
+                deliver(app, ctx, purpose, files);
+            }
+        }
+    }
     let Some(browser) = app.file_browser.as_mut() else { return };
     browser.refresh();
     let mut open = true;

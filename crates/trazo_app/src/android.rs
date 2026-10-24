@@ -199,3 +199,85 @@ pub fn share(uri: &str, mime: &str) -> Result<(), String> {
         Ok(())
     })
 }
+
+// ---- system file picker -------------------------------------------------------------------
+
+/// The picker class (android/TrazoPicker.java), compiled to dex by
+/// scripts/build-picker-dex.sh and loaded from memory: NativeActivity has no
+/// Java of its own to receive the picker's result.
+static PICKER_DEX: &[u8] = include_bytes!("../android/picker.dex");
+static PICKER_CLASS: OnceLock<jni::objects::GlobalRef> = OnceLock::new();
+static PICKED: std::sync::Mutex<Option<Vec<std::path::PathBuf>>> = std::sync::Mutex::new(None);
+static REPAINT: OnceLock<egui::Context> = OnceLock::new();
+
+extern "system" fn picked(mut env: JNIEnv, _class: jni::objects::JClass, paths: jni::objects::JObjectArray) {
+    let mut out = Vec::new();
+    let n = env.get_array_length(&paths).unwrap_or(0);
+    for i in 0..n {
+        if let Ok(o) = env.get_object_array_element(&paths, i) {
+            if let Ok(s) = env.get_string(&jni::objects::JString::from(o)) {
+                out.push(std::path::PathBuf::from(String::from(s)));
+            }
+        }
+    }
+    if let Ok(mut p) = PICKED.lock() {
+        *p = Some(out);
+    }
+    if let Some(ctx) = REPAINT.get() {
+        ctx.request_repaint();
+    }
+}
+
+fn picker_class(env: &mut JNIEnv, activity: &JObject) -> jni::errors::Result<jni::objects::GlobalRef> {
+    if let Some(c) = PICKER_CLASS.get() {
+        return Ok(c.clone());
+    }
+    // The buffer must outlive the class loader: keep one leaked copy.
+    static BYTES: OnceLock<usize> = OnceLock::new();
+    let ptr = *BYTES.get_or_init(|| Box::leak(PICKER_DEX.to_vec().into_boxed_slice()).as_mut_ptr() as usize) as *mut u8;
+    let buf = unsafe { env.new_direct_byte_buffer(ptr, PICKER_DEX.len()) }?;
+    let parent = env.call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
+    let loader = env.new_object(
+        "dalvik/system/InMemoryDexClassLoader",
+        "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V",
+        &[JValue::Object(&buf), JValue::Object(&parent)],
+    )?;
+    let name = env.new_string("com.trazo.app.TrazoPicker")?;
+    let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
+    let class = jni::objects::JClass::from(class);
+    env.register_native_methods(
+        &class,
+        &[jni::NativeMethod { name: "picked".into(), sig: "([Ljava/lang/String;)V".into(), fn_ptr: picked as *mut std::ffi::c_void }],
+    )?;
+    let global = env.new_global_ref(&class)?;
+    let _ = PICKER_CLASS.set(global.clone());
+    Ok(global)
+}
+
+/// Open Android's file picker for these MIME types. The chosen files arrive
+/// later as local copies: poll [`take_picked`].
+pub fn open_picker(ctx: &egui::Context, mimes: &[&str], multiple: bool) -> Result<(), String> {
+    let _ = REPAINT.set(ctx.clone());
+    with_activity(|env, activity| {
+        let class = picker_class(env, activity)?;
+        let string_class = env.find_class("java/lang/String")?;
+        let array = env.new_object_array(mimes.len() as i32, &string_class, JObject::null())?;
+        for (i, m) in mimes.iter().enumerate() {
+            let s = env.new_string(m)?;
+            env.set_object_array_element(&array, i as i32, &s)?;
+        }
+        let class = jni::objects::JClass::from(env.new_local_ref(class.as_obj())?);
+        env.call_static_method(
+            &class,
+            "open",
+            "(Landroid/app/Activity;[Ljava/lang/String;Z)V",
+            &[JValue::Object(activity), JValue::Object(&array), JValue::Bool(multiple as u8)],
+        )?;
+        Ok(())
+    })
+}
+
+/// Files chosen in the picker since the last call (empty = cancelled).
+pub fn take_picked() -> Option<Vec<std::path::PathBuf>> {
+    PICKED.lock().ok().and_then(|mut p| p.take())
+}

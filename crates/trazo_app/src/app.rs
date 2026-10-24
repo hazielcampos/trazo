@@ -270,6 +270,8 @@ pub struct TrazoApp {
     pub video_import: panels::video_import::VideoImportUi,
     /// In-app file browser (Android import).
     pub file_browser: Option<crate::files::FileBrowser>,
+    /// Android: what the system file picker was opened for.
+    pub pending_pick: Option<crate::files::PickPurpose>,
     /// Sound device (None if there is no audio output).
     pub audio: Option<AudioEngine>,
     pub audio_ui: panels::audio::AudioUi,
@@ -342,6 +344,7 @@ impl TrazoApp {
             frame_clipboard: None,
             drawing_clipboard: None,
             file_browser: None,
+            pending_pick: None,
             video_import: Default::default(),
             export_ui: {
                 let mut e = panels::export::ExportUi::default();
