@@ -507,6 +507,15 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    // ---- record motion -------------------------------------------------------
+    ("Aquí no se puede grabar movimiento (capa de fondo fija, bloqueada o de video)", "Motion can't be recorded here (fixed background, locked or video layer)"),
+    ("Grabación muy corta: arrastra la selección mientras graba", "Recording too short: drag the selection while recording"),
+    ("Arrastra la selección: se graba mientras la mueves", "Drag the selection: it records while you move it"),
+    ("Grabando… {} dibujos", "Recording… {} drawings"),
+    ("Dejar de grabar sin crear dibujos", "Stop recording without creating drawings"),
+    ("Grabar", "Record"),
+    ("Grabar movimiento: arrastra la selección y cada momento se vuelve un dibujo", "Record motion: drag the selection and each moment becomes a drawing"),
+    ("{} dibujos grabados: pulsa reproducir para verlos", "{} drawings recorded: press play to see them"),
     // ---- text ---------------------------------------------------------------
     ("Texto: toca el lienzo para escribir (T)", "Text: tap the canvas to write (T)"),
     ("Texto", "Text"),

@@ -388,7 +388,15 @@ impl Transform {
     /// value of `progress` (0 = start, 1 = the current pose): the rest of the
     /// drawing stays put and the selected part moves.
     pub fn tween(self, img: &mut TiledImage, progress: &[f32]) -> (Vec<TiledImage>, Option<PixelEdit>) {
-        let (owner, layer, end) = (self.owner, self.layer, self.xf);
+        let end = self.xf;
+        let poses: Vec<Xform> = progress.iter().map(|&p| Xform::default().lerp(&end, p)).collect();
+        self.render_poses(img, &poses)
+    }
+
+    /// One cel per pose (recorded motion, in-betweens…). `img` becomes the
+    /// first pose, as in [`Transform::tween`].
+    pub fn render_poses(self, img: &mut TiledImage, poses: &[Xform]) -> (Vec<TiledImage>, Option<PixelEdit>) {
+        let (owner, layer) = (self.owner, self.layer);
         let mut t = Transform {
             owner,
             layer,
@@ -409,11 +417,11 @@ impl Transform {
             let area = t.target_bounds().union(&t.rect);
             t.redraw(cel, area);
         }
-        let cels = progress
+        let cels = poses
             .iter()
-            .map(|&p| {
+            .map(|&xf| {
                 let mut cel = base.clone();
-                render(&mut t, &mut cel, Xform::default().lerp(&end, p));
+                render(&mut t, &mut cel, xf);
                 cel
             })
             .collect();

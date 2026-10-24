@@ -991,6 +991,16 @@ impl eframe::App for TrazoApp {
                 if let Some(msg) = self.canvas.take_message() {
                     self.toast(&ctx, msg);
                 }
+                if let Some(done) = self.canvas.select.finish_recording(&mut self.doc) {
+                    match done {
+                        Ok((first, n)) => {
+                            self.doc.frame = first.min(self.doc.project.frames.len().saturating_sub(1));
+                            self.toast(&ctx, tf!("{} dibujos grabados: pulsa reproducir para verlos", n));
+                        }
+                        Err(e) if !e.is_empty() => self.toast(&ctx, e),
+                        Err(_) => {}
+                    }
+                }
                 if let Some(at) = self.canvas.take_text_request() {
                     let size = (self.doc.project.canvas.height as f32 / 10.0).round().clamp(16.0, 400.0);
                     let last = self.ui.last_text.clone();

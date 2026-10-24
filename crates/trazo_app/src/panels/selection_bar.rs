@@ -53,8 +53,20 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                     if ui.add_enabled(has_clip, IconButton::new(Icon::Paste).text(tr("Pegar"))).on_hover_text(tr("Pegar en la capa y fotograma actuales (Ctrl+V)")).clicked() {
                         app.paste_selection(ctx);
                     }
-                    if app.canvas.select.is_active() {
+                    if let Some(n) = app.canvas.select.recording() {
                         ui.separator();
+                        let text = if n == 0 { tr("Arrastra la selección: se graba mientras la mueves").to_string() } else { tf!("Grabando… {} dibujos", n) };
+                        ui.label(egui::RichText::new(text).color(egui::Color32::from_rgb(240, 80, 80)));
+                        if ui.add(IconButton::new(Icon::Close)).on_hover_text(tr("Dejar de grabar sin crear dibujos")).clicked() {
+                            app.canvas.select.cancel_recording();
+                        }
+                    } else if app.canvas.select.is_active() {
+                        ui.separator();
+                        if ui.add(IconButton::new(Icon::Record).keep_text().text(tr("Grabar"))).on_hover_text(tr("Grabar movimiento: arrastra la selección y cada momento se vuelve un dibujo")).clicked() {
+                            if let Err(e) = app.canvas.select.arm_recording(&app.doc) {
+                                app.toast(ctx, e);
+                            }
+                        }
                         let can = app.canvas.select.can_tween(&app.doc);
                         let tip = if can { tr("Generar los dibujos intermedios hasta esta posición") } else { tr("Mueve, escala o gira la selección para marcar la posición final") };
                         if ui.add_enabled(can, IconButton::new(Icon::Tween).keep_text().text(tr("Intermedios"))).on_hover_text(tip).on_disabled_hover_text(tip).clicked() {

@@ -52,8 +52,22 @@ struct Drag {
     start_xf: Xform,
 }
 
+/// Most drawings one recording can make.
+pub const MAX_RECORDED: usize = 240;
+
+/// "Record motion": while the selection is dragged, its pose is sampled at
+/// the animation's speed; each sample becomes a drawing.
+struct MotionRec {
+    /// Seconds between samples (one drawing's exposure).
+    interval: f64,
+    started: Option<f64>,
+    poses: Vec<Xform>,
+    done: bool,
+}
+
 #[derive(Default)]
 pub struct SelectTool {
+    rec: Option<MotionRec>,
     drawing: Option<Drawing>,
     active: Option<Transform>,
     drag: Option<Drag>,
@@ -97,7 +111,12 @@ impl SelectTool {
         if pressed && response.hovered() {
             let Some(s) = pos else { return None };
             let c = xf.to_canvas(s);
-            if let Some(mode) = self.hit(s, xf) {
+            // While recording, a drag anywhere moves the selection (easier with a finger).
+            let armed = self.rec.as_ref().is_some_and(|r| r.started.is_none()) && self.active.is_some();
+            if let Some(mode) = self.hit(s, xf).or(armed.then_some(DragMode::Move)) {
+                if let Some(r) = self.rec.as_mut().filter(|r| r.started.is_none()) {
+                    r.started = Some(ui.input(|i| i.time));
+                }
                 let start_xf = self.active.as_ref().map(|t| t.xform()).unwrap_or_default();
                 self.drag = Some(Drag { mode, start: c, start_xf });
                 return None;
@@ -137,9 +156,15 @@ impl SelectTool {
                     self.set_xform(doc, new_xf);
                 }
             }
+            self.sample_motion(ui);
         }
 
         if released || (!down && (self.drawing.is_some() || self.drag.is_some())) {
+            if self.drag.is_some() {
+                if let Some(r) = self.rec.as_mut().filter(|r| r.started.is_some()) {
+                    r.done = true;
+                }
+            }
             self.drag = None;
             if let Some(d) = self.drawing.take() {
                 let bounds = IRect::from_size(doc.project.canvas.width, doc.project.canvas.height);
@@ -327,6 +352,7 @@ impl SelectTool {
 
     /// Apply the floating selection to the layer (one undo step).
     pub fn commit(&mut self, doc: &mut Document) {
+        self.rec = None;
         self.drag = None;
         self.drawing = None;
         let Some(t) = self.active.take() else { return };
@@ -344,6 +370,77 @@ impl SelectTool {
         }
         doc.invalidate_frame(owner, Some(area));
         doc.redraw = crate::app::Redraw::Full;
+    }
+
+    /// Start "record motion": the next drag of the selection is recorded.
+    pub fn arm_recording(&mut self, doc: &Document) -> Result<(), String> {
+        let Some((_, block)) = self.tween_source(doc) else {
+            return Err(tr("Aquí no se puede grabar movimiento (capa de fondo fija, bloqueada o de video)").into());
+        };
+        let fps = doc.project.canvas.fps.max(1) as f64;
+        self.rec = Some(MotionRec { interval: block.len as f64 / fps, started: None, poses: Vec::new(), done: false });
+        Ok(())
+    }
+
+    pub fn cancel_recording(&mut self) {
+        self.rec = None;
+    }
+
+    /// `None` when not recording; otherwise how many drawings so far (0 while waiting for the drag).
+    pub fn recording(&self) -> Option<usize> {
+        self.rec.as_ref().map(|r| r.poses.len())
+    }
+
+    /// Sample the pose at the animation's speed while dragging.
+    fn sample_motion(&mut self, ui: &egui::Ui) {
+        let Some(xf) = self.active.as_ref().map(|t| t.xform()) else { return };
+        let Some(r) = self.rec.as_mut() else { return };
+        let Some(t0) = r.started else { return };
+        if r.done {
+            return;
+        }
+        let due = (((ui.input(|i| i.time) - t0) / r.interval).floor() as usize).min(MAX_RECORDED);
+        while r.poses.len() < due {
+            r.poses.push(xf);
+        }
+        if r.poses.len() >= MAX_RECORDED {
+            r.done = true;
+        }
+        // Keep sampling while the finger rests.
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(r.interval / 2.0));
+    }
+
+    /// A finished recording turned into drawings after the current one, in
+    /// one undo step. Returns (first new frame, drawings added); `None` while
+    /// still recording.
+    pub fn finish_recording(&mut self, doc: &mut Document) -> Option<Result<(usize, usize), String>> {
+        if !self.rec.as_ref().is_some_and(|r| r.done) {
+            return None;
+        }
+        let rec = self.rec.take()?;
+        let mut poses = rec.poses;
+        // Drop the still tail (the finger rested before letting go).
+        while poses.len() > 1 && poses[poses.len() - 1] == poses[poses.len() - 2] {
+            poses.pop();
+        }
+        if poses.is_empty() || poses.iter().all(|p| p.is_identity()) {
+            return Some(Err(tr("Grabación muy corta: arrastra la selección mientras graba").into()));
+        }
+        let Some((layer, block)) = self.tween_source(doc) else { return Some(Err(String::new())) };
+        let t = self.active.take()?;
+        self.drag = None;
+        let cel = doc.project.cel_at_mut(t.owner(), layer)?;
+        let (cels, stamp) = t.render_poses(cel, &poses);
+        let added = cels.len();
+        let mark = doc.history.undo_len();
+        if let Some(e) = stamp {
+            doc.history.push_applied(Edit::Pixels(e));
+        }
+        let first = trazo_core::timeline::insert_drawings_after(&mut doc.project, &mut doc.history, layer, block.start, block.len, cels);
+        doc.history.group_since(mark);
+        doc.invalidate_all();
+        doc.redraw = crate::app::Redraw::Full;
+        Some(Ok((first.unwrap_or(block.end()), added)))
     }
 
     /// Where in-betweens of the floating selection would go: its layer and
@@ -401,6 +498,7 @@ impl SelectTool {
 
     /// Undo the transform and put the pixels back where they were.
     pub fn cancel(&mut self, doc: &mut Document) {
+        self.rec = None;
         self.drawing = None;
         if self.drag.is_some() {
             self.abort_gesture(doc);
