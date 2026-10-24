@@ -835,7 +835,7 @@ impl TrackStyle {
 
 /// Rows of the timeline for this project (layers, then sound).
 pub(crate) fn track_rows(app: &TrazoApp) -> usize {
-    app.doc.project.layers.len() + usize::from(!app.doc.project.audio.tracks.is_empty())
+    app.doc.project.layers.len() + 1
 }
 
 pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: TrackStyle) {
@@ -844,9 +844,8 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
     let mut view: TrackView = ctx.data(|d| d.get_temp(vid)).unwrap_or(TrackView { follow: usize::MAX, ..Default::default() });
     let n_layers = app.doc.project.layers.len();
     let mut rows: Vec<Row> = (0..n_layers).rev().map(Row::Layer).collect();
-    if !app.doc.project.audio.tracks.is_empty() {
-        rows.push(Row::Audio);
-    }
+    // Always a sound row: with nothing yet, it is where you add some.
+    rows.push(Row::Audio);
     ui.spacing_mut().item_spacing.y = 0.0;
     if st.hint {
         ui.add_space(2.0);
@@ -1006,6 +1005,13 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
                 let (dot, cell) = theme::AUDIO_TRACK;
                 paint(&rp, Rect::from_center_size(Pos2::new(full.left() + 19.0, full.center().y), Vec2::splat(15.0)), Icon::Music, TEXT2);
                 rp.text(Pos2::new(full.left() + 34.0, full.center().y), Align2::LEFT_CENTER, tr("Audio"), theme::font(13.0, W::Semi), Color32::from_rgb(226, 226, 223));
+                if app.doc.project.audio.tracks.iter().all(|t| t.clips.is_empty()) {
+                    let r = Rect::from_min_max(Pos2::new(lanes.left() + 2.0, top + 4.0), Pos2::new(lanes.right() - 6.0, top + st.row_h - 4.0));
+                    lrp.rect_filled(r, 9.0, cell.gamma_multiply(0.5));
+                    dashed_rect(&lrp, r, Stroke::new(1.5, dot.gamma_multiply(0.6)));
+                    paint(&lrp, Rect::from_center_size(Pos2::new(r.left() + 20.0, r.center().y), Vec2::splat(16.0)), Icon::Plus, dot);
+                    lrp.text(Pos2::new(r.left() + 36.0, r.center().y), Align2::LEFT_CENTER, tr("Añadir sonido o grabar tu voz"), theme::font(12.0, W::Semi), dot);
+                }
                 for t in &app.doc.project.audio.tracks {
                     for c in &t.clips {
                         let s = trazo_core::audio::samples_to_ticks(c.start, fps as u32) as f32;

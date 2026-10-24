@@ -133,6 +133,10 @@ pub fn project_menu(app: &mut TrazoApp, ui: &mut Ui) {
         ui.close();
     }
     ui.separator();
+    if item(ui, Icon::Music, tr("Sonido y voz…")) {
+        app.audio_ui.show = true;
+        ui.close();
+    }
     if item(ui, Icon::Film, tr("Importar video…")) {
         crate::files::request(app, &ctx, crate::files::PickPurpose::Video);
         ui.close();

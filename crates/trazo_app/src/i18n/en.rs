@@ -933,4 +933,6 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} animaciones", "{} animations"),
     ("{} pistas más", "{} more tracks"),
     ("{} veces", "{} times"),
+    ("Añadir sonido o grabar tu voz", "Add sound or record your voice"),
+    ("Sonido y voz…", "Sound and voice…"),
 ];
