@@ -305,6 +305,14 @@ pub fn plan(p: &Project, s: &ExportSettings) -> VideoPlan {
 pub fn render_rgba(p: &Project, frame: usize, plan: &VideoPlan, background: bool) -> Vec<u8> {
     let (cw, ch) = (p.canvas.width, p.canvas.height);
     let full = render_frame(p, frame, background);
+    // Through the camera, when there is one.
+    let cam = &p.canvas.camera;
+    let full = if cam.is_active() {
+        let fill = if background { p.canvas.background.premul8(1.0).map(|v| v as u8) } else { [0; 4] };
+        crate::camera::view(&full, cw, ch, &cam.pose_at(frame, p.frames.len()), fill)
+    } else {
+        full
+    };
     let l = plan.layout;
     let scaled = if l.content_w == cw && l.content_h == ch {
         full

@@ -135,7 +135,7 @@ impl Default for TweenDialog {
     }
 }
 
-fn ease_label(e: trazo_core::transform::Ease) -> &'static str {
+pub fn ease_label(e: trazo_core::transform::Ease) -> &'static str {
     use trazo_core::transform::Ease;
     match e {
         Ease::Linear => tr("Lineal"),
@@ -301,7 +301,7 @@ fn new_project(app: &mut TrazoApp, ctx: &egui::Context) {
         match dlg.template {
             Some(t) => app.open_new_project(ctx, t.build(&name)),
             None => {
-                let canvas = CanvasSettings { width: dlg.width, height: dlg.height, fps: dlg.fps, background: Rgba::WHITE };
+                let canvas = CanvasSettings { width: dlg.width, height: dlg.height, fps: dlg.fps, background: Rgba::WHITE, ..Default::default() };
                 app.new_project(ctx, name, canvas);
             }
         }

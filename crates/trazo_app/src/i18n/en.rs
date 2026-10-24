@@ -507,6 +507,17 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    // ---- camera ---------------------------------------------------------------
+    ("Cámara…", "Camera…"),
+    ("Usar cámara", "Use camera"),
+    ("La cámara va del encuadre inicial al final durante toda la animación. Arrastra el recuadro en la vista previa; se aplica al reproducir y al exportar.", "The camera moves from the start framing to the end one over the whole animation. Drag the frame in the preview; it's used when playing and exporting."),
+    ("Inicio", "Start"),
+    ("Final", "End"),
+    ("Giro", "Rotation"),
+    ("Centrar", "Reset"),
+    ("Igual que el inicio", "Same as start"),
+    ("Igual que el final", "Same as end"),
+    ("Ver a través de la cámara al reproducir", "View through the camera when playing"),
     // ---- templates -----------------------------------------------------------
     ("Empezar con", "Start with"),
     ("Lienzo en blanco", "Blank canvas"),

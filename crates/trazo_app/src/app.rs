@@ -224,6 +224,8 @@ pub struct UiState {
     pub tween_dialog: Option<panels::dialogs::TweenDialog>,
     /// Earlier versions of the project.
     pub versions_dialog: bool,
+    /// Camera panel and preview.
+    pub camera: panels::camera::CameraUi,
     /// Writing text to place on the canvas.
     pub text_dialog: Option<panels::dialogs::TextDialog>,
     /// Text settings used last time (text, size, bold, centered).
@@ -311,6 +313,7 @@ impl TrazoApp {
                 language_dialog: first_run.then_some(true),
                 tween_dialog: None,
                 versions_dialog: false,
+                camera: Default::default(),
                 text_dialog: None,
                 last_text: Default::default(),
                 toast: None,
@@ -992,6 +995,7 @@ impl eframe::App for TrazoApp {
             .show(ui, |ui| {
                 let frame = self.displayed_frame();
                 let onion = (!self.playback.playing).then_some(self.onion);
+                self.canvas.camera_view = self.ui.camera.view_on();
                 self.canvas.show(ui, &mut self.doc, &mut self.tools, frame, onion, self.playback.playing);
                 if let Some(g) = self.canvas.take_gesture() {
                     match g {
@@ -1032,6 +1036,7 @@ impl eframe::App for TrazoApp {
             || self.ui.language_dialog.is_some()
             || self.ui.tween_dialog.is_some()
             || self.ui.versions_dialog
+            || self.ui.camera.open
             || self.ui.text_dialog.is_some()
             || self.export_ui.open
             || self.video_import.is_busy()
@@ -1061,6 +1066,7 @@ impl eframe::App for TrazoApp {
         panels::video_import::show(self, &ctx);
         panels::selection_bar::show(self, &ctx);
         panels::dialogs::show(self, &ctx);
+        panels::camera::show(self, &ctx);
         self.thumbs.update(&ctx, &mut self.doc, self.canvas.is_stroking());
         self.draw_toast(&ctx);
     }

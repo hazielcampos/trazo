@@ -5,6 +5,7 @@
 
 pub mod audio;
 pub mod brush;
+pub mod camera;
 pub mod brush_io;
 pub mod color;
 pub mod composite;

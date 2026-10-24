@@ -91,6 +91,8 @@ pub struct CanvasView {
     message: Option<String>,
     /// Where the text tool was tapped (canvas pixels), for the app to ask for the text.
     text_at: Option<(f32, f32)>,
+    /// Play through the project's camera (when it has one).
+    pub camera_view: bool,
     stop_playback: bool,
     scratch: Vec<u8>,
     playback_cache: HashMap<usize, Arc<ColorImage>>,
@@ -118,6 +120,7 @@ impl Default for CanvasView {
             gesture: None,
             message: None,
             text_at: None,
+            camera_view: true,
             stop_playback: false,
             scratch: Vec::new(),
             playback_cache: HashMap::new(),
@@ -246,9 +249,25 @@ impl CanvasView {
         let corners = [Pos2::new(0.0, 0.0), Pos2::new(cw, 0.0), Pos2::new(cw, ch), Pos2::new(0.0, ch)].map(|c| xf.to_screen(c));
         let shadow: Vec<Pos2> = corners.iter().map(|p| *p + Vec2::splat(4.0)).collect();
         painter.add(egui::Shape::convex_polygon(shadow, Color32::from_black_alpha(80), UiStroke::NONE));
+        let cam = doc.project.canvas.camera;
+        let cam_pose = cam.pose_at(frame, doc.project.frames.len());
+        let through_camera = playing && self.camera_view && cam.is_active();
+        if through_camera {
+            // Outside the canvas the camera sees the background color.
+            painter.add(egui::Shape::convex_polygon(corners.to_vec(), {
+                let c = doc.project.canvas.background.to_rgba8();
+                Color32::from_rgb(c[0], c[1], c[2])
+            }, UiStroke::NONE));
+        }
         if let Some(tex) = &self.texture {
             let mut mesh = egui::Mesh::with_texture(tex.id());
-            let uvs = [Pos2::new(0.0, 0.0), Pos2::new(1.0, 0.0), Pos2::new(1.0, 1.0), Pos2::new(0.0, 1.0)];
+            // Through the camera: the canvas area shows what the camera
+            // frames (done by the GPU, no extra drawing work).
+            let uvs = if through_camera {
+                cam_pose.corners(doc.project.canvas.width, doc.project.canvas.height).map(|(x, y)| Pos2::new(x / cw, y / ch))
+            } else {
+                [Pos2::new(0.0, 0.0), Pos2::new(1.0, 0.0), Pos2::new(1.0, 1.0), Pos2::new(0.0, 1.0)]
+            };
             for (pos, uv) in corners.iter().zip(uvs) {
                 mesh.vertices.push(egui::epaint::Vertex { pos: *pos, uv, color: Color32::WHITE });
             }
@@ -257,6 +276,11 @@ impl CanvasView {
             painter.add(mesh);
         }
 
+        // The camera's framing at this frame.
+        if cam.enabled && !playing {
+            let pts: Vec<Pos2> = cam_pose.corners(doc.project.canvas.width, doc.project.canvas.height).map(|(x, y)| xf.to_screen(Pos2::new(x, y))).to_vec();
+            painter.add(egui::Shape::closed_line(pts, UiStroke::new(2.0, crate::theme::ACCENT)));
+        }
         if tools.show_grid && !playing {
             let step = tools.grid_size.max(4) as f32;
             let line = UiStroke::new(1.0, Color32::from_rgba_unmultiplied(80, 140, 255, 70));

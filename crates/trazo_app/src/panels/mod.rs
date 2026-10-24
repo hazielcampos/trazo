@@ -2,6 +2,7 @@
 
 pub mod audio;
 pub mod brushes;
+pub mod camera;
 pub mod dialogs;
 pub mod export;
 pub mod layers;

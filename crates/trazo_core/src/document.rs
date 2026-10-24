@@ -88,11 +88,14 @@ pub struct CanvasSettings {
     pub height: u32,
     pub fps: u32,
     pub background: Rgba,
+    /// Framing for the video (off by default).
+    #[serde(default)]
+    pub camera: crate::camera::Camera,
 }
 
 impl Default for CanvasSettings {
     fn default() -> Self {
-        Self { width: 1280, height: 720, fps: 12, background: Rgba::WHITE }
+        Self { width: 1280, height: 720, fps: 12, background: Rgba::WHITE, camera: Default::default() }
     }
 }
 

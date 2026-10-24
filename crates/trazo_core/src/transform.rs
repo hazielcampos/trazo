@@ -147,7 +147,7 @@ impl Xform {
 }
 
 /// Timing of in-betweens: how the motion speeds up or slows down.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum Ease {
     #[default]
     Linear,

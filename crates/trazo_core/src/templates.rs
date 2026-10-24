@@ -37,7 +37,7 @@ impl Template {
 
     /// The finished starter project.
     pub fn build(self, name: &str) -> Project {
-        let canvas = CanvasSettings { width: 1280, height: 720, fps: 12, background: Rgba::WHITE };
+        let canvas = CanvasSettings { width: 1280, height: 720, fps: 12, background: Rgba::WHITE, ..Default::default() };
         match self {
             Template::BouncingBall => bouncing_ball(name, canvas),
             Template::Blink => blink(name, canvas),
