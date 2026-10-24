@@ -85,6 +85,12 @@ pub fn size_rail(app: &mut TrazoApp, ctx: &egui::Context, area: Rect) {
         return;
     }
     let pos = Pos2::new(area.left() + 24.0, area.top() + (area.height() - CANVAS_MARGIN.bottom as f32 - h) / 2.0 + 10.0);
+    let bubble = Pos2::new(area.center().x, area.bottom() - CANVAS_MARGIN.bottom as f32 - 8.0);
+    size_rail_at(app, ctx, pos, h, bubble);
+}
+
+/// The size / opacity rail at `pos`, `h` tall; the value bubble shows at `bubble`.
+pub fn size_rail_at(app: &mut TrazoApp, ctx: &egui::Context, pos: Pos2, h: f32, bubble: Pos2) {
     let mut dragging_size = None;
     egui::Area::new(egui::Id::unique("phone_up_rail")).order(Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
         Frame::new().fill(theme::floating()).corner_radius(18).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(0, 10)).show(ui, |ui| {
@@ -112,7 +118,7 @@ pub fn size_rail(app: &mut TrazoApp, ctx: &egui::Context, area: Rect) {
     });
     // While dragging: the value in a bubble above the island, clear of the stroke.
     if let Some((is_size, v)) = dragging_size {
-        let at = Pos2::new(area.center().x, area.bottom() - CANVAS_MARGIN.bottom as f32 - 8.0);
+        let at = bubble;
         egui::Area::new(egui::Id::unique("phone_up_bubble")).order(Order::Tooltip).pivot(Align2::CENTER_BOTTOM).fixed_pos(at).interactable(false).show(ctx, |ui| {
             Frame::new().fill(ELEVATED).corner_radius(14).shadow(theme::island_shadow()).inner_margin(Margin { left: 10, right: 14, top: 10, bottom: 10 }).show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -246,7 +252,7 @@ pub fn dock(app: &mut TrazoApp, ui: &mut Ui) {
             header(app, ui);
             ui.add_space(4.0);
             if app.ui.dock_open {
-                tracks(app, ui);
+                tracks(app, ui, 0.0);
                 ui.add_space(12.0);
                 action_bar(app, ui);
                 ui.add_space(20.0);
@@ -805,7 +811,7 @@ enum Row {
 }
 
 /// One row per layer (and one for the sound), drawings as colored cells.
-fn tracks(app: &mut TrazoApp, ui: &mut Ui) {
+fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
     let ctx = ui.ctx().clone();
     let vid = egui::Id::unique("phone_tracks");
     let mut view: TrackView = ctx.data(|d| d.get_temp(vid)).unwrap_or(TrackView { follow: usize::MAX, ..Default::default() });
@@ -814,11 +820,15 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui) {
     if !app.doc.project.audio.tracks.is_empty() {
         rows.push(Row::Audio);
     }
+    ui.spacing_mut().item_spacing.y = 0.0;
+    ui.add_space(2.0);
     ui.horizontal(|ui| {
         ui.add_space(LABEL_W + 12.0);
         ui.label(egui::RichText::new(tr("Pellizca: acercar · flecha blanca: alargar")).font(theme::font(11.0, W::Regular)).color(TEXT2));
     });
-    let visible_rows = rows.len().min(6) as f32;
+    ui.add_space(4.0);
+    let fit_rows = ((ui.available_height() - reserve - RULER_H) / ROW_H).floor().max(1.0) as usize;
+    let visible_rows = rows.len().min(6).min(fit_rows) as f32;
     let (area, bg) = ui.allocate_exact_size(Vec2::new(ui.available_width(), RULER_H + visible_rows * ROW_H), Sense::click_and_drag());
     let lanes = Rect::from_min_max(Pos2::new(area.left() + LABEL_W, area.top()), area.max);
     let n_frames = app.doc.project.frames.len();
@@ -1146,7 +1156,7 @@ pub fn gestures_card(app: &mut TrazoApp, ctx: &egui::Context) {
                         ui.spacing_mut().item_spacing.y = 16.0;
                         gesture_row(ui, 0, tr("Toca con dos dedos"), tr("Deshace lo último. Con tres, lo rehace."));
                         gesture_row(ui, 1, tr("Pellizca"), tr("Acerca, aleja y gira el dibujo."));
-                        gesture_row(ui, 2, tr("Mantén pulsado un dibujo"), tr("Abre su menú: copiar, duplicar, duración…"));
+                        gesture_row(ui, 2, tr("Mantén pulsado un dibujo"), tr("Abre su menú: copiar, duplicar…"));
                         gesture_row(ui, 3, tr("Sube el panel de abajo"), tr("Ves cada capa y el sonido por separado."));
                         if all {
                             gesture_row(ui, 4, tr("Arrastra con dos dedos"), tr("Mueve el lienzo."));
@@ -1245,5 +1255,294 @@ fn gesture_row(ui: &mut Ui, kind: u8, title: &str, what: &str) {
             ui.label(egui::RichText::new(title).font(theme::font(16.0, W::Semi)).color(TEXT));
             ui.label(egui::RichText::new(what).font(theme::font(13.0, W::Regular)).color(TEXT2));
         });
+    });
+}
+
+// ---- phone on its side (TelHorizontal, HorLinea, HorCapas…) ------------------------------
+
+/// Room for the notch / rounded corners on each side.
+const SIDE: f32 = 44.0;
+const RAIL_W: f32 = 56.0;
+const ISLAND_H: f32 = 58.0;
+
+fn card_width(app: &TrazoApp, screen: Rect) -> Option<f32> {
+    if app.ui.dock_open {
+        Some((screen.width() - 2.0 * SIDE - RAIL_W - 268.0).max(360.0))
+    } else if app.ui.sheet.is_some() {
+        Some(340.0f32.min(screen.width() * 0.45))
+    } else {
+        None
+    }
+}
+
+/// Room kept free around the canvas (left, right, bottom): the rails, the
+/// card and the timeline island.
+pub fn landscape_sides(app: &TrazoApp, screen: Rect) -> (f32, f32, f32) {
+    let left = SIDE + RAIL_W + 12.0 + if card_width(app, screen).is_none() { 48.0 } else { 0.0 };
+    let right = match card_width(app, screen) {
+        Some(w) => SIDE + w + 16.0,
+        None => SIDE + RAIL_W + 12.0,
+    };
+    let bottom = if app.ui.dock_open { 14.0 } else { 24.0 + ISLAND_H + 12.0 };
+    (left, right, bottom)
+}
+
+/// Empty side panels so the canvas fits between the floating controls.
+pub fn landscape_panels(app: &TrazoApp, ui: &mut Ui) {
+    let (l, r, b) = landscape_sides(app, ui.ctx().content_rect());
+    let frame = Frame::new().fill(theme::CANVAS_BG);
+    egui::Panel::bottom("hor_bottom_room").exact_size(b).resizable(false).show_separator_line(false).frame(frame).show(ui, |_| {});
+    egui::Panel::left("hor_left_room").exact_size(l).resizable(false).show_separator_line(false).frame(frame).show(ui, |_| {});
+    egui::Panel::right("hor_right_room").exact_size(r).resizable(false).show_separator_line(false).frame(frame).show(ui, |_| {});
+}
+
+pub fn landscape(app: &mut TrazoApp, ctx: &egui::Context, screen: Rect) {
+    let card = card_width(app, screen);
+    // Left: back and tools.
+    egui::Area::new(egui::Id::unique("hor_left")).order(Order::Foreground).fixed_pos(Pos2::new(screen.left() + SIDE, screen.top() + 14.0)).show(ctx, |ui| {
+        rail_frame().show(ui, |ui| {
+            ui.set_width(RAIL_W - 12.0);
+            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.vertical_centered(|ui| {
+                if widgets::icon_button(ui, Icon::ArrowLeft, tr("Mis animaciones")).clicked() {
+                    app.go_home(ui.ctx());
+                }
+                rail_sep(ui);
+                for t in MAIN_TOOLS {
+                    tool_slot(app, ui, t, Vec2::splat(44.0));
+                }
+                crate::panels::phone::more_tools_pub(app, ui, Vec2::splat(44.0));
+            });
+        });
+    });
+    if card.is_none() {
+        let h = 196.0f32.min(screen.height() - 120.0);
+        if h >= 120.0 {
+            let bubble = Pos2::new(screen.center().x, screen.bottom() - 24.0 - ISLAND_H - 12.0);
+            size_rail_at(app, ctx, Pos2::new(screen.left() + SIDE + RAIL_W + 12.0, screen.top() + 40.0), h, bubble);
+        }
+        // Right: export, history, panels.
+        egui::Area::new(egui::Id::unique("hor_right")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - SIDE, screen.top() + 14.0)).show(ctx, |ui| {
+            rail_frame().show(ui, |ui| {
+                ui.set_width(RAIL_W - 12.0);
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.vertical_centered(|ui| {
+                    let ctx = ui.ctx().clone();
+                    if widgets::icon_button_ex(ui, Icon::Export, tr("Exportar y compartir"), true, Some(ELEVATED)).clicked() {
+                        app.export_ui.open = true;
+                    }
+                    let can_undo = app.doc.history.can_undo() || app.canvas.select.is_active();
+                    if widgets::icon_button_ex(ui, Icon::Undo, tr("Deshacer (toca con 2 dedos)"), can_undo, None).clicked() {
+                        app.undo(&ctx);
+                    }
+                    if widgets::icon_button_ex(ui, Icon::Redo, tr("Rehacer (toca con 3 dedos)"), app.doc.history.can_redo(), None).clicked() {
+                        app.redo(&ctx);
+                    }
+                    rail_sep(ui);
+                    if widgets::icon_button(ui, Icon::Layers, tr("Capas")).clicked() {
+                        app.ui.sheet = Some(SideTab::Layers);
+                    }
+                    if widgets::icon_button(ui, Icon::Brush, tr("Pinceles")).clicked() {
+                        app.ui.sheet = Some(SideTab::Brushes);
+                    }
+                    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
+                    let p = ui.painter();
+                    p.circle_filled(rect.center(), 18.0, TEXT);
+                    p.circle_filled(rect.center(), 16.0, SURFACE);
+                    p.circle_filled(rect.center(), 14.0, app.tools.color);
+                    if resp.on_hover_text(tr("Color")).clicked() {
+                        app.ui.sheet = Some(SideTab::Color);
+                    }
+                });
+            });
+        });
+    }
+    // Bottom: the compact timeline (not while the tracks are open).
+    if !app.ui.dock_open {
+        let left = screen.left() + SIDE + RAIL_W + 12.0;
+        let right = match card {
+            Some(w) => screen.right() - SIDE - w - 16.0,
+            None => screen.right() - SIDE - RAIL_W - 12.0,
+        };
+        hor_island(app, ctx, Rect::from_min_max(Pos2::new(left, screen.bottom() - 24.0 - ISLAND_H), Pos2::new(right, screen.bottom() - 24.0)), card.is_some());
+    }
+    // Right card: a panel or the tracks.
+    if let Some(w) = card {
+        let r = Rect::from_min_max(Pos2::new(screen.right() - SIDE - w, screen.top() + 14.0), Pos2::new(screen.right() - SIDE, screen.bottom() - 14.0));
+        egui::Area::new(egui::Id::unique("hor_card")).order(Order::Foreground).fixed_pos(r.min).show(ctx, |ui| {
+            let pad = if app.ui.dock_open { 0 } else { 8 };
+            Frame::new().fill(SURFACE).corner_radius(24).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::same(pad)).show(ui, |ui| {
+                ui.set_width(r.width() - 2.0 * pad as f32);
+                ui.set_height(r.height() - 2.0 * pad as f32);
+                if app.ui.dock_open {
+                    hor_tracks(app, ui);
+                } else if let Some(tab) = app.ui.sheet {
+                    ui.horizontal(|ui| {
+                        ui.set_min_height(48.0);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if widgets::icon_button(ui, Icon::Close, tr("Cerrar")).clicked() {
+                                app.ui.sheet = None;
+                            }
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                ui.add_space(8.0);
+                                match tab {
+                                    SideTab::Layers => crate::panels::layers::header_hor(ui),
+                                    SideTab::Brushes => crate::panels::brushes::header(ui),
+                                    SideTab::Color => {
+                                        ui.label(egui::RichText::new(tr("Color")).font(theme::font(20.0, W::Semi)).color(TEXT));
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    egui::ScrollArea::vertical().id_salt("hor_card_body").auto_shrink([false, false]).show(ui, |ui| match tab {
+                        SideTab::Layers => crate::panels::layers::show(app, ui),
+                        SideTab::Brushes => crate::panels::brushes::show(app, ui),
+                        SideTab::Color => {
+                            egui::Frame::new().inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
+                                ui.spacing_mut().item_spacing.y = 12.0;
+                                crate::panels::toolbar::color_panel(app, ui);
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    }
+}
+
+fn rail_frame() -> Frame {
+    Frame::new().fill(SURFACE).corner_radius(22).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(6, 6))
+}
+
+fn rail_sep(ui: &mut Ui) {
+    let (r, _) = ui.allocate_exact_size(Vec2::new(44.0, 7.0), Sense::hover());
+    ui.painter().hline(r.center().x - 13.0..=r.center().x + 13.0, r.center().y, Stroke::new(1.0, SEPARATOR));
+}
+
+/// Play, counter, a few drawings, onion, layer, new and "open the tracks".
+fn hor_island(app: &mut TrazoApp, ctx: &egui::Context, r: Rect, short: bool) {
+    egui::Area::new(egui::Id::unique("hor_island")).order(Order::Foreground).fixed_pos(r.min).show(ctx, |ui| {
+        Frame::new().fill(SURFACE).corner_radius(22).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(7, 7)).show(ui, |ui| {
+            ui.set_width(r.width() - 14.0);
+            ui.set_height(ISLAND_H - 14.0);
+            ui.horizontal_centered(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                play_button(app, ui);
+                let n = app.doc.project.frames.len();
+                let cur = app.displayed_frame() + 1;
+                let mut job = egui::text::LayoutJob::default();
+                job.append(&format!("{cur:02}"), 0.0, egui::TextFormat { font_id: theme::counter_font(15.0), color: TEXT, ..Default::default() });
+                job.append(&format!(" /{n}"), 0.0, egui::TextFormat { font_id: theme::font(12.0, W::Regular), color: TEXT2, valign: egui::Align::Max, ..Default::default() });
+                ui.add_sized([58.0, 44.0], egui::Label::new(job));
+                // Right side first so the drawings get what is left.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if !short && widgets::icon_button(ui, Icon::Up, tr("Subir: una pista por capa y el sonido")).clicked() {
+                        app.ui.dock_open = true;
+                        app.ui.sheet = None;
+                    }
+                    // New drawing (dashed).
+                    let g = ui.painter().layout_no_wrap(tr("Nuevo").to_string(), theme::font(13.0, W::Semi), TEXT);
+                    let (nr, nresp) = ui.allocate_exact_size(Vec2::new(g.size().x + 40.0, 44.0), Sense::click());
+                    ui.painter().rect_filled(nr, 12.0, ELEVATED);
+                    dashed_rect(ui.painter(), nr.shrink(0.75), Stroke::new(1.5, TEXT3));
+                    paint(ui.painter(), Rect::from_center_size(Pos2::new(nr.left() + 16.0, nr.center().y), Vec2::splat(20.0)), Icon::Plus, TEXT);
+                    ui.painter().galley(Pos2::new(nr.left() + 30.0, nr.center().y - g.size().y / 2.0), g, TEXT);
+                    if nresp.on_hover_text(tr("Nuevo dibujo después del actual (N)")).clicked() {
+                        crate::panels::timeline::add_frame(app);
+                    }
+                    if !short {
+                        let name = app.doc.project.layer(app.doc.layer).map(|l| crate::i18n::layer_name(&l.props.name).into_owned()).unwrap_or_default();
+                        if widgets::pill_button(ui, Icon::Layers, &name, TEXT, false).on_hover_text(tr("Capas")).clicked() {
+                            app.ui.sheet = Some(SideTab::Layers);
+                        }
+                        let on = app.onion.enabled;
+                        let rr = widgets::pill_button(ui, Icon::Onion, tr("Cebolla"), if on { ACCENT } else { TEXT2 }, on).on_hover_text(tr("Papel cebolla (mantén pulsado para ajustarlo)"));
+                        if rr.clicked() {
+                            toggle_onion(app);
+                        }
+                        egui::Popup::context_menu(&rr).show(|ui| crate::panels::phone::frame_menu(app, ui));
+                    }
+                    // The drawings around the current one.
+                    let room = ui.available_width() - 8.0;
+                    if room > 40.0 {
+                        ui.allocate_ui_with_layout(Vec2::new(room, 44.0), egui::Layout::left_to_right(egui::Align::Center), |ui| mini_strip(app, ui, room));
+                    }
+                });
+            });
+        });
+    });
+}
+
+/// Small thumbnails of the current layer's drawings, the current one ringed.
+fn mini_strip(app: &mut TrazoApp, ui: &mut Ui, room: f32) {
+    let ctx = ui.ctx().clone();
+    let layer = app.doc.layer;
+    let blocks = tl::blocks(&app.doc.project, layer);
+    let shown = app.displayed_frame();
+    let cur = blocks.iter().position(|b| b.contains(shown));
+    let cell = Vec2::new(34.0, 42.0);
+    let fit = ((room + 4.0) / (cell.x + 4.0)).floor().max(1.0) as usize;
+    let c = cur.unwrap_or(0);
+    let first = c.saturating_sub(fit.saturating_sub(1));
+    ui.spacing_mut().item_spacing.x = 4.0;
+    let mut goto = None;
+    for (i, b) in blocks.iter().enumerate().skip(first).take(fit) {
+        let (r, resp) = ui.allocate_exact_size(cell, Sense::click());
+        let p = ui.painter();
+        frame_thumb(app, &ctx, p, r, b.start);
+        if Some(i) == cur {
+            p.rect_stroke(r, 8.0, Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
+        } else {
+            p.rect_filled(r, 8.0, Color32::from_black_alpha(70));
+        }
+        if resp.clicked() {
+            goto = Some(b.start);
+        }
+        if resp.long_touched() || resp.secondary_clicked() {
+            goto = Some(b.start);
+            app.ui.drawing_menu = Some(b.start);
+        }
+    }
+    if let Some(f) = goto {
+        app.stop_playback();
+        app.doc.set_frame(f);
+    }
+}
+
+/// The tracks in the right card: header, tracks, actions.
+fn hor_tracks(app: &mut TrazoApp, ui: &mut Ui) {
+    ui.spacing_mut().item_spacing.y = 0.0;
+    egui::Frame::new().inner_margin(Margin { left: 8, right: 8, top: 8, bottom: 0 }).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            play_button(app, ui);
+            let n = app.doc.project.frames.len();
+            let cur = app.displayed_frame() + 1;
+            let fps = app.doc.project.canvas.fps.max(1) as f32;
+            let mut job = egui::text::LayoutJob::default();
+            job.append(&format!("{cur:02}"), 4.0, egui::TextFormat { font_id: theme::counter_font(20.0), color: TEXT, ..Default::default() });
+            job.append(&tf!(" / {} · {} s", n, crate::i18n::num((cur - 1) as f32 / fps, 2)), 0.0, egui::TextFormat { font_id: theme::font(13.0, W::Regular), color: TEXT2, valign: egui::Align::Max, ..Default::default() });
+            ui.label(job);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if widgets::icon_button(ui, Icon::Down, tr("Bajar: ver solo los dibujos")).clicked() {
+                    app.ui.dock_open = false;
+                }
+                if widgets::toggle_icon(ui, Icon::Loop, app.playback.looping, tr("Bucle")).clicked() {
+                    app.playback.looping = !app.playback.looping;
+                }
+                let r = widgets::toggle_icon(ui, Icon::Onion, app.onion.enabled, tr("Papel cebolla (mantén pulsado para ajustarlo)"));
+                if r.clicked() {
+                    toggle_onion(app);
+                }
+                egui::Popup::context_menu(&r).show(|ui| crate::panels::phone::frame_menu(app, ui));
+            });
+        });
+    });
+    ui.add_space(4.0);
+    tracks(app, ui, 66.0 + 8.0);
+    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+        ui.add_space(8.0);
+        egui::Frame::new().inner_margin(Margin::symmetric(4, 0)).show(ui, |ui| action_bar(app, ui));
     });
 }

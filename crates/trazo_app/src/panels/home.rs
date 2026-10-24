@@ -328,7 +328,7 @@ fn phone(ui: &mut Ui, h: &mut HomeState, order: &[usize]) -> Option<Action> {
         });
     });
     search_field(ui, h);
-    ui.add_space(14.0);
+    ui.add_space(6.0);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         if h.search.is_none() {
@@ -417,7 +417,7 @@ fn tall_grid(ui: &mut Ui, h: &mut HomeState, order: &[usize], cols: usize) -> Op
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             for item in row {
-                let (r, resp) = ui.allocate_exact_size(Vec2::new(w, th + 54.0), Sense::click());
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(w, th + 46.0), Sense::click());
                 if !ui.is_rect_visible(r) {
                     continue;
                 }
@@ -446,7 +446,7 @@ fn tall_grid(ui: &mut Ui, h: &mut HomeState, order: &[usize], cols: usize) -> Op
                 p.rect_filled(pic, 16.0, bg);
                 if let Some(t) = card.texture(&ctx) {
                     let s = t.size_vec2();
-                    let k = (pic.width() / s.x).min(pic.height() / s.y);
+                    let k = (pic.width() / s.x).max(pic.height() / s.y);
                     let ir = Rect::from_center_size(pic.center(), s * k);
                     p.with_clip_rect(pic).image(t.id(), ir, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
                 }
@@ -469,7 +469,7 @@ fn tall_grid(ui: &mut Ui, h: &mut HomeState, order: &[usize], cols: usize) -> Op
                     Some(_) => (crate::versions::age(card.modified), TEXT2),
                     None => (tr("No se puede leer").to_string(), DANGER),
                 };
-                p.galley(Pos2::new(r.left(), pic.bottom() + 30.0), one_line_pub(ui, &detail, font(12.0, W::Regular), color, w), color);
+                p.galley(Pos2::new(r.left(), pic.bottom() + 28.0), one_line_pub(ui, &detail, font(12.0, W::Regular), color, w), color);
                 let frame = card.info.as_ref().map_or(0, |i| i.last_frame);
                 if resp.long_touched() || resp.secondary_clicked() {
                     action = Some(Action::Menu(card.path.clone()));

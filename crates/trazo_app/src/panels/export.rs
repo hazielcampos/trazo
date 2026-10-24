@@ -867,13 +867,20 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
 /// Destination cards of the phone sheet: preset index, label, shape (w, h).
 const SHEET_CARDS: [(usize, &str, f32, f32); 4] = [(0, "TikTok y Reels", 16.0, 26.0), (1, "Instagram", 21.0, 26.0), (3, "YouTube", 32.0, 18.0), (4, "GIF", 0.0, 0.0)];
 
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
 fn aspect_badge(s: &ExportSettings, w: u32, h: u32) -> String {
     match s.aspect {
         Aspect::Vertical => "9:16".into(),
         Aspect::Portrait => "4:5".into(),
         Aspect::Square => "1:1".into(),
         Aspect::Wide => "16:9".into(),
-        Aspect::Canvas => format!("{w}×{h}"),
+        Aspect::Canvas => {
+            let g = gcd(w.max(1), h.max(1));
+            if w / g <= 32 && h / g <= 32 { format!("{}:{}", w / g, h / g) } else { format!("{w}×{h}") }
+        }
     }
 }
 
@@ -933,8 +940,8 @@ fn phone_sheet(
                         ui.spacing_mut().item_spacing.y = 0.0;
                         ui.add_space(8.0);
                         // The result, as it will look.
-                        let (pr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 266.0), egui::Sense::hover());
-                        let k = (150.0 / pl.width as f32).min(266.0 / pl.height as f32);
+                        let k = (150.0 / pl.width as f32).min(266.0 / pl.height as f32).min(240.0 / pl.width as f32);
+                        let (pr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), pl.height as f32 * k), egui::Sense::hover());
                         let box_r = egui::Rect::from_center_size(pr.center(), egui::vec2(pl.width as f32 * k, pl.height as f32 * k));
                         let p = ui.painter();
                         p.rect_filled(box_r, 12.0, Color32::BLACK);
@@ -979,7 +986,9 @@ fn phone_sheet(
                                     p.rect_stroke(r, 16.0, egui::Stroke::new(2.0, TEXT), egui::StrokeKind::Inside);
                                 }
                                 let fg = if !enabled { crate::theme::TEXT3 } else if sel { TEXT } else { Color32::from_rgb(214, 214, 211) };
-                                let g = p.layout(tr(label).to_string(), font(12.0, W::Semi), fg, w - 8.0);
+                                let mut job = egui::text::LayoutJob::simple(tr(label).to_string(), font(12.0, W::Semi), fg, w - 8.0);
+                                job.halign = egui::Align::Center;
+                                let g = p.layout_job(job);
                                 let total = 26.0 + 8.0 + g.size().y;
                                 let y0 = r.center().y - total / 2.0;
                                 let c = egui::pos2(r.center().x, y0 + 13.0);
@@ -989,8 +998,7 @@ fn phone_sheet(
                                     let t = p.text(c, egui::Align2::CENTER_CENTER, "GIF", font(11.0, W::Semi), fg);
                                     p.rect_stroke(t.expand2(egui::vec2(5.0, 3.0)), 5.0, egui::Stroke::new(2.0, fg), egui::StrokeKind::Middle);
                                 }
-                                let gw = g.size().x;
-                                p.galley(egui::pos2(r.center().x - gw / 2.0, y0 + 34.0), g, fg);
+                                p.galley(egui::pos2(r.center().x, y0 + 34.0), g, fg);
                                 if resp.on_hover_text(tr(PRESETS[i].hint)).clicked() {
                                     (PRESETS[i].apply)(&mut app.export_ui.settings);
                                 }

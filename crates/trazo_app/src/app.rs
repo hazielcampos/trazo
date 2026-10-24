@@ -1082,10 +1082,7 @@ impl eframe::App for TrazoApp {
                     panels::phone_up::dock(self, ui);
                 }
             }
-            crate::widgets::SizeClass::PhoneLandscape => {
-                panels::phone::left_rail(self, ui);
-                panels::phone::right_rail(self, ui);
-            }
+            crate::widgets::SizeClass::PhoneLandscape => panels::phone_up::landscape_panels(self, ui),
             crate::widgets::SizeClass::Wide => {
                 self.ui.sheet = None;
                 panels::top_bar::show(self, ui);
@@ -1101,10 +1098,12 @@ impl eframe::App for TrazoApp {
                 }
             }
         }
-        let canvas_margin = if class == crate::widgets::SizeClass::Phone {
-            if self.ui.dock_open { egui::Margin { left: 24, right: 24, top: 8, bottom: 24 } } else { panels::phone_up::CANVAS_MARGIN }
-        } else {
-            egui::Margin::ZERO
+        let canvas_margin = match class {
+            crate::widgets::SizeClass::Phone => {
+                if self.ui.dock_open { egui::Margin { left: 24, right: 24, top: 8, bottom: 24 } } else { panels::phone_up::CANVAS_MARGIN }
+            }
+            crate::widgets::SizeClass::PhoneLandscape => egui::Margin { left: 0, right: 0, top: 14, bottom: 0 },
+            crate::widgets::SizeClass::Wide => egui::Margin::ZERO,
         };
         let canvas_rect = egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(crate::theme::CANVAS_BG).inner_margin(canvas_margin))
@@ -1113,7 +1112,7 @@ impl eframe::App for TrazoApp {
                 let onion = (!self.playback.playing).then_some(self.onion);
                 self.canvas.camera_view = self.ui.camera.view_on();
                 // On the phone the margins already leave room for the floating controls.
-                self.canvas.fit_pad = if class == crate::widgets::SizeClass::Phone { 0.0 } else { 40.0 };
+                self.canvas.fit_pad = if class == crate::widgets::SizeClass::Wide { 40.0 } else { 0.0 };
                 self.canvas.fit_top = class == crate::widgets::SizeClass::Phone;
                 self.canvas.show(ui, &mut self.doc, &mut self.tools, frame, onion, self.playback.playing);
                 if let Some(g) = self.canvas.take_gesture() {
@@ -1180,14 +1179,12 @@ impl eframe::App for TrazoApp {
                 panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Bottom);
             }
             crate::widgets::SizeClass::PhoneLandscape => {
-                panels::phone::size_rail(self, &ctx, canvas_rect, true);
-                panels::phone::zoom_pill(self, &ctx, canvas_rect);
                 let inset = crate::widgets::insets(self.platform.touch_first).1;
-                // The audio tab takes the place of the frame strip.
+                // The audio tab takes the place of the timeline.
                 if panels::audio::show_overlay(self, &ctx, inset, 64.0).is_none() {
-                    panels::phone::floating_strip(self, &ctx, canvas_rect);
+                    panels::phone_up::landscape(self, &ctx, ctx.content_rect());
                 }
-                panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Right);
+                panels::phone_up::drawing_menu(self, &ctx);
             }
             crate::widgets::SizeClass::Wide => {}
         }

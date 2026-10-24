@@ -260,6 +260,11 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
 }
 
 /// Header of the layers sheet / panel: title and the "+" that opens the choices.
+/// Landscape card header: the title and "+" (the card has its own close).
+pub fn header_hor(ui: &mut egui::Ui) {
+    header(ui);
+}
+
 pub fn header(ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     ui.label(egui::RichText::new(tr("Capas")).font(crate::theme::font(20.0, crate::theme::W::Semi)).color(crate::theme::TEXT));
