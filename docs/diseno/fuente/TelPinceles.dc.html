@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pinceles en teléfono</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:44px;height:44px;border:0;border-radius:14px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.row{display:flex;align-items:center;gap:12px;height:68px;padding:0 12px;border-radius:16px;border:0;background:transparent;color:#F2F2F0;width:100%;text-align:left}
+.prev{width:150px;height:44px;flex:none;border-radius:10px;background:#1F1F22}
+.prev path{fill:none;stroke-linecap:round}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:20px;top:108px;width:350px;height:438px;border-radius:4px">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45)"></div>
+
+  <!-- Sheet -->
+  <div style="position:absolute;left:0;right:0;top:250px;bottom:0;background:#161618;border-radius:28px 28px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,0.55);display:flex;flex-direction:column">
+    <div style="width:36px;height:5px;border-radius:3px;background:#3A3A3E;margin:8px auto 4px"></div>
+    <div style="display:flex;align-items:center;padding:4px 12px 0 20px">
+      <h2 style="margin:0;font-size:20px;font-weight:600;letter-spacing:-0.3px;flex:1">Pinceles</h2>
+      <button class="ib" aria-label="Importar pincel"><svg viewBox="0 0 24 24"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 17.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg></button>
+      <button class="ib" aria-label="Nuevo pincel"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <!-- Categories -->
+    <div style="display:flex;gap:8px;padding:12px 20px 10px;overflow:hidden;white-space:nowrap">
+      <button style="height:34px;border:0;border-radius:17px;padding:0 14px;background:#F2F2F0;color:#121212;font-size:13px;font-weight:600">Recientes</button>
+      <button style="height:34px;border:0;border-radius:17px;padding:0 14px;background:#252528;color:#D6D6D3;font-size:13px;font-weight:500">Boceto</button>
+      <button style="height:34px;border:0;border-radius:17px;padding:0 14px;background:#252528;color:#D6D6D3;font-size:13px;font-weight:500">Tinta</button>
+      <button style="height:34px;border:0;border-radius:17px;padding:0 14px;background:#252528;color:#D6D6D3;font-size:13px;font-weight:500">Pintura</button>
+      <button style="height:34px;border:0;border-radius:17px;padding:0 14px;background:#252528;color:#D6D6D3;font-size:13px;font-weight:500">Textura</button>
+    </div>
+    <!-- Brush list -->
+    <div style="flex:1;overflow:hidden;padding:0 8px;display:flex;flex-direction:column;gap:2px">
+      <button class="row" aria-pressed="true" style="background:#232326">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#F2F2F0;stroke-width:3.4"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Tinta seca</span><span style="font-size:12px;color:#A1A1A6">Tinta · cambia con la presión</span></span>
+        <span style="width:24px;height:24px;border-radius:12px;background:#F2F2F0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#121212;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M6 12.5l4 4 8-9"/></svg></span>
+      </button>
+      <button class="row">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#D6D6D3;stroke-width:1.6;opacity:0.9"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Lápiz</span><span style="font-size:12px;color:#A1A1A6">Boceto · grano</span></span>
+      </button>
+      <button class="row">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#D6D6D3;stroke-width:5;opacity:0.35;stroke-dasharray:1 2"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Lápiz de boceto</span><span style="font-size:12px;color:#A1A1A6">Boceto · suave</span></span>
+      </button>
+      <button class="row">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#F2F2F0;stroke-width:4.4"/><path d="M12 30C40 8 62 8 80 22" style="stroke:#161618;stroke-width:1.2;opacity:0"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Tinta G-pen</span><span style="font-size:12px;color:#A1A1A6">Tinta · puntas finas</span></span>
+      </button>
+      <button class="row">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><defs><filter id="bl" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="2.4"/></filter></defs><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#C2523A;stroke-width:14;opacity:0.45" filter="url(#bl)"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Acuarela</span><span style="font-size:12px;color:#A1A1A6">Pintura · se acumula</span></span>
+      </button>
+      <button class="row">
+        <svg class="prev" viewBox="0 0 150 44" aria-hidden="true"><path d="M12 30C40 8 62 8 80 22s40 16 58-8" style="stroke:#D6D6D3;stroke-width:9;opacity:0.55;stroke-dasharray:0.6 2.2"/></svg>
+        <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Carboncillo</span><span style="font-size:12px;color:#A1A1A6">Boceto · textura</span></span>
+      </button>
+    </div>
+    <!-- Size / opacity -->
+    <div style="background:#1B1B1D;border-top:1px solid rgba(255,255,255,0.06);padding:14px 20px 34px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="width:72px;font-size:13px;color:#A1A1A6">Tamaño</span>
+        <div style="flex:1;height:6px;border-radius:3px;background:#2F2F33;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:22%;border-radius:3px;background:#F2F2F0"></div><div style="position:absolute;left:calc(22% - 11px);top:-8px;width:22px;height:22px;border-radius:11px;background:#F2F2F0;box-shadow:0 2px 6px rgba(0,0,0,0.5)"></div></div>
+        <span style="width:48px;text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">6 px</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="width:72px;font-size:13px;color:#A1A1A6">Opacidad</span>
+        <div style="flex:1;height:6px;border-radius:3px;background:#2F2F33;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;border-radius:3px;background:#F2F2F0"></div><div style="position:absolute;left:calc(100% - 11px);top:-8px;width:22px;height:22px;border-radius:11px;background:#F2F2F0;box-shadow:0 2px 6px rgba(0,0,0,0.5)"></div></div>
+        <span style="width:48px;text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">100 %</span>
+      </div>
+      <button style="height:44px;border:0;border-radius:14px;background:#252528;color:#F2F2F0;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Ajustar «Tinta seca»</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

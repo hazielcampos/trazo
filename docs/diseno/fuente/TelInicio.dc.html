@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mis animaciones en teléfono</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tab{font-variant-numeric:tabular-nums}
+.card{border:0;padding:0;background:transparent;color:#F2F2F0;text-align:left;display:flex;flex-direction:column;gap:8px}
+.th{position:relative;height:212px;border-radius:16px;overflow:hidden;background:#1B1B1D;display:flex;align-items:center;justify-content:center}
+.dur{position:absolute;right:8px;bottom:8px;height:22px;padding:0 7px;border-radius:7px;background:rgba(14,14,15,0.8);font-size:11px;font-weight:600;display:flex;align-items:center;color:#F2F2F0}
+.nm{font-size:15px;font-weight:600}
+.sub{font-size:12px;color:#A1A1A6;margin-top:-6px}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <div style="display:flex;align-items:center;gap:2px;padding:50px 10px 0 20px">
+    <h1 style="margin:0;font-size:26px;font-weight:700;letter-spacing:-0.6px;flex:1">Mis animaciones</h1>
+    <button class="ib" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+    <button class="ib" aria-label="Ajustes"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+  </div>
+
+  <!-- Continue: a quiet row, not a hero -->
+  <a href="Main.dc.html" style="margin:14px 16px 0;height:64px;border-radius:16px;background:#1B1B1D;display:flex;align-items:center;gap:12px;padding:0 6px 0 8px;text-decoration:none;color:#F2F2F0">
+    <img src="/_blob/10f76d377b57444960ee88e487676c0a" alt="" style="width:40px;height:50px;border-radius:7px">
+    <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Seguir con «Viento»</span><span class="tab" style="font-size:12px;color:#A1A1A6">Donde lo dejaste: dibujo 8</span></span>
+    <span style="width:44px;height:44px;border-radius:22px;background:#F2F2F0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:#121212;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  </a>
+
+  <div style="display:flex;align-items:center;padding:20px 10px 10px 20px">
+    <span class="tab" style="font-size:13px;color:#A1A1A6;flex:1">5 animaciones</span>
+    <button style="height:40px;border:0;border-radius:12px;background:transparent;color:#D6D6D3;font-size:13px;font-weight:500;padding:0 10px;display:flex;align-items:center;gap:4px">Más recientes<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 10l5 5 5-5"/></svg></button>
+  </div>
+
+  <div style="margin:0 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px">
+    <button class="card">
+      <div class="th" style="background:#1B1B1D;box-shadow:inset 0 0 0 1.5px #2F2F33;flex-direction:column;gap:12px">
+        <span style="width:56px;height:56px;border-radius:28px;background:#F2F2F0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:26px;height:26px;fill:none;stroke:#121212;stroke-width:2.2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span style="font-size:13px;color:#A1A1A6;text-align:center;padding:0 16px">Eliges forma: vertical, cuadrada o ancha</span>
+      </div>
+      <span class="nm">Nueva animación</span>
+    </button>
+    <button class="card">
+      <div class="th" style="background:#E9E3D2"><img src="/_blob/fe4c4c4cbae132edfb8a8a7bdeabfb70" alt="" style="height:212px;display:block"><span class="dur tab">0:02</span></div>
+      <span class="nm">Viento</span><span class="sub">Hoy</span>
+    </button>
+    <button class="card">
+      <div class="th" style="background:linear-gradient(#A8C8F0,#D8E8FA 70%,#6FA060 70%)"><svg viewBox="0 0 100 100" style="width:110px;height:110px" aria-hidden="true"><circle cx="78" cy="22" r="10" fill="#FFD866"/><rect x="38" y="40" width="16" height="34" rx="6" fill="#D9564A"/><circle cx="46" cy="32" r="9" fill="#F5C9A6"/><path d="M42 74l-4 18M50 74l4 18" stroke="#2A3A70" stroke-width="5" stroke-linecap="round"/></svg><span class="dur tab">0:50</span></div>
+      <span class="nm">Paseo por el campo</span><span class="sub">Ayer</span>
+    </button>
+    <button class="card">
+      <div class="th" style="background:#F4F2EC"><svg viewBox="0 0 100 100" style="width:120px;height:120px" aria-hidden="true"><circle cx="50" cy="30" r="11" fill="#F08A3C"/><ellipse cx="50" cy="84" rx="14" ry="3" fill="#000" opacity="0.12"/><path d="M14 88h72" stroke="#222" stroke-width="2"/></svg><span class="dur tab">0:02</span></div>
+      <span class="nm">Pelota que rebota</span><span class="sub">Hace 3 horas</span>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

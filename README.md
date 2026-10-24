@@ -61,9 +61,11 @@ no accounts, no ads, no paywalls.
   layer creates the frames for you and is left out of the exported result.
 
 **Sound**
-- Several audio tracks mixed together; supports WAV, MP3, OGG, FLAC and M4A.
+- Sound lives in the timeline, under your layers: each sound track shows its waveform.
+- Move and trim clips by dragging, change the volume, cut at the current frame, mute, add fades,
+  normalize or split into phrases — without leaving the timeline.
+- Several tracks mixed together; supports WAV, MP3, OGG, FLAC and M4A.
 - Record voice-over on top of the animation, with countdown and pre-roll.
-- Trim, split, normalize and add fades.
 - Lip-sync with scrubbing, markers and phonemes.
 
 **Export and share**
@@ -75,9 +77,11 @@ no accounts, no ads, no paywalls.
 - Share straight from the app.
 
 **Interface**
-- Built for the thumb on phones in portrait, with a side rail in landscape and docked panels on tablets
-  and desktop.
-- A neutral dark theme so the colors of your drawing look true.
+- Redesigned in 0.4.0 for every screen: a floating tool island and a pull-up timeline on phones, side
+  rails in landscape, floating panels on tablets, and docked panels with shortcuts on desktop.
+- A neutral dark theme with a single lime accent, so the colors of your drawing look true.
+- Press and hold a drawing for its menu (copy, duplicate, duration, in-betweens, record motion).
+- On Android, imports open the system file picker, with previews and every folder.
 - Two-finger tap to undo, three-finger tap to redo.
 - Interface in English and Spanish: pick one the first time you open the app, change it any time from the project menu.
 - **Big projects:** drawings are compressed in memory and saving only rewrites what changed. A
@@ -146,9 +150,11 @@ cargo test --workspace
 | [`crates/trazo_core`](crates/trazo_core) | The engine, with no UI: tiled canvas, brushes and strokes, fill, layers and frames, undo and redo, audio mixing, video layers, saving (`.anim`, a zip of PNG and JSON) and exporters. It can be tested on its own. |
 | [`crates/trazo_app`](crates/trazo_app) | The interface, built with [egui](https://github.com/emilk/egui) / eframe: phone, landscape and tablet layouts; real-time audio with cpal; and on Android, MediaCodec and MediaStore through the NDK. |
 
-- **All Rust:** the Android side too (JNI and NDK), with no Java or Kotlin code.
+- **Almost all Rust:** the Android side too (JNI and NDK). The only Java is a tiny helper that opens
+  Android's file picker ([`crates/trazo_app/android`](crates/trazo_app/android)), loaded at runtime.
 - **Custom vector icons**, so they look the same on every device.
-- **Design:** the [`assets/icon`](assets/icon) folder holds the icon in every size and the script that generates it.
+- **Design:** the interface design (every board, tokens and principles) is in [`docs/diseno`](docs/diseno);
+  [`assets/icon`](assets/icon) holds the icon in every size and the script that generates it.
 
 ## Keyboard shortcuts
 
@@ -163,9 +169,12 @@ cargo test --workspace
 
 ## Roadmap
 
-Done: full drawing and animation, per-layer timeline, audio with voice-over, export for social media, video
-import for rotoscoping, the adaptive interface, the home screen, in-betweens, camera and support for big projects. Next steps (details in [TODO.md](TODO.md), in Spanish):
+Done: full drawing and animation, per-layer timeline, audio with voice-over (edited in the timeline), export
+for social media, video import for rotoscoping, the redesigned adaptive interface, the home screen, in-betweens,
+camera and support for big projects. Next steps (details in [TODO.md](TODO.md), in Spanish):
 
+- A clean, phone-like view on tablets that you can switch with the studio view (being tested).
+- Hold still to pick a color, and palm rejection with a stylus.
 - Move and trim the video clip by dragging it on the timeline, and on-canvas handles.
 - Move drawings by dragging them, and select several drawings at once.
 - MP4 export on macOS and Linux, and background export on Android.
@@ -175,8 +184,10 @@ import for rotoscoping, the adaptive interface, the home screen, in-betweens, ca
 
 ## Contributing
 
-Issues and pull requests are welcome. Before sending a change, run `cargo test --workspace` and
-`cargo clippy --workspace`.
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). [CONTEXT.md](CONTEXT.md)
+explains the architecture, the layouts, the design system and how we work; it is also what an AI assistant
+(Claude Code reads [CLAUDE.md](CLAUDE.md)) needs to pick up the work. Before sending a change, run
+`cargo test --workspace` and `cargo clippy --workspace`.
 
 **Translations:** the interface is in Spanish and English, chosen the first time the app opens (and later from the project menu). To add a language, copy
 [`crates/trazo_app/src/i18n/en.rs`](crates/trazo_app/src/i18n/en.rs), translate the right-hand column and add the language to `Lang` in

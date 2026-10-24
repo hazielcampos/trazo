@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Capas en teléfono</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib svg,.add svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.row{display:flex;align-items:center;gap:8px;height:72px;padding:0 0 0 10px;border-radius:14px}
+.grip{width:28px;height:44px;display:flex;align-items:center;justify-content:center;color:#75757B;flex:none}
+.add{height:76px;border:0;border-radius:14px;background:#232326;color:#F2F2F0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:500}
+.t{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.t b{font-size:15px;font-weight:600}
+.t span{font-size:12px;color:#A1A1A6}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:24px;top:104px;width:342px;height:428px;border-radius:3px">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.5)"></div>
+
+  <div style="position:absolute;left:0;right:0;top:196px;bottom:0;background:#161618;border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,0.55)">
+    <div style="width:36px;height:5px;border-radius:3px;background:#3A3A3E;margin:8px auto 4px"></div>
+    <div style="display:flex;align-items:center;padding:4px 10px 6px 20px">
+      <h2 style="margin:0;font-size:20px;font-weight:600;letter-spacing:-0.3px;flex:1">Capas</h2>
+      <button class="ib" aria-label="Cerrar las opciones de añadir" aria-expanded="true" style="background:#2F2F33"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+
+    <!-- Add options open inline, nothing gets covered -->
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 14px 12px">
+      <button class="add"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-4.3 9.6-9.6a2.2 2.2 0 0 1 3.1 3.1l-9.6 9.6z"/></svg>Dibujo</button>
+      <button class="add"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>Carpeta</button>
+      <button class="add"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20 16l-5-5-8.5 8.5"/></svg>Imagen</button>
+      <button class="add"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="12.5" height="13" rx="2.5"/><path d="M16 10.5l4.5-2.8v8.6L16 13.5"/></svg>Video</button>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:0 14px 6px"></div>
+
+    <div style="padding:0 8px;display:flex;flex-direction:column;gap:2px">
+      <div class="row" style="background:#232326">
+        <img src="/_blob/10f76d377b57444960ee88e487676c0a" alt="" style="width:44px;height:55px;border-radius:7px;box-shadow:0 0 0 2px #D9F45A">
+        <div class="t"><b>Tinta</b><span>Normal · 100 %</span></div>
+        <button class="ib" aria-label="Ocultar Tinta"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="ib" aria-label="Opciones de Tinta" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="18.5" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+        <span class="grip" aria-label="Arrastra para mover"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><circle cx="9" cy="7" r="1.5"/><circle cx="15" cy="7" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="17" r="1.5"/><circle cx="15" cy="17" r="1.5"/></svg></span>
+      </div>
+      <div class="row">
+        <img src="/_blob/fe4c4c4cbae132edfb8a8a7bdeabfb70" alt="" style="width:44px;height:55px;border-radius:7px">
+        <div class="t"><b>Acuarela</b><span>Multiplicar · 85 %</span></div>
+        <button class="ib" aria-label="Ocultar Acuarela"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="ib" aria-label="Opciones de Acuarela" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="18.5" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+        <span class="grip"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><circle cx="9" cy="7" r="1.5"/><circle cx="15" cy="7" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="17" r="1.5"/><circle cx="15" cy="17" r="1.5"/></svg></span>
+      </div>
+      <div class="row">
+        <div style="width:44px;height:55px;border-radius:7px;background:#2A2A2D;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:#8A8A90;stroke-width:1.5;stroke-linecap:round"><path d="M5 17c3-6 5-9 7-9s3 4 7-1"/></svg></div>
+        <div class="t"><b>Boceto</b><span>Oculta · no sale en el video</span></div>
+        <button class="ib" aria-label="Mostrar Boceto" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.6 3.4M6.3 7.6A15.6 15.6 0 0 0 2.5 12S6 18.5 12 18.5a9 9 0 0 0 4.1-1"/></svg></button>
+        <button class="ib" aria-label="Opciones de Boceto" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="18.5" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+        <span class="grip"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><circle cx="9" cy="7" r="1.5"/><circle cx="15" cy="7" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="17" r="1.5"/><circle cx="15" cy="17" r="1.5"/></svg></span>
+      </div>
+      <div class="row">
+        <div style="width:44px;height:55px;border-radius:7px;background:#E9E3D2"></div>
+        <div class="t"><b>Papel</b><span>Fondo · siempre detrás</span></div>
+        <button class="ib" aria-label="Ocultar Papel"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="ib" aria-label="Opciones de Papel" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="18.5" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+        <span class="grip" style="opacity:0.35"><svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

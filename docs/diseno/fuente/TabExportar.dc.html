@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Exportar en tablet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.tab{font-variant-numeric:tabular-nums}
+.pre{flex:1;min-width:0;height:88px;border:0;border-radius:14px;background:#232326;color:#D6D6D3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;text-align:center;line-height:1.2;padding:0 6px}
+.row{display:flex;align-items:center;min-height:52px;border-top:1px solid #232326;gap:12px}
+.row b{font-size:15px;font-weight:500;flex:1}
+.row span{font-size:14px;color:#A1A1A6}
+.seg{flex:1;height:42px;border:0;border-radius:10px;background:transparent;color:#A1A1A6;font-size:14px;font-weight:500}
+.lbl{margin:0 0 8px;font-size:12px;font-weight:600;color:#A1A1A6}
+</style>
+</helmet>
+<div style="width:1280px;height:800px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:376px;top:92px;width:352px;height:440px">
+  <div style="position:absolute;left:20px;top:86px;width:60px;height:468px;border-radius:20px;background:#1B1B1D"></div>
+  <div style="position:absolute;right:20px;top:92px;width:320px;height:452px;border-radius:20px;background:#1B1B1D"></div>
+  <div style="position:absolute;left:20px;right:20px;top:566px;bottom:16px;border-radius:22px;background:#1B1B1D"></div>
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.62)"></div>
+
+  <div role="dialog" aria-label="Exportar" style="position:absolute;left:50%;top:50%;width:900px;height:620px;margin:-310px 0 0 -450px;border-radius:24px;background:#18181A;box-shadow:0 30px 80px rgba(0,0,0,0.7),inset 0 0 0 1px rgba(255,255,255,0.07);display:grid;grid-template-columns:340px 1fr;overflow:hidden">
+    <div style="background:#111113;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+      <div style="width:220px;height:391px;border-radius:14px;background:#E7E0CD;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,0.08)"><img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="Vista previa" style="position:absolute;left:0;top:58px;width:220px;height:275px"></div>
+      <div style="display:flex;align-items:center;gap:10px;width:220px">
+        <button aria-label="Reproducir vista previa" style="width:44px;height:44px;border:0;border-radius:22px;background:#2F2F33;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:#F2F2F0"><path d="M8.5 5.8v12.4a.8.8 0 0 0 1.2.7l10-6.2a.8.8 0 0 0 0-1.4l-10-6.2a.8.8 0 0 0-1.2.7z"/></svg></button>
+        <span style="font-size:12px;color:#A1A1A6">El papel se alarga arriba y abajo · no se corta nada</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;padding:20px 24px 20px">
+      <div style="display:flex;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.3px;flex:1">Exportar</h2>
+        <button aria-label="Cerrar" style="width:44px;height:44px;border:0;border-radius:12px;background:#252528;color:#D6D6D3;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <p class="lbl">Para</p>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button class="pre" aria-pressed="true" style="color:#F2F2F0;box-shadow:inset 0 0 0 2px #F2F2F0"><span style="width:15px;height:26px;border:2px solid currentColor;border-radius:4px"></span>TikTok y Reels<br><span style="font-weight:400;color:#A1A1A6">9:16</span></button>
+        <button class="pre"><span style="width:21px;height:26px;border:2px solid currentColor;border-radius:4px"></span>Instagram<br><span style="font-weight:400;color:#A1A1A6">4:5</span></button>
+        <button class="pre"><span style="width:24px;height:24px;border:2px solid currentColor;border-radius:4px"></span>Cuadrado<br><span style="font-weight:400;color:#A1A1A6">1:1</span></button>
+        <button class="pre"><span style="width:32px;height:18px;border:2px solid currentColor;border-radius:4px"></span>YouTube<br><span style="font-weight:400;color:#A1A1A6">16:9</span></button>
+        <button class="pre"><span style="font-size:11px;border:2px solid currentColor;border-radius:5px;padding:2px 4px">GIF</span>GIF</button>
+      </div>
+      <div style="display:flex;background:#111113;border-radius:12px;padding:3px;margin-bottom:6px">
+        <button class="seg" aria-pressed="true" style="background:#2F2F33;color:#F2F2F0;font-weight:600">Alargar el fondo</button>
+        <button class="seg">Recortar</button>
+      </div>
+      <div class="row"><b>Sonido <span style="color:#A1A1A6;font-weight:400">· viento.mp3</span></b><span style="width:46px;height:28px;border-radius:14px;background:#D9F45A;position:relative;display:block" role="switch" aria-checked="true"><span style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#121212;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:#D9F45A;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M6 12.5l4 4 8-9"/></svg></span></span></div>
+      <div class="row"><b>Calidad</b><span>Alta · 1080 × 1920 ›</span></div>
+      <div class="row"><b>Qué parte</b><span>Todo · o solo el bucle 3–18 ›</span></div>
+      <div class="row"><b>Formato</b><span>Video MP4 · 12 fps ›</span></div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="tab" style="flex:1;font-size:13px;color:#A1A1A6">Unos 2,4 MB · se guarda en tu galería</span>
+        <button style="height:52px;border:0;border-radius:14px;background:#F2F2F0;color:#121212;font-size:15px;font-weight:700;padding:0 22px;display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:#121212;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 15V4.5"/><path d="M8 8.5l4-4 4 4"/><path d="M5 13.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5"/></svg>Guardar y compartir</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
