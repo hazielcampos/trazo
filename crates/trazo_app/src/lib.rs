@@ -24,6 +24,7 @@ mod import;
 mod theme;
 mod widgets;
 mod tools;
+mod versions;
 
 pub use app::TrazoApp;
 pub use platform::Platform;

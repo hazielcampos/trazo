@@ -120,6 +120,10 @@ pub fn project_menu(app: &mut TrazoApp, ui: &mut Ui) {
         app.ui.settings_dialog = true;
         ui.close();
     }
+    if item(ui, Icon::Undo, tr("Versiones anteriores…")) {
+        app.ui.versions_dialog = true;
+        ui.close();
+    }
     if item(ui, Icon::Globe, tr("Idioma · Language…")) {
         app.ui.language_dialog = Some(false);
         ui.close();

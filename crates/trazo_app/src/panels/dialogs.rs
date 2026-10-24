@@ -35,6 +35,39 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
     settings(app, ctx);
     language(app, ctx);
     tween(app, ctx);
+    versions(app, ctx);
+}
+
+/// Earlier versions of the open project.
+fn versions(app: &mut TrazoApp, ctx: &egui::Context) {
+    if !app.ui.versions_dialog {
+        return;
+    }
+    let mut open = true;
+    let mut chosen = None;
+    let list = crate::versions::list(&app.doc.path);
+    crate::widgets::backdrop(ctx);
+    crate::widgets::dialog(ctx, tr("Versiones anteriores"), 400.0).open(&mut open).show(ctx, |ui| {
+        ui.label(RichText::new(tr("Trazo guarda una copia de tu proyecto cada 10 minutos mientras trabajas (las 20 más recientes). Restaurar no borra nada: lo que tienes ahora también queda guardado.")).size(13.0).color(crate::theme::TEXT2));
+        ui.add_space(4.0);
+        if list.is_empty() {
+            ui.label(tr("Todavía no hay versiones de este proyecto."));
+        }
+        egui::ScrollArea::vertical().id_salt("versions_list").max_height(ui.available_height()).show(ui, |ui| {
+            for v in &list {
+                let size = format!("{} MB", crate::i18n::num(v.bytes as f32 / 1e6, 1));
+                if crate::widgets::choice_row(ui, false, &crate::versions::age(v.when), &size).on_hover_text(tr("Restaurar esta versión")).clicked() {
+                    chosen = Some(v.path.clone());
+                }
+            }
+        });
+    });
+    if let Some(p) = chosen {
+        app.ui.versions_dialog = false;
+        app.restore_version(ctx, &p);
+    } else if !open {
+        app.ui.versions_dialog = false;
+    }
 }
 
 /// How the in-betweens are made.

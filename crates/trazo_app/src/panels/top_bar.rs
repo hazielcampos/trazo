@@ -36,6 +36,10 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                     app.ui.settings_dialog = true;
                     ui.close();
                 }
+                if ui.add(IconButton::new(Icon::Undo).text(tr("Versiones anteriores…"))).clicked() {
+                    app.ui.versions_dialog = true;
+                    ui.close();
+                }
                 if ui.add(IconButton::new(Icon::Globe).text(tr("Idioma · Language…"))).clicked() {
                     app.ui.language_dialog = Some(false);
                     ui.close();

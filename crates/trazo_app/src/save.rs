@@ -42,6 +42,12 @@ impl Default for SaveWorker {
             .spawn(move || {
                 for job in rx {
                     let result = io::save_project(&job.project, &job.path).map_err(|e| e.to_string());
+                    if result.is_ok() {
+                        // Keep an earlier version now and then (every few minutes).
+                        if let Err(e) = crate::versions::snapshot(&job.path, false) {
+                            log::warn!("could not keep a version: {e}");
+                        }
+                    }
                     if let Some(reply) = job.reply {
                         let _ = reply.send(result.clone());
                     }

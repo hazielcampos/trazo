@@ -507,6 +507,18 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    // ---- versions -----------------------------------------------------------
+    ("hace un momento", "just now"),
+    ("hace {} min", "{} min ago"),
+    ("hace {} h", "{} h ago"),
+    ("ayer", "yesterday"),
+    ("hace {} días", "{} days ago"),
+    ("Versión restaurada; la que tenías abierta quedó guardada como versión", "Version restored; what you had open was kept as a version"),
+    ("Versiones anteriores", "Earlier versions"),
+    ("Versiones anteriores…", "Earlier versions…"),
+    ("Trazo guarda una copia de tu proyecto cada 10 minutos mientras trabajas (las 20 más recientes). Restaurar no borra nada: lo que tienes ahora también queda guardado.", "Trazo keeps a copy of your project every 10 minutes while you work (the 20 most recent). Restoring deletes nothing: what you have now is kept too."),
+    ("Todavía no hay versiones de este proyecto.", "No versions of this project yet."),
+    ("Restaurar esta versión", "Restore this version"),
     // ---- in-betweens -------------------------------------------------------
     ("Mueve, escala o gira la selección para marcar la posición final", "Move, scale or rotate the selection to set the end pose"),
     ("Generar los dibujos intermedios hasta esta posición", "Generate the in-betweens up to this pose"),

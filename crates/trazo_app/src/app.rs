@@ -222,6 +222,8 @@ pub struct UiState {
     pub language_dialog: Option<bool>,
     /// Options for generating in-betweens from the selection.
     pub tween_dialog: Option<panels::dialogs::TweenDialog>,
+    /// Earlier versions of the project.
+    pub versions_dialog: bool,
     pub toast: Option<Toast>,
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
@@ -304,6 +306,7 @@ impl TrazoApp {
                 settings_dialog: false,
                 language_dialog: first_run.then_some(true),
                 tween_dialog: None,
+                versions_dialog: false,
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
@@ -411,6 +414,39 @@ impl TrazoApp {
             }
             Err(e) => self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e.to_string()))),
         }
+    }
+
+    /// Go back to an earlier version. What is open now is kept as a version
+    /// first, so restoring can itself be undone the same way.
+    pub fn restore_version(&mut self, ctx: &egui::Context, version: &Path) {
+        if self.audio_ui.is_recording() {
+            panels::audio::cancel_recording(self);
+        }
+        self.stop_playback();
+        if let Err(e) = self.save_blocking() {
+            self.toast(ctx, tf!("No se pudo guardar el proyecto actual: {}", tr_err(&e)));
+            return;
+        }
+        let path = self.doc.path.clone();
+        if let Err(e) = crate::versions::snapshot(&path, true) {
+            self.toast(ctx, tf!("No se pudo guardar el proyecto actual: {}", tr_err(&e.to_string())));
+            return;
+        }
+        // Read it before replacing anything: a damaged copy changes nothing.
+        let project = match io::load_project(version) {
+            Ok(p) => p,
+            Err(e) => {
+                self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e.to_string())));
+                return;
+            }
+        };
+        if let Err(e) = std::fs::copy(version, &path) {
+            self.toast(ctx, tf!("No se pudo guardar: {}", tr_err(&e.to_string())));
+            return;
+        }
+        self.doc = Document::new(project, path);
+        self.after_document_change();
+        self.toast(ctx, tr("Versión restaurada; la que tenías abierta quedó guardada como versión"));
     }
 
     pub fn new_project(&mut self, ctx: &egui::Context, name: String, canvas: CanvasSettings) {
@@ -941,6 +977,7 @@ impl eframe::App for TrazoApp {
             || self.ui.settings_dialog
             || self.ui.language_dialog.is_some()
             || self.ui.tween_dialog.is_some()
+            || self.ui.versions_dialog
             || self.export_ui.open
             || self.video_import.is_busy()
             || self.file_browser.is_some();
