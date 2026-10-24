@@ -21,6 +21,7 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
 }
 
 fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option<u8>) {
+    let rs = row_style(ui.ctx());
     use crate::theme::{self, ACCENT, ELEVATED, SEPARATOR, TEXT, TEXT2, TEXT3, W};
     use egui::{Align2, Color32, Pos2, Rect, Sense, Stroke};
     let ctx = ui.ctx().clone();
@@ -114,7 +115,10 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
         }
         let selected = layer.id == doc.layer;
         let indent = if layer.props.folder.is_some() { 16.0 } else { 0.0 };
-        let (full, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 72.0), Sense::click());
+        if rs.gap > 0.0 {
+            ui.add_space(rs.gap);
+        }
+        let (full, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), rs.h), Sense::click());
         row_rects.push((i, full));
         let r = Rect::from_min_max(full.min + Vec2::new(indent, 0.0), full.max);
         let p = ui.painter().clone();
@@ -124,7 +128,7 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
             p.rect_filled(r, 14.0, Color32::from_rgb(30, 30, 33));
         }
         // Thumbnail: the layer's drawing at this frame.
-        let th = Rect::from_min_size(Pos2::new(r.left() + 10.0, r.center().y - 27.5), Vec2::new(44.0, 55.0));
+        let th = Rect::from_min_size(Pos2::new(r.left() + 10.0, r.center().y - rs.thumb.y / 2.0), rs.thumb);
         layer_thumb(&p, th, &layer, doc);
         if selected {
             p.rect_stroke(th, 7.0, Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
@@ -142,15 +146,21 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
         } else {
             format!("{} · {} %", tr(layer.props.blend.label()), (layer.props.opacity * 100.0).round() as i32)
         };
-        let text_x = th.right() + 8.0;
-        let text_w = (r.right() - 3.0 * 44.0 - text_x).max(40.0);
-        let ng = crate::panels::home::one_line_pub(ui, &name, theme::font(15.0, W::Semi), TEXT, text_w);
-        let sg = crate::panels::home::one_line_pub(ui, &sub, theme::font(12.0, W::Regular), TEXT2, text_w);
+        let text_x = th.right() + if rs.grip { 8.0 } else { 10.0 };
+        let text_w = (r.right() - if rs.grip { 3.0 } else { 2.0 } * 44.0 - text_x).max(40.0);
+        let ng = crate::panels::home::one_line_pub(ui, &name, theme::font(rs.title, W::Semi), TEXT, text_w);
+        let sg = crate::panels::home::one_line_pub(ui, &sub, theme::font(rs.sub, W::Regular), TEXT2, text_w);
         p.galley(Pos2::new(text_x, r.center().y - ng.size().y + 1.0), ng, TEXT);
         p.galley(Pos2::new(text_x, r.center().y + 3.0), sg, TEXT2);
         // Eye, options, grip (the grip sits on the right, away from the system back gesture).
         let slot = |k: f32| {
-            let (cx, w) = match k as i32 { 0 => (r.right() - 14.0, 28.0), 1 => (r.right() - 58.0, 44.0), _ => (r.right() - 110.0, 44.0) };
+            let (cx, w) = match (k as i32, rs.grip) {
+                (0, _) => (r.right() - 14.0, 28.0),
+                (1, true) => (r.right() - 58.0, 44.0),
+                (_, true) => (r.right() - 110.0, 44.0),
+                (1, false) => (r.right() - 24.0, 44.0),
+                (_, false) => (r.right() - 74.0, 44.0),
+            };
             Rect::from_center_size(Pos2::new(cx, r.center().y), Vec2::new(w, 44.0))
         };
         let eye = ui.interact(slot(2.0), ui.scope_id().with(("eye", layer.id)), Sense::click());
@@ -171,8 +181,9 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
         egui::Popup::menu(&more).width(300.0).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
             layer_menu(ui, doc, layer.id);
         });
-        let grip = ui.interact(slot(0.0), ui.scope_id().with(("grip", layer.id)), Sense::drag());
-        if layer.props.locked {
+        let grip = ui.interact(slot(0.0), ui.scope_id().with(("grip", layer.id)), if rs.grip { Sense::drag() } else { Sense::hover() });
+        if !rs.grip {
+        } else if layer.props.locked {
             crate::icons::paint(&p, Rect::from_center_size(slot(0.0).center(), Vec2::splat(15.0)), Icon::Lock, TEXT3);
         } else {
             for (dx, dy) in [(-3.0, -5.0), (3.0, -5.0), (-3.0, 0.0), (3.0, 0.0), (-3.0, 5.0), (3.0, 5.0)] {
@@ -265,6 +276,48 @@ pub fn header_hor(ui: &mut egui::Ui) {
     header(ui);
 }
 
+/// Add a drawing layer above the current one.
+pub fn add_drawing_layer(doc: &mut crate::app::Document) {
+    add_layer(doc);
+}
+
+/// A new folder with the current layer.
+pub fn add_folder(doc: &mut crate::app::Document) {
+    new_folder(doc);
+}
+
+/// Size of the layer rows (phone by default; the landscape card and the
+/// tablet inspector set their own for this frame).
+#[derive(Clone, Copy)]
+pub struct RowStyle {
+    pub h: f32,
+    pub thumb: Vec2,
+    pub title: f32,
+    pub sub: f32,
+    pub grip: bool,
+    pub gap: f32,
+}
+
+impl RowStyle {
+    pub const PHONE: RowStyle = RowStyle { h: 72.0, thumb: Vec2::new(44.0, 55.0), title: 15.0, sub: 12.0, grip: true, gap: 0.0 };
+    pub const LANDSCAPE: RowStyle = RowStyle { h: 56.0, thumb: Vec2::new(34.0, 42.0), title: 14.0, sub: 11.0, grip: true, gap: 1.0 };
+    pub const TABLET: RowStyle = RowStyle { h: 60.0, thumb: Vec2::new(38.0, 48.0), title: 15.0, sub: 12.0, grip: false, gap: 6.0 };
+}
+
+pub fn set_row_style(ctx: &egui::Context, st: RowStyle) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("layer_row_style"), st));
+}
+
+fn row_style(ctx: &egui::Context) -> RowStyle {
+    let id = egui::Id::unique("layer_row_style");
+    ctx.data_mut(|d| {
+        let st = d.get_temp::<RowStyle>(id);
+        d.remove::<RowStyle>(id);
+        st
+    })
+    .unwrap_or(RowStyle::PHONE)
+}
+
 pub fn header(ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     ui.label(egui::RichText::new(tr("Capas")).font(crate::theme::font(20.0, crate::theme::W::Semi)).color(crate::theme::TEXT));
@@ -321,7 +374,7 @@ fn new_folder(doc: &mut crate::app::Document) {
 }
 
 /// Thumbnail of a layer at the current frame, on the paper color.
-fn layer_thumb(p: &egui::Painter, r: egui::Rect, layer: &trazo_core::Layer, doc: &crate::app::Document) {
+pub(crate) fn layer_thumb(p: &egui::Painter, r: egui::Rect, layer: &trazo_core::Layer, doc: &crate::app::Document) {
     use crate::theme::TEXT2;
     let bg = doc.project.canvas.background.to_rgba8();
     if layer.props.video.is_some() {
@@ -350,7 +403,7 @@ fn layer_thumb(p: &egui::Painter, r: egui::Rect, layer: &trazo_core::Layer, doc:
 }
 
 /// The "⋯" menu of a layer: its properties and what can be done with it.
-fn layer_menu(ui: &mut egui::Ui, doc: &mut crate::app::Document, id: trazo_core::LayerId) {
+pub(crate) fn layer_menu(ui: &mut egui::Ui, doc: &mut crate::app::Document, id: trazo_core::LayerId) {
     if doc.layer != id {
         return;
     }
@@ -591,7 +644,7 @@ fn drawing_props(ui: &mut egui::Ui, props: &mut LayerProps, changed: &mut bool, 
     }
 }
 
-fn finish_props(ui: &mut egui::Ui, doc: &mut crate::app::Document, i: usize, id: trazo_core::LayerId, props: LayerProps, changed: bool, commit: bool) {
+pub(crate) fn finish_props(ui: &mut egui::Ui, doc: &mut crate::app::Document, i: usize, id: trazo_core::LayerId, props: LayerProps, changed: bool, commit: bool) {
     let key = egui::Id::unique(("layer_props_start", id));
     ui.data_mut(|d| d.insert_temp(egui::Id::unique("layer_props_pending"), id));
     if changed {

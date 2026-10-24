@@ -1090,6 +1090,10 @@ impl eframe::App for TrazoApp {
                 self.ui.sheet = None;
                 panels::phone_up::tablet_panels(self, ui);
             }
+            crate::widgets::SizeClass::Wide if !self.audio_ui.show => {
+                self.ui.sheet = None;
+                panels::phone_up::pc_panels(self, ui);
+            }
             crate::widgets::SizeClass::Wide => {
                 self.ui.sheet = None;
                 panels::top_bar::show(self, ui);
@@ -1197,6 +1201,10 @@ impl eframe::App for TrazoApp {
                 panels::phone_up::tablet(self, &ctx, canvas_rect);
                 panels::phone_up::drawing_menu(self, &ctx);
                 panels::phone_up::gestures_card(self, &ctx);
+            }
+            crate::widgets::SizeClass::Wide if !self.audio_ui.show => {
+                panels::phone_up::pc_view(self, &ctx, canvas_rect);
+                panels::phone_up::drawing_menu(self, &ctx);
             }
             crate::widgets::SizeClass::Wide => {}
         }

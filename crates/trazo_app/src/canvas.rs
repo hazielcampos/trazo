@@ -211,6 +211,14 @@ impl CanvasView {
         self.rotation = 0.0;
     }
 
+    /// Zoom to `z` keeping the center of the view.
+    pub fn set_zoom(&mut self, z: f32) {
+        let k = z.clamp(0.05, 32.0) / self.zoom.max(1e-6);
+        self.zoom = z.clamp(0.05, 32.0);
+        self.pan *= k;
+        self.fitted_for = None;
+    }
+
     pub fn rotate_by(&mut self, degrees: f32) {
         self.rotation = (self.rotation + degrees.to_radians()) % std::f32::consts::TAU;
     }

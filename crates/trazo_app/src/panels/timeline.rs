@@ -78,7 +78,7 @@ pub struct TracksState {
 
 impl Default for TracksState {
     fn default() -> Self {
-        Self { ppf: 26.0, stretch: None }
+        Self { ppf: 44.0, stretch: None }
     }
 }
 
