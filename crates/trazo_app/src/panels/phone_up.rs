@@ -812,6 +812,31 @@ enum Row {
 
 /// One row per layer (and one for the sound), drawings as colored cells.
 fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
+    tracks_styled(app, ui, reserve, TrackStyle::PHONE);
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct TrackStyle {
+    pub label_w: f32,
+    pub row_h: f32,
+    pub ppf: f32,
+    pub ruler_h: f32,
+    pub max_rows: usize,
+    pub hint: bool,
+    pub eye: bool,
+}
+
+impl TrackStyle {
+    pub const PHONE: TrackStyle = TrackStyle { label_w: LABEL_W, row_h: ROW_H, ppf: PPF, ruler_h: RULER_H, max_rows: 6, hint: true, eye: false };
+    pub const TABLET: TrackStyle = TrackStyle { label_w: 150.0, row_h: 48.0, ppf: 48.0, ruler_h: 22.0, max_rows: 6, hint: false, eye: true };
+}
+
+/// Rows of the timeline for this project (layers, then sound).
+pub(crate) fn track_rows(app: &TrazoApp) -> usize {
+    app.doc.project.layers.len() + usize::from(!app.doc.project.audio.tracks.is_empty())
+}
+
+pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: TrackStyle) {
     let ctx = ui.ctx().clone();
     let vid = egui::Id::unique("phone_tracks");
     let mut view: TrackView = ctx.data(|d| d.get_temp(vid)).unwrap_or(TrackView { follow: usize::MAX, ..Default::default() });
@@ -821,25 +846,27 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
         rows.push(Row::Audio);
     }
     ui.spacing_mut().item_spacing.y = 0.0;
-    ui.add_space(2.0);
-    ui.horizontal(|ui| {
-        ui.add_space(LABEL_W + 12.0);
-        ui.label(egui::RichText::new(tr("Pellizca: acercar · flecha blanca: alargar")).font(theme::font(11.0, W::Regular)).color(TEXT2));
-    });
-    ui.add_space(4.0);
-    let fit_rows = ((ui.available_height() - reserve - RULER_H) / ROW_H).floor().max(1.0) as usize;
-    let visible_rows = rows.len().min(6).min(fit_rows) as f32;
-    let (area, bg) = ui.allocate_exact_size(Vec2::new(ui.available_width(), RULER_H + visible_rows * ROW_H), Sense::click_and_drag());
-    let lanes = Rect::from_min_max(Pos2::new(area.left() + LABEL_W, area.top()), area.max);
+    if st.hint {
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.add_space(st.label_w + 12.0);
+            ui.label(egui::RichText::new(tr("Pellizca: acercar · flecha blanca: alargar")).font(theme::font(11.0, W::Regular)).color(TEXT2));
+        });
+        ui.add_space(4.0);
+    }
+    let fit_rows = if st.hint { ((ui.available_height() - reserve - st.ruler_h) / st.row_h).floor().max(1.0) as usize } else { usize::MAX };
+    let visible_rows = rows.len().min(st.max_rows).min(fit_rows) as f32;
+    let (area, bg) = ui.allocate_exact_size(Vec2::new(ui.available_width(), st.ruler_h + visible_rows * st.row_h), Sense::click_and_drag());
+    let lanes = Rect::from_min_max(Pos2::new(area.left() + st.label_w, area.top()), area.max);
     let n_frames = app.doc.project.frames.len();
     let shown = app.displayed_frame();
     let fps = app.doc.project.canvas.fps.max(1) as f32;
-    let max_x = ((n_frames as f32 + 2.0) * PPF - lanes.width()).max(0.0);
-    let max_y = ((rows.len() as f32 - visible_rows) * ROW_H).max(0.0);
+    let max_x = ((n_frames as f32 + 2.0) * st.ppf - lanes.width()).max(0.0);
+    let max_y = ((rows.len() as f32 - visible_rows) * st.row_h).max(0.0);
     // Keep the playhead in view when it moves (playing, or picked elsewhere).
     if view.follow != shown {
-        let px = shown as f32 * PPF;
-        if px < view.x + PPF || px > view.x + lanes.width() - 2.0 * PPF || view.follow == usize::MAX {
+        let px = shown as f32 * st.ppf;
+        if px < view.x + st.ppf || px > view.x + lanes.width() - 2.0 * st.ppf || view.follow == usize::MAX {
             view.x = (px - lanes.width() * 0.4).clamp(0.0, max_x);
         }
         view.follow = shown;
@@ -853,11 +880,11 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
         let sd = ui.input(|i| i.smooth_scroll_delta);
         view.x = (view.x - sd.x - if sd.x == 0.0 { sd.y } else { 0.0 }).clamp(0.0, max_x);
     }
-    let x_of = |f: f32| lanes.left() + 2.0 + f * PPF - view.x;
+    let x_of = |f: f32| lanes.left() + 2.0 + f * st.ppf - view.x;
     let p = ui.painter().with_clip_rect(area);
     let lp = ui.painter().with_clip_rect(lanes);
-    let first = (view.x / PPF).floor().max(0.0) as usize;
-    let last = (((view.x + lanes.width()) / PPF).ceil() as usize + 1).min(n_frames);
+    let first = (view.x / st.ppf).floor().max(0.0) as usize;
+    let last = (((view.x + lanes.width()) / st.ppf).ceil() as usize + 1).min(n_frames);
 
     // Ruler.
     for f in first..last {
@@ -870,17 +897,21 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
     let long_press = bg.long_touched() || bg.secondary_clicked();
     let mut pick: Option<(Option<trazo_core::LayerId>, usize)> = None;
     let mut menu = None;
+    let mut eye_toggle: Option<usize> = None;
     if bg.clicked() || long_press {
         if let Some(pt) = pointer {
-            let f = (((pt.x - lanes.left() + view.x) / PPF).floor().max(0.0) as usize).min(n_frames.saturating_sub(1));
-            if pt.y < area.top() + RULER_H {
+            let f = (((pt.x - lanes.left() + view.x) / st.ppf).floor().max(0.0) as usize).min(n_frames.saturating_sub(1));
+            if pt.y < area.top() + st.ruler_h {
                 pick = Some((None, f));
             } else {
-                let row = ((pt.y - area.top() - RULER_H + view.y) / ROW_H).floor() as usize;
+                let row = ((pt.y - area.top() - st.ruler_h + view.y) / st.row_h).floor() as usize;
                 match rows.get(row) {
                     Some(Row::Layer(li)) => {
                         let id = app.doc.project.layers[*li].id;
                         if pt.x < lanes.left() {
+                            if st.eye && pt.x > lanes.left() - 40.0 && !long_press {
+                                eye_toggle = Some(*li);
+                            }
                             pick = Some((Some(id), shown));
                         } else {
                             pick = Some((Some(id), f));
@@ -895,13 +926,13 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
             }
         }
     }
-    let row_clip = Rect::from_min_max(Pos2::new(area.left(), area.top() + RULER_H), area.max);
+    let row_clip = Rect::from_min_max(Pos2::new(area.left(), area.top() + st.ruler_h), area.max);
     let rp = ui.painter().with_clip_rect(row_clip);
-    let lrp = ui.painter().with_clip_rect(Rect::from_min_max(Pos2::new(lanes.left(), area.top() + RULER_H), area.max));
+    let lrp = ui.painter().with_clip_rect(Rect::from_min_max(Pos2::new(lanes.left(), area.top() + st.ruler_h), area.max));
     let mut handle: Option<(Rect, trazo_core::LayerId, tl::Block)> = None;
     for (ri, row) in rows.iter().enumerate() {
-        let top = area.top() + RULER_H + ri as f32 * ROW_H - view.y;
-        let full = Rect::from_min_size(Pos2::new(area.left(), top), Vec2::new(area.width(), ROW_H));
+        let top = area.top() + st.ruler_h + ri as f32 * st.row_h - view.y;
+        let full = Rect::from_min_size(Pos2::new(area.left(), top), Vec2::new(area.width(), st.row_h));
         if full.bottom() < row_clip.top() || full.top() > row_clip.bottom() {
             continue;
         }
@@ -916,11 +947,15 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
                 let dim = layer.props.shared || !layer.props.visible;
                 rp.circle_filled(Pos2::new(full.left() + 16.0, full.center().y), 4.0, dot);
                 let name = crate::i18n::layer_name(&layer.props.name).into_owned();
-                let g = crate::panels::home::one_line_pub(ui, &name, theme::font(13.0, W::Semi), if dim { TEXT2 } else { Color32::from_rgb(226, 226, 223) }, LABEL_W - 32.0);
+                let g = crate::panels::home::one_line_pub(ui, &name, theme::font(13.0, W::Semi), if dim { TEXT2 } else { Color32::from_rgb(226, 226, 223) }, st.label_w - if st.eye { 70.0 } else { 32.0 });
                 rp.galley(Pos2::new(full.left() + 27.0, full.center().y - g.size().y / 2.0), g, TEXT);
-                let cell_r = |s: usize, len: usize| Rect::from_min_size(Pos2::new(x_of(s as f32), top + 4.0), Vec2::new(len as f32 * PPF - 4.0, 44.0));
+                if st.eye {
+                    let ic = if layer.props.visible { Icon::Eye } else { Icon::EyeOff };
+                    paint(&rp, Rect::from_center_size(Pos2::new(lanes.left() - 20.0, full.center().y), Vec2::splat(18.0)), ic, if layer.props.visible { TEXT } else { TEXT3 });
+                }
+                let cell_r = |s: usize, len: usize| Rect::from_min_size(Pos2::new(x_of(s as f32), top + 4.0), Vec2::new(len as f32 * st.ppf - 4.0, st.row_h - 8.0));
                 if layer.props.shared || layer.props.video.is_some() {
-                    let r = Rect::from_min_max(Pos2::new(x_of(0.0), top + 4.0), Pos2::new(lanes.right() + 20.0, top + 48.0));
+                    let r = Rect::from_min_max(Pos2::new(x_of(0.0), top + 4.0), Pos2::new(lanes.right() + 20.0, top + st.row_h - 4.0));
                     lrp.rect_filled(r, 9.0, cell);
                     let msg = if layer.props.shared { tr("Fondo · toda la toma") } else { tr("Video para calcar") };
                     lrp.text(Pos2::new(r.left().max(lanes.left()) + 10.0, r.center().y), Align2::LEFT_CENTER, msg, theme::font(12.0, W::Regular), lerp(dot, TEXT, 0.4));
@@ -937,7 +972,7 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
                         lrp.rect_stroke(r, 9.0, Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
                         let idx = tl::blocks(&app.doc.project, layer.id).iter().position(|x| *x == b).unwrap_or(0) + 1;
                         lrp.text(r.left_top() + Vec2::new(6.0, 3.0), Align2::LEFT_TOP, idx.to_string(), theme::font(11.0, W::Bold), Color32::from_rgb(14, 34, 54));
-                        handle = Some((Rect::from_min_size(Pos2::new(r.right() - 16.0, top + 12.0), Vec2::new(24.0, 28.0)), layer.id, b));
+                        handle = Some((Rect::from_min_size(Pos2::new(r.right() - 16.0, top + (st.row_h - 28.0) / 2.0), Vec2::new(24.0, 28.0)), layer.id, b));
                     } else {
                         lrp.rect_filled(r, 9.0, cell);
                     }
@@ -955,7 +990,7 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
                     for c in &t.clips {
                         let s = trazo_core::audio::samples_to_ticks(c.start, fps as u32) as f32;
                         let e = trazo_core::audio::samples_to_ticks(c.end(), fps as u32) as f32;
-                        let r = Rect::from_min_max(Pos2::new(x_of(s), top + 4.0), Pos2::new(x_of(e) - 4.0, top + 48.0));
+                        let r = Rect::from_min_max(Pos2::new(x_of(s), top + 4.0), Pos2::new(x_of(e) - 4.0, top + st.row_h - 4.0));
                         lrp.rect_filled(r, 9.0, cell);
                         lrp.hline(r.left() + 6.0..=r.right() - 6.0, r.center().y, Stroke::new(1.0, dot.gamma_multiply(0.6)));
                     }
@@ -971,7 +1006,7 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
         }
         if let (Some((l, start, _)), Some(pt)) = (view.stretch, resp.interact_pointer_pos()) {
             if resp.dragged() {
-                let len = (((pt.x - x_of(start as f32) + 8.0) / PPF).round().max(1.0)) as usize;
+                let len = (((pt.x - x_of(start as f32) + 8.0) / st.ppf).round().max(1.0)) as usize;
                 if len != tl::block_at(&app.doc.project, l, start).map_or(0, |b| b.len) {
                     let d = &mut app.doc;
                     if tl::set_len(&mut d.project, &mut d.history, l, start, len) {
@@ -1004,6 +1039,13 @@ fn tracks(app: &mut TrazoApp, ui: &mut Ui, reserve: f32) {
             app.doc.layer = l;
         }
         app.doc.set_frame(f);
+    }
+    if let Some(li) = eye_toggle {
+        if let Some(l) = app.doc.project.layers.get_mut(li) {
+            l.props.visible = !l.props.visible;
+            app.doc.mark_settings_changed();
+            app.doc.redraw = Redraw::Full;
+        }
     }
     if let Some((_, f)) = menu {
         app.ui.drawing_menu = Some(f);
@@ -1119,7 +1161,9 @@ fn gestures_seen_path(app: &TrazoApp) -> std::path::PathBuf {
 /// touch screen. `Some(true)` = every gesture listed.
 pub fn gestures_card(app: &mut TrazoApp, ctx: &egui::Context) {
     let checked = egui::Id::unique("gestures_checked");
-    if app.ui.gestures_card.is_none() && app.platform.touch_first && !ctx.data(|d| d.get_temp::<bool>(checked).unwrap_or(false)) {
+    // Test captures skip it (unless asked for).
+    let capturing = cfg!(debug_assertions) && std::env::var_os("TRAZO_ESCALA1").is_some();
+    if app.ui.gestures_card.is_none() && app.platform.touch_first && !capturing && !ctx.data(|d| d.get_temp::<bool>(checked).unwrap_or(false)) {
         ctx.data_mut(|d| d.insert_temp(checked, true));
         if !gestures_seen_path(app).exists() {
             app.ui.gestures_card = Some(false);
@@ -1544,5 +1588,242 @@ fn hor_tracks(app: &mut TrazoApp, ui: &mut Ui) {
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
         ui.add_space(8.0);
         egui::Frame::new().inner_margin(Margin::symmetric(4, 0)).show(ui, |ui| action_bar(app, ui));
+    });
+}
+
+// ---- tablet (Tablet board) -------------------------------------------------------------------
+
+const T_TOOLS: [Tool; 7] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Lasso, Tool::Shape, Tool::Text];
+
+/// The room the floating islands keep free around the canvas, and the
+/// timeline island at the bottom.
+pub fn tablet_panels(app: &mut TrazoApp, ui: &mut Ui) {
+    let room = Frame::new().fill(theme::CANVAS_BG);
+    let n_rows = track_rows(app);
+    let shown_rows = if app.ui.dock_open { n_rows.min(6) } else { n_rows.min(2) };
+    let more_row = if n_rows > 2 { 36.0 } else { 8.0 };
+    egui::Panel::bottom("tab_timeline").resizable(false).show_separator_line(false)
+        .frame(Frame::new().fill(theme::CANVAS_BG).inner_margin(Margin { left: 20, right: 20, top: 12, bottom: 16 }))
+        .show(ui, |ui| {
+            Frame::new().fill(SURFACE).corner_radius(22).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.spacing_mut().item_spacing.y = 0.0;
+                crate::panels::timeline::commit_selection_on_click(app, ui);
+                // Grabber: drag up for every track.
+                let (g, gr) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 12.0), Sense::click_and_drag());
+                ui.painter().rect_filled(Rect::from_center_size(Pos2::new(g.center().x, g.top() + 9.5), Vec2::new(36.0, 5.0)), 3.0, CONTROL);
+                let dy = ui.input(|i| i.pointer.delta().y);
+                if gr.clicked() || (gr.dragged() && ((dy < -4.0 && !app.ui.dock_open) || (dy > 4.0 && app.ui.dock_open))) {
+                    app.ui.dock_open = !app.ui.dock_open;
+                }
+                tablet_transport(app, ui);
+                let st = TrackStyle { max_rows: shown_rows.max(1), ..TrackStyle::TABLET };
+                tracks_styled(app, ui, 0.0, st);
+                if n_rows > 2 {
+                    let (r, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), more_row), Sense::click());
+                    let label = if app.ui.dock_open { tr("Menos pistas").to_string() } else { tf!("{} pistas más", n_rows - 2) };
+                    ui.painter().text(Pos2::new(r.left() + 20.0, r.center().y), Align2::LEFT_CENTER, label, theme::font(13.0, W::Regular), TEXT2);
+                    paint(ui.painter(), Rect::from_center_size(Pos2::new(r.left() + 150.0 - 20.0, r.center().y), Vec2::splat(16.0)), if app.ui.dock_open { Icon::Down } else { Icon::Up }, TEXT2);
+                    if resp.clicked() {
+                        app.ui.dock_open = !app.ui.dock_open;
+                    }
+                } else {
+                    ui.add_space(more_row);
+                }
+            });
+        });
+    egui::Panel::top("tab_top_room").exact_size(78.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    egui::Panel::left("tab_left_room").exact_size(146.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    egui::Panel::right("tab_right_room").exact_size(356.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+}
+
+fn tablet_transport(app: &mut TrazoApp, ui: &mut Ui) {
+    ui.horizontal(|ui| {
+        ui.set_height(48.0);
+        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.add_space(10.0);
+        let layer = app.doc.layer;
+        let blocks = tl::blocks(&app.doc.project, layer);
+        let shown = app.displayed_frame();
+        let prev = blocks.iter().rev().find(|b| b.start < shown && !b.contains(shown)).map(|b| b.start);
+        let next = blocks.iter().find(|b| b.start > shown).map(|b| b.start);
+        if widgets::icon_button_ex(ui, Icon::ArrowLeft, tr("Dibujo anterior"), prev.is_some(), None).clicked() {
+            if let Some(f) = prev {
+                app.stop_playback();
+                app.doc.set_frame(f);
+            }
+        }
+        play_button(app, ui);
+        if widgets::icon_button_ex(ui, Icon::Next, tr("Dibujo siguiente"), next.is_some(), None).clicked() {
+            if let Some(f) = next {
+                app.stop_playback();
+                app.doc.set_frame(f);
+            }
+        }
+        let n = app.doc.project.frames.len();
+        let cur = shown + 1;
+        let fps = app.doc.project.canvas.fps.max(1) as f32;
+        let mut job = egui::text::LayoutJob::default();
+        job.append(&format!("{cur:02}"), 4.0, egui::TextFormat { font_id: theme::counter_font(18.0), color: TEXT, ..Default::default() });
+        job.append(&tf!(" / {} · {} s", n, crate::i18n::num((cur - 1) as f32 / fps, 2)), 0.0, egui::TextFormat { font_id: theme::font(13.0, W::Regular), color: TEXT2, valign: egui::Align::Max, ..Default::default() });
+        ui.label(job);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(10.0);
+            let g = ui.painter().layout_no_wrap(tr("Nuevo").to_string(), theme::font(14.0, W::Semi), TEXT);
+            let (nr, nresp) = ui.allocate_exact_size(Vec2::new(g.size().x + 44.0, 44.0), Sense::click());
+            ui.painter().rect_filled(nr, 12.0, ELEVATED);
+            dashed_rect(ui.painter(), nr.shrink(0.75), Stroke::new(1.5, TEXT3));
+            paint(ui.painter(), Rect::from_center_size(Pos2::new(nr.left() + 20.0, nr.center().y), Vec2::splat(20.0)), Icon::Plus, TEXT);
+            ui.painter().galley(Pos2::new(nr.left() + 34.0, nr.center().y - g.size().y / 2.0), g, TEXT);
+            if nresp.on_hover_text(tr("Nuevo dibujo después del actual (N)")).clicked() {
+                crate::panels::timeline::add_frame(app);
+            }
+            if widgets::icon_button(ui, Icon::Mic, tr("Grabar voz")).clicked() {
+                app.audio_ui.show = true;
+            }
+            if widgets::toggle_icon(ui, Icon::Loop, app.playback.looping, tr("Bucle")).clicked() {
+                app.playback.looping = !app.playback.looping;
+            }
+            let (cr, cresp) = ui.allocate_exact_size(Vec2::new(24.0, 44.0), Sense::click());
+            paint(ui.painter(), Rect::from_center_size(cr.center(), Vec2::splat(16.0)), Icon::Down, TEXT2);
+            egui::Popup::menu(&cresp.on_hover_text(tr("Ajustes del papel cebolla"))).show(|ui| crate::panels::phone::frame_menu(app, ui));
+            let on = app.onion.enabled;
+            if widgets::pill_button(ui, Icon::Onion, tr("Cebolla"), if on { ACCENT } else { TEXT2 }, on).clicked() {
+                toggle_onion(app);
+            }
+        });
+    });
+}
+
+/// Floating islands of the tablet: title, actions, tools, size, view, inspector.
+pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
+    let screen = ctx.content_rect();
+    // Title.
+    egui::Area::new(egui::Id::unique("tab_title")).order(Order::Foreground).fixed_pos(screen.min + Vec2::new(20.0, 20.0)).show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            if widgets::icon_button_ex(ui, Icon::ArrowLeft, tr("Mis animaciones"), true, Some(SURFACE)).clicked() {
+                app.go_home(ui.ctx());
+            }
+            ui.set_min_width(360.0);
+            let t = title(app, ui);
+            egui::Popup::menu(&t).show(|ui| crate::panels::phone::project_menu(app, ui));
+        });
+    });
+    // Camera and export.
+    egui::Area::new(egui::Id::unique("tab_actions")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - 20.0, screen.top() + 24.0)).show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            for (ic, label, key) in [(Icon::Camera, tr("Cámara"), 0), (Icon::Export, tr("Exportar"), 1)] {
+                let g = ui.painter().layout_no_wrap(label.to_string(), theme::font(14.0, W::Semi), TEXT);
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(g.size().x + 56.0, 44.0), Sense::click());
+                ui.painter().rect_filled(r, 12.0, if resp.hovered() { ELEVATED } else { SURFACE });
+                paint(ui.painter(), Rect::from_center_size(Pos2::new(r.left() + 24.0, r.center().y), Vec2::splat(20.0)), ic, TEXT);
+                ui.painter().galley(Pos2::new(r.left() + 42.0, r.center().y - g.size().y / 2.0), g, TEXT);
+                if resp.clicked() {
+                    if key == 0 {
+                        app.ui.camera.open = true;
+                    } else {
+                        app.export_ui.open = true;
+                    }
+                }
+            }
+        });
+    });
+    // Tools, history first (left hand).
+    let rail_h = 468.0f32.min(canvas.bottom() - screen.top() - 86.0 - 8.0);
+    egui::Area::new(egui::Id::unique("tab_tools")).order(Order::Foreground).fixed_pos(screen.min + Vec2::new(20.0, 86.0)).show(ctx, |ui| {
+        Frame::new().fill(SURFACE).corner_radius(20).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(8, 6)).show(ui, |ui| {
+            ui.set_width(44.0);
+            ui.set_height(rail_h - 12.0);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.vertical_centered(|ui| {
+                let ctx = ui.ctx().clone();
+                let can_undo = app.doc.history.can_undo() || app.canvas.select.is_active();
+                if widgets::icon_button_ex(ui, Icon::Undo, tr("Deshacer (toca con 2 dedos)"), can_undo, None).clicked() {
+                    app.undo(&ctx);
+                }
+                if widgets::icon_button_ex(ui, Icon::Redo, tr("Rehacer (toca con 3 dedos)"), app.doc.history.can_redo(), None).clicked() {
+                    app.redo(&ctx);
+                }
+                let (r, _) = ui.allocate_exact_size(Vec2::new(44.0, 9.0), Sense::hover());
+                ui.painter().hline(r.center().x - 14.0..=r.center().x + 14.0, r.center().y, Stroke::new(1.0, SEPARATOR));
+                let fits = ((ui.available_height() - 52.0) / 44.0).floor().max(1.0) as usize;
+                for (i, t) in T_TOOLS.iter().enumerate() {
+                    if i + 1 >= fits && i + 1 < T_TOOLS.len() {
+                        crate::panels::phone::more_tools_pub(app, ui, Vec2::splat(44.0));
+                        break;
+                    }
+                    tool_slot(app, ui, *t, Vec2::splat(44.0));
+                }
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
+                    let p = ui.painter();
+                    p.circle_filled(rect.center(), 18.0, TEXT);
+                    p.circle_filled(rect.center(), 16.0, SURFACE);
+                    p.circle_filled(rect.center(), 14.0, app.tools.color);
+                    if resp.on_hover_text(tr("Color")).clicked() {
+                        app.ui.inspector = SideTab::Color;
+                    }
+                });
+            });
+        });
+    });
+    // Size and opacity.
+    let h = 290.0f32.min(rail_h - 64.0);
+    if h > 120.0 {
+        size_rail_at(app, ctx, screen.min + Vec2::new(94.0, 150.0), h, Pos2::new(canvas.center().x, canvas.bottom() - 12.0));
+    }
+    // View: fit, flip, zoom.
+    egui::Area::new(egui::Id::unique("tab_view")).order(Order::Foreground).pivot(Align2::RIGHT_BOTTOM).fixed_pos(Pos2::new(canvas.right() - 12.0, canvas.bottom() - 12.0)).show(ctx, |ui| {
+        Frame::new().fill(SURFACE).corner_radius(14).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(2, 0)).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                if widgets::icon_button(ui, Icon::Fit, tr("Ajustar a la pantalla")).clicked() {
+                    app.canvas.fit();
+                }
+                if widgets::icon_button_ex(ui, Icon::FlipH, tr("Voltear vista"), true, app.canvas.is_flipped().then_some(ELEVATED)).clicked() {
+                    app.canvas.toggle_flip();
+                }
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(format!("{:.0} %", app.canvas.zoom() * 100.0)).font(theme::font(13.0, W::Regular)).color(Color32::from_rgb(214, 214, 211)));
+                ui.add_space(10.0);
+            });
+        });
+    });
+    // Inspector: layers, brush, color.
+    let insp_h = 452.0f32.min(canvas.bottom() - screen.top() - 92.0);
+    egui::Area::new(egui::Id::unique("tab_inspector")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - 20.0, screen.top() + 92.0)).show(ctx, |ui| {
+        Frame::new().fill(SURFACE).corner_radius(20).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::same(10)).show(ui, |ui| {
+            ui.set_width(300.0);
+            ui.set_height(insp_h - 20.0);
+            ui.spacing_mut().item_spacing.y = 6.0;
+            let mut i = match app.ui.inspector {
+                SideTab::Layers => 0,
+                SideTab::Brushes => 1,
+                SideTab::Color => 2,
+            };
+            if widgets::segmented(ui, &mut i, &[tr("Capas"), tr("Pincel"), tr("Color")], ui.available_width()) {
+                app.ui.inspector = [SideTab::Layers, SideTab::Brushes, SideTab::Color][i];
+            }
+            match app.ui.inspector {
+                SideTab::Layers => {
+                    let room = ui.available_height() - 50.0;
+                    egui::ScrollArea::vertical().id_salt("tab_layers").max_height(room).auto_shrink([false, false]).show(ui, |ui| crate::panels::layers::show(app, ui));
+                    if widgets::secondary_button_icon(ui, Some(Icon::Plus), tr("Añadir capa"), 44.0).clicked() {
+                        crate::panels::layers::toggle_add(ui.ctx());
+                    }
+                }
+                SideTab::Brushes => {
+                    crate::panels::brushes::show(app, ui);
+                }
+                SideTab::Color => {
+                    egui::ScrollArea::vertical().id_salt("tab_color").auto_shrink([false, false]).show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.y = 12.0;
+                        crate::panels::toolbar::color_panel(app, ui);
+                    });
+                }
+            }
+        });
     });
 }

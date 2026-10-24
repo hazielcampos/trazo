@@ -244,6 +244,8 @@ pub struct UiState {
     pub dock_open: bool,
     /// Menu of the drawing that starts at this frame (long press in the strip).
     pub drawing_menu: Option<usize>,
+    /// Tablet: the inspector's tab.
+    pub inspector: panels::SideTab,
     /// First time in the editor on a touch screen: the gestures card.
     pub gestures_card: Option<bool>,
     /// Zoom and gestures of the per-layer timeline.
@@ -331,6 +333,7 @@ impl TrazoApp {
                 sheet: None,
                 dock_open: false,
                 drawing_menu: None,
+                inspector: panels::SideTab::Layers,
                 gestures_card: None,
                 tracks: Default::default(),
             },
@@ -1083,6 +1086,10 @@ impl eframe::App for TrazoApp {
                 }
             }
             crate::widgets::SizeClass::PhoneLandscape => panels::phone_up::landscape_panels(self, ui),
+            crate::widgets::SizeClass::Wide if self.platform.touch_first && !self.audio_ui.show => {
+                self.ui.sheet = None;
+                panels::phone_up::tablet_panels(self, ui);
+            }
             crate::widgets::SizeClass::Wide => {
                 self.ui.sheet = None;
                 panels::top_bar::show(self, ui);
@@ -1185,6 +1192,11 @@ impl eframe::App for TrazoApp {
                     panels::phone_up::landscape(self, &ctx, ctx.content_rect());
                 }
                 panels::phone_up::drawing_menu(self, &ctx);
+            }
+            crate::widgets::SizeClass::Wide if self.platform.touch_first && !self.audio_ui.show => {
+                panels::phone_up::tablet(self, &ctx, canvas_rect);
+                panels::phone_up::drawing_menu(self, &ctx);
+                panels::phone_up::gestures_card(self, &ctx);
             }
             crate::widgets::SizeClass::Wide => {}
         }

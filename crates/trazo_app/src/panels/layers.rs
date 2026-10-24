@@ -280,6 +280,12 @@ fn add_open(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("layers_add"))).unwrap_or(false)
 }
 
+/// Show or hide the "add a layer" choices.
+pub fn toggle_add(ctx: &egui::Context) {
+    let open = add_open(ctx);
+    set_add_open(ctx, !open);
+}
+
 fn set_add_open(ctx: &egui::Context, on: bool) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("layers_add"), on));
 }
