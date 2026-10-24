@@ -1,0 +1,302 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-24T08:25:00Z"
+  },
+  "title": "Trazo — Rediseño",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Editor"
+    },
+    "TelPinceles.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Pinceles"
+    },
+    "TelCapas.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Capas"
+    },
+    "TelColor.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Color"
+    },
+    "TelLinea.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Línea de tiempo abierta"
+    },
+    "TelFotograma.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Menú de fotograma"
+    },
+    "TelGestos.dc.html": {
+      "x": 2820,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Primera vez (gestos)"
+    },
+    "TelInicio.dc.html": {
+      "x": 3290,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Inicio"
+    },
+    "TelHorizontal.dc.html": {
+      "x": 0,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Teléfono horizontal"
+    },
+    "Tablet.dc.html": {
+      "x": 0,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet"
+    },
+    "PC.dc.html": {
+      "x": 0,
+      "y": 2840,
+      "w": 1440,
+      "h": 900,
+      "title": "PC · Editor"
+    },
+    "PCMenus.dc.html": {
+      "x": 1520,
+      "y": 2840,
+      "w": 1440,
+      "h": 900,
+      "title": "PC · Menús, desplegables y atajos"
+    },
+    "PCExportar.dc.html": {
+      "x": 3040,
+      "y": 2840,
+      "w": 1440,
+      "h": 900,
+      "title": "PC · Exportar"
+    },
+    "Sistema.dc.html": {
+      "x": 0,
+      "y": 3970,
+      "w": 1440,
+      "h": 1000,
+      "title": "Sistema visual"
+    },
+    "Iconos.dc.html": {
+      "x": 1520,
+      "y": 3970,
+      "w": 1440,
+      "h": 1000,
+      "title": "Iconos"
+    },
+    "Componentes.dc.html": {
+      "x": 3040,
+      "y": 3970,
+      "w": 1440,
+      "h": 1000,
+      "title": "Componentes"
+    },
+    "TelExportar.dc.html": {
+      "x": 3760,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Teléfono · Exportar"
+    },
+    "HorCapas.dc.html": {
+      "x": 924,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Capas"
+    },
+    "HorPinceles.dc.html": {
+      "x": 1848,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Pinceles"
+    },
+    "HorColor.dc.html": {
+      "x": 2772,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Color"
+    },
+    "HorLinea.dc.html": {
+      "x": 3696,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Pistas abiertas"
+    },
+    "HorFotograma.dc.html": {
+      "x": 4620,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Menú de dibujo"
+    },
+    "HorExportar.dc.html": {
+      "x": 5544,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Exportar"
+    },
+    "HorInicio.dc.html": {
+      "x": 6468,
+      "y": 1190,
+      "w": 844,
+      "h": 390,
+      "title": "Horizontal · Inicio"
+    },
+    "TabPinceles.dc.html": {
+      "x": 1360,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Pinceles"
+    },
+    "TabColor.dc.html": {
+      "x": 2720,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Color"
+    },
+    "TabCapaOpciones.dc.html": {
+      "x": 4080,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Opciones de capa"
+    },
+    "TabLinea.dc.html": {
+      "x": 5440,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Pistas abiertas"
+    },
+    "TabFotograma.dc.html": {
+      "x": 6800,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Menú de dibujo"
+    },
+    "TabExportar.dc.html": {
+      "x": 8160,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Exportar"
+    },
+    "TabInicio.dc.html": {
+      "x": 9520,
+      "y": 1810,
+      "w": 1280,
+      "h": 800,
+      "title": "Tablet · Inicio"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "TelPinceles.dc.html",
+    "TelCapas.dc.html",
+    "TelColor.dc.html",
+    "TelLinea.dc.html",
+    "TelFotograma.dc.html",
+    "TelGestos.dc.html",
+    "TelInicio.dc.html",
+    "TelExportar.dc.html",
+    "TelHorizontal.dc.html",
+    "HorCapas.dc.html",
+    "HorPinceles.dc.html",
+    "HorColor.dc.html",
+    "HorLinea.dc.html",
+    "HorFotograma.dc.html",
+    "HorExportar.dc.html",
+    "HorInicio.dc.html",
+    "Tablet.dc.html",
+    "TabPinceles.dc.html",
+    "TabColor.dc.html",
+    "TabCapaOpciones.dc.html",
+    "TabLinea.dc.html",
+    "TabFotograma.dc.html",
+    "TabExportar.dc.html",
+    "TabInicio.dc.html",
+    "PC.dc.html",
+    "PCMenus.dc.html",
+    "PCExportar.dc.html",
+    "Sistema.dc.html",
+    "Iconos.dc.html",
+    "Componentes.dc.html"
+  ],
+  "notes": {
+    "t_tel": {
+      "x": 0,
+      "y": -260,
+      "text": "Teléfono vertical",
+      "kind": "title1",
+      "maxW": 4150
+    },
+    "t_hor": {
+      "x": 0,
+      "y": 930,
+      "text": "Teléfono horizontal",
+      "kind": "title1",
+      "maxW": 7392
+    },
+    "t_tab": {
+      "x": 0,
+      "y": 1550,
+      "text": "Tablet",
+      "kind": "title1",
+      "maxW": 10880
+    },
+    "t_pc": {
+      "x": 0,
+      "y": 2580,
+      "text": "PC — ratón y teclado",
+      "kind": "title1",
+      "maxW": 4480
+    },
+    "t_sis": {
+      "x": 0,
+      "y": 3710,
+      "text": "Sistema, iconos y componentes",
+      "kind": "title1",
+      "maxW": 4480
+    }
+  },
+  "designSystems": []
+}

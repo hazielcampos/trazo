@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor en teléfono horizontal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:44px;height:44px;border:0;border-radius:14px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.rail{position:absolute;top:14px;bottom:14px;width:56px;border-radius:22px;background:#1B1B1D;box-shadow:0 10px 30px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.05);display:flex;flex-direction:column;align-items:center;padding:6px 0;box-sizing:border-box;gap:2px}
+</style>
+</helmet>
+<div style="width:844px;height:390px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <!-- Canvas -->
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="Fotograma 8" style="position:absolute;left:316px;top:14px;width:240px;height:300px;border-radius:3px;box-shadow:0 12px 40px rgba(0,0,0,0.6)">
+  <div class="mono" style="position:absolute;left:316px;top:322px;font-size:11px;color:#8A8A90"></div>
+
+  <!-- Left: tools -->
+  <div class="rail" style="left:44px;bottom:auto;height:296px">
+    <button class="ib" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M14.5 18l-6-6 6-6"/></svg></button>
+    <div style="width:26px;height:1px;background:#2F2F33;margin:3px 0"></div>
+    <button class="ib" aria-label="Pincel" style="background:#D9F45A;color:#121212;border-radius:16px"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-4.3 9.6-9.6a2.2 2.2 0 0 1 3.1 3.1l-9.6 9.6z"/><path d="M13.6 7.3l3.1 3.1"/></svg></button>
+    <button class="ib" aria-label="Goma"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/></svg></button>
+    <button class="ib" aria-label="Relleno"><svg viewBox="0 0 24 24"><path d="M6 10.5l5-5.5 7.5 7.5-5.4 5.4a2 2 0 0 1-2.8 0L6 13.6a2.2 2.2 0 0 1 0-3.1z"/><path d="M6.2 12.4h12"/><path d="M20.5 17c0 1.1-.7 1.9-1.5 1.9s-1.5-.8-1.5-1.9c0-1 1.5-2.6 1.5-2.6s1.5 1.6 1.5 2.6z"/></svg></button>
+    <button class="ib" aria-label="Selección"><svg viewBox="0 0 24 24"><path d="M12 4.5c4.3 0 7.7 2 7.7 4.6S16.3 13.7 12 13.7 4.3 11.7 4.3 9.1 7.7 4.5 12 4.5z"/><path d="M9.4 16c.1 1.6-.8 3-2.4 3.7"/></svg></button>
+    <button class="ib" aria-label="Más herramientas"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="18.5" cy="12" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+  </div>
+  <!-- Size / opacity next to the tools -->
+  <div style="position:absolute;left:112px;top:40px;width:36px;height:196px;border-radius:18px;background:rgba(27,27,29,0.96);display:flex;flex-direction:column;align-items:center;padding:10px 0;box-sizing:border-box;gap:6px">
+    <span style="width:8px;height:8px;border-radius:4px;background:#F2F2F0" aria-label="Tamaño"></span>
+    <div style="position:relative;width:5px;flex:1;border-radius:3px;background:#2F2F33"><div style="position:absolute;bottom:0;left:0;right:0;height:38%;border-radius:3px;background:#F2F2F0"></div><div style="position:absolute;left:-9px;bottom:calc(38% - 11px);width:22px;height:22px;border-radius:11px;background:#F2F2F0"></div></div>
+    <div style="width:18px;height:1px;background:#2F2F33;margin:2px 0"></div>
+    <div style="position:relative;width:5px;flex:1;border-radius:3px;background:#2F2F33"><div style="position:absolute;bottom:0;left:0;right:0;height:92%;border-radius:3px;background:#F2F2F0"></div><div style="position:absolute;left:-9px;bottom:calc(92% - 11px);width:22px;height:22px;border-radius:11px;background:#F2F2F0"></div></div>
+    <span style="width:10px;height:10px;border-radius:5px;background:repeating-conic-gradient(#F2F2F0 0 25%,#5E5E64 0 50%) 0 0/5px 5px" aria-label="Opacidad"></span>
+  </div>
+
+  <!-- Right: document actions -->
+  <div class="rail" style="right:44px;bottom:auto;height:304px">
+    <button class="ib" aria-label="Exportar" style="background:#252528"><svg viewBox="0 0 24 24"><path d="M12 15V4.5"/><path d="M8 8.5l4-4 4 4"/><path d="M5 13.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5"/></svg></button>
+    <button class="ib" aria-label="Deshacer"><svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button class="ib" aria-label="Rehacer" disabled style="color:#75757B"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H9a5 5 0 0 0 0 10h3"/></svg></button>
+    <div style="width:26px;height:1px;background:#2F2F33;margin:3px 0"></div>
+    <button class="ib" aria-label="Capas"><svg viewBox="0 0 24 24"><path d="M12 3.8l8.5 4.6-8.5 4.6-8.5-4.6z"/><path d="M3.5 12.6l8.5 4.6 8.5-4.6"/><path d="M3.5 16.6l8.5 4.6 8.5-4.6"/></svg></button>
+    <button class="ib" aria-label="Pinceles"><svg viewBox="0 0 24 24"><path d="M14 4.5l5.5 5.5-7 7-5.5-5.5z"/><path d="M7 11.5L4.5 19.5l8-2.5"/></svg></button>
+    <button aria-label="Color" style="width:44px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0"><span style="width:28px;height:28px;border-radius:14px;background:#C2523A;box-shadow:0 0 0 2px #1B1B1D,0 0 0 4px #F2F2F0"></span></button>
+  </div>
+
+  <!-- Bottom: compact timeline -->
+  <div style="position:absolute;left:112px;right:112px;bottom:24px;height:58px;border-radius:22px;background:#1B1B1D;box-shadow:0 10px 30px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px;padding:0 7px;box-sizing:border-box">
+    <button class="ib" aria-label="Reproducir" style="border-radius:22px;background:#F2F2F0;color:#121212"><svg viewBox="0 0 24 24" style="fill:#121212;stroke:none"><path d="M8.5 5.8v12.4a.8.8 0 0 0 1.2.7l10-6.2a.8.8 0 0 0 0-1.4l-10-6.2a.8.8 0 0 0-1.2.7z"/></svg></button>
+    <span class="mono" style="font-size:15px;font-weight:600;min-width:58px">08<span style="color:#8A8A90;font-size:12px"> /24</span></span>
+    <div style="flex:1;display:flex;gap:4px;overflow:hidden;align-items:center">
+      <img src="/_blob/7b740c5a8f2ef8f71a4c1a1696a7ae37" alt="" style="width:34px;height:42px;border-radius:6px;opacity:0.6">
+      <img src="/_blob/a1ec0b958ac5bec245de8a034cbbe758" alt="" style="width:34px;height:42px;border-radius:6px">
+      <img src="/_blob/10f76d377b57444960ee88e487676c0a" alt="" style="width:34px;height:42px;border-radius:6px;box-shadow:0 0 0 2px #1B1B1D,0 0 0 4px #D9F45A">
+      
+    </div>
+    <button aria-label="Papel cebolla: activado" style="height:44px;border:0;border-radius:12px;background:#252528;color:#F2F2F0;display:flex;align-items:center;gap:5px;padding:0 10px 0 8px;font-size:13px;font-weight:600"><svg viewBox="0 0 24 24" style="width:19px;height:19px;fill:none;stroke:#D9F45A;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><circle cx="9.5" cy="12" r="5.5"/><circle cx="14.5" cy="12" r="5.5" stroke-dasharray="2.2 2.2"/></svg>Cebolla<span style="width:6px;height:6px;border-radius:3px;background:#D9F45A"></span></button><button aria-label="Capa actual: Tinta" style="height:44px;border:0;border-radius:12px;background:#252528;color:#F2F2F0;font-size:13px;font-weight:600;padding:0 10px;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3.8l8.5 4.6-8.5 4.6-8.5-4.6z"/><path d="M3.5 12.6l8.5 4.6 8.5-4.6"/></svg>Tinta</button>
+    <button aria-label="Nuevo dibujo" style="height:44px;border:1.5px dashed #75757B;border-radius:12px;background:#252528;color:#F2F2F0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:4px;padding:0 10px 0 6px"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>Nuevo</button>
+    <button class="ib" aria-label="Abrir pistas" style="width:40px;height:40px"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":844,"height":390}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

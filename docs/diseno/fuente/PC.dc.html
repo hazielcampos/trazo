@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor en PC</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:#D6D6D3;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tl{width:40px;height:40px;border-radius:10px}
+.tl svg{width:21px;height:21px}
+.sm{width:24px;height:24px;border-radius:6px}
+.sm svg{width:15px;height:15px}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.tab{font-variant-numeric:tabular-nums}
+.sh{display:flex;align-items:center;gap:6px;height:36px;padding:0 10px 0 12px;font-size:12px;font-weight:600;color:#D6D6D3;border-bottom:1px solid #1E1E21}
+.sh svg.ch{width:12px;height:12px;fill:none;stroke:#8A8A90;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.num{height:28px;border-radius:6px;background:#1F1F22;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:12px;color:#D6D6D3;cursor:ew-resize}
+.lab{height:30px;display:flex;align-items:center;gap:6px;padding:0 4px 0 10px;font-size:12px;color:#D6D6D3;border-bottom:1px solid #1C1C1F}
+.trk{position:relative;height:30px;border-bottom:1px solid #1C1C1F;overflow:hidden}
+.c{position:absolute;top:3px;height:24px;border-radius:5px;font-size:10px;color:rgba(255,255,255,0.75);display:flex;align-items:center;padding-left:5px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+.kb{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:#C8C8C5;background:#38383C;border-radius:4px;padding:1px 5px}
+</style>
+</helmet>
+<div style="width:1440px;height:900px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0;display:grid;grid-template-rows:46px 1fr 6px 286px 24px;grid-template-columns:54px 1fr 6px 290px">
+
+  <!-- Top bar -->
+  <div style="grid-column:1/5;display:flex;align-items:center;gap:8px;padding:0 10px;background:#141416;border-bottom:1px solid #222225">
+    <button aria-label="Menú de Trazo" style="width:32px;height:32px;border:0;border-radius:8px;background:#F2F2F0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:19px;height:19px;fill:none;stroke:#121212;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M4 16c2-1 3-4 5-8 1-2 3-2 4 1s2 5 4 5 3-1 3-3"/></svg></button>
+    <span style="font-size:13px;color:#A1A1A6">Mis animaciones</span><span style="color:#3A3A3E">/</span>
+    <button style="border:0;background:transparent;color:#F2F2F0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:4px;height:32px;padding:0 6px;border-radius:8px">Viento<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 10l5 5 5-5"/></svg></button>
+    <span style="font-size:12px;color:#A1A1A6;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:3px;background:#5BD6C0"></span>Guardado</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:2px;background:#1B1B1D;border-radius:10px;padding:2px">
+      <button class="ib" aria-label="Deshacer, Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="ib" aria-label="Rehacer, Ctrl+Y" disabled style="color:#5E5E64"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H9a5 5 0 0 0 0 10h3"/></svg></button>
+    </div>
+    <div style="flex:1"></div>
+    <button style="height:32px;border:0;border-radius:8px;background:#1B1B1D;color:#D6D6D3;font-size:13px;padding:0 12px;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><rect x="3.5" y="6" width="13" height="12" rx="2.5"/><path d="M16.5 10.5l4-2.5v8l-4-2.5"/></svg>Cámara</button>
+    <button style="height:32px;border:0;border-radius:8px;background:#252528;color:#F2F2F0;font-size:13px;font-weight:600;padding:0 12px;display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M12 15V4.5"/><path d="M8 8.5l4-4 4 4"/><path d="M5 13.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5"/></svg>Exportar<span class="kb">Ctrl E</span></button>
+  </div>
+
+  <!-- Tools -->
+  <div style="grid-row:2/3;background:#141416;border-right:1px solid #222225;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:3px">
+    <button class="ib tl" aria-label="Pincel, B" style="background:#D9F45A;color:#121212"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-4.3 9.6-9.6a2.2 2.2 0 0 1 3.1 3.1l-9.6 9.6z"/><path d="M13.6 7.3l3.1 3.1"/></svg></button>
+    <button class="ib tl" aria-label="Goma, E"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/><path d="M9.6 11.1l4.3 4.3"/></svg></button>
+    <button class="ib tl" aria-label="Relleno, G"><svg viewBox="0 0 24 24"><path d="M6 10.5l5-5.5 7.5 7.5-5.4 5.4a2 2 0 0 1-2.8 0L6 13.6a2.2 2.2 0 0 1 0-3.1z"/><path d="M6.2 12.4h12"/><path d="M20.5 17c0 1.1-.7 1.9-1.5 1.9s-1.5-.8-1.5-1.9c0-1 1.5-2.6 1.5-2.6s1.5 1.6 1.5 2.6z"/></svg></button>
+    <button class="ib tl" aria-label="Cuentagotas, I"><svg viewBox="0 0 24 24"><path d="M14.5 5.5l4 4"/><path d="M16.8 3.2l4 4-2.6 2.6-4-4z"/><path d="M15 7.8l-8.6 8.6-.9 3.1 3.1-.9 8.6-8.6"/></svg></button>
+    <div style="width:24px;height:1px;background:#2A2A2E;margin:4px 0"></div>
+    <button class="ib tl" aria-label="Lazo, L"><svg viewBox="0 0 24 24"><path d="M12 4.5c4.3 0 7.7 2 7.7 4.6S16.3 13.7 12 13.7 4.3 11.7 4.3 9.1 7.7 4.5 12 4.5z"/><path d="M8.2 13.1c-1.4.5-2.1 1.6-1.6 2.6.5 1 2 1.2 2.8.3"/><path d="M9.4 16c.1 1.6-.8 3-2.4 3.7"/></svg></button>
+    <button class="ib tl" aria-label="Rectángulo, M"><svg viewBox="0 0 24 24"><rect x="4.5" y="5.5" width="15" height="13" rx="1.5" stroke-dasharray="3 2.4"/></svg></button>
+    <button class="ib tl" aria-label="Varita, W" style="background:#252528"><svg viewBox="0 0 24 24"><path d="M4.5 19.5L14 10"/><path d="M15.5 3.5v2.5M20.5 8.5H18M19 5l-1.8 1.8M14 10l1.8 1.8"/></svg></button>
+    <button class="ib tl" aria-label="Formas, U"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="9" height="9" rx="2"/><circle cx="15.5" cy="15.5" r="4.5"/></svg></button>
+    <button class="ib tl" aria-label="Texto, T"><svg viewBox="0 0 24 24"><path d="M5.5 7V5h13v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg></button>
+    <div style="flex:1"></div>
+    <div style="position:relative;width:40px;height:40px" aria-label="Color principal y secundario, X para cambiar">
+      <span style="position:absolute;left:4px;top:4px;width:22px;height:22px;border-radius:6px;background:#C2523A;box-shadow:0 0 0 2px #141416"></span>
+      <span style="position:absolute;right:4px;bottom:4px;width:18px;height:18px;border-radius:5px;background:#ECE6D6"></span>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div style="grid-row:2/3;position:relative;background:#0E0E0F;overflow:hidden">
+    <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="Dibujo 8" style="position:absolute;left:50%;top:50%;width:368px;height:460px;margin:-238px 0 0 -184px;box-shadow:0 16px 60px rgba(0,0,0,0.65)">
+    <div style="position:absolute;left:6px;top:250px;height:28px;border-radius:7px;background:#2A2A2E;box-shadow:0 8px 20px rgba(0,0,0,0.5);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px">Varita mágica <span class="kb">W</span></div>
+    <!-- View controls -->
+    <div style="position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:2px;background:#1B1B1D;border-radius:10px;padding:2px;box-shadow:0 8px 20px rgba(0,0,0,0.4)">
+      <button class="ib" aria-label="Girar el lienzo, R + arrastrar"><svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M17.5 3.5v3.6h-3.6"/></svg></button>
+      <button class="ib" aria-label="Voltear la vista, H"><svg viewBox="0 0 24 24"><path d="M12 3.5v17" stroke-dasharray="2 2.2"/><path d="M9 7L4 17h5zM15 7l5 10h-5z"/></svg></button>
+      <button class="ib" aria-label="Encajar en la ventana, Ctrl+0"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button class="tab" style="height:32px;border:0;border-radius:8px;background:transparent;color:#D6D6D3;font-size:12px;padding:0 8px;display:flex;align-items:center;gap:4px">71 %<svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 10l5 5 5-5"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Vertical divider (drag to resize) -->
+  <div style="grid-row:2/3;background:#252528;display:flex;align-items:center;justify-content:center;cursor:col-resize" aria-label="Arrastra para cambiar el ancho del panel"><div style="width:2px;height:40px;border-radius:1px;background:#F2F2F0"></div></div>
+
+  <!-- Inspector: collapsible sections -->
+  <div style="grid-row:2/3;background:#141416;display:flex;flex-direction:column;overflow:hidden">
+    <div class="sh"><svg class="ch" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>Pincel<span style="margin-left:auto;font-weight:500;color:#A1A1A6">Tinta seca</span></div>
+    <div style="padding:10px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;border-bottom:1px solid #1E1E21">
+      <div class="num"><span style="color:#A1A1A6">Tamaño</span><span class="tab" style="margin-left:auto">6 px</span></div>
+      <div class="num"><span style="color:#A1A1A6">Opacidad</span><span class="tab" style="margin-left:auto">100 %</span></div>
+      <div class="num"><span style="color:#A1A1A6">Suavizado</span><span class="tab" style="margin-left:auto">20 %</span></div>
+      <div class="num"><span style="color:#A1A1A6">Presión</span><span class="tab" style="margin-left:auto">Normal</span></div>
+    </div>
+    <div class="sh"><svg class="ch" viewBox="0 0 24 24"><path d="M10 7l5 5-5 5"/></svg>Color
+      <span style="margin-left:auto;display:flex;gap:4px"><span style="width:16px;height:16px;border-radius:4px;background:#211C1A;box-shadow:inset 0 0 0 1px #4A4A4E"></span><span style="width:16px;height:16px;border-radius:4px;background:#C2523A;box-shadow:0 0 0 1.5px #F2F2F0"></span><span style="width:16px;height:16px;border-radius:4px;background:#7B90A0"></span><span style="width:16px;height:16px;border-radius:4px;background:#F3C7A9"></span><span style="width:16px;height:16px;border-radius:4px;background:#ECE6D6"></span></span>
+    </div>
+    <div class="sh"><svg class="ch" viewBox="0 0 24 24"><path d="M7 10l5 5-5 5"/></svg>Capa «Tinta»</div>
+    <div style="padding:10px 12px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid #1E1E21">
+      <div style="display:flex;gap:6px">
+        <div class="num" style="flex:1"><span style="color:#A1A1A6">Opacidad</span><span class="tab" style="margin-left:auto">100 %</span></div>
+        <button style="flex:1;height:28px;border:0;border-radius:6px;background:#1F1F22;color:#D6D6D3;font-size:12px;display:flex;align-items:center;justify-content:space-between;padding:0 8px">Normal<svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <div style="display:flex;align-items:center;height:28px;font-size:12px;color:#D6D6D3"><span style="flex:1">Pintar solo sobre lo dibujado</span><span role="switch" aria-checked="false" style="width:30px;height:18px;border-radius:9px;background:#3A3A3E;position:relative;flex:none"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#A1A1A6"></span></span></div>
+      <div style="display:flex;align-items:center;height:28px;font-size:12px;color:#D6D6D3"><span style="flex:1">Recortar a la capa de abajo</span><span role="switch" aria-checked="false" style="width:30px;height:18px;border-radius:9px;background:#3A3A3E;position:relative;flex:none"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#A1A1A6"></span></span></div>
+    </div>
+    <div class="sh"><svg class="ch" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>Capas
+      <span style="margin-left:auto;display:flex;gap:2px"><button class="ib sm" aria-label="Nueva capa, Ctrl+Mayús+N"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><button class="ib sm" aria-label="Nueva carpeta"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button></span>
+    </div>
+    <div style="padding:6px;display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px;border-radius:8px;background:#232326">
+        <img src="/_blob/10f76d377b57444960ee88e487676c0a" alt="" style="width:27px;height:34px;border-radius:4px;box-shadow:0 0 0 1.5px #D9F45A">
+        <span style="flex:1;font-size:13px;font-weight:600">Tinta</span><span class="tab" style="font-size:11px;color:#A1A1A6">100 %</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px">
+        <img src="/_blob/fe4c4c4cbae132edfb8a8a7bdeabfb70" alt="" style="width:27px;height:34px;border-radius:4px">
+        <span style="flex:1;font-size:13px">Acuarela <span style="color:#A1A1A6;font-size:11px">Multiplicar</span></span><span class="tab" style="font-size:11px;color:#A1A1A6">85 %</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px">
+        <div style="width:27px;height:34px;border-radius:4px;background:#2A2A2D"></div>
+        <span style="flex:1;font-size:13px;color:#A1A1A6">Boceto <span style="font-size:11px">no sale en el video</span></span><span class="tab" style="font-size:11px;color:#A1A1A6">55 %</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 6px">
+        <div style="width:27px;height:34px;border-radius:4px;background:#E9E3D2"></div>
+        <span style="flex:1;font-size:13px">Papel <span style="color:#A1A1A6;font-size:11px">fondo</span></span><span class="tab" style="font-size:11px;color:#A1A1A6">100 %</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Horizontal divider -->
+  <div style="grid-column:1/5;background:#141416;border-top:1px solid #222225;display:flex;align-items:center;justify-content:center;cursor:row-resize" aria-label="Arrastra para cambiar la altura de la línea de tiempo"><div style="width:28px;height:2px;border-radius:1px;background:#3A3A3E"></div></div>
+
+  <!-- Timeline -->
+  <div style="grid-column:1/5;background:#141416;display:flex;flex-direction:column">
+    <div style="height:40px;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #1C1C1F">
+      <button class="ib" aria-label="Dibujo anterior, A"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-8 6 8 6z"/></svg></button>
+      <button class="ib" aria-label="Fotograma anterior, coma"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="ib" aria-label="Reproducir, Intro" style="background:#F2F2F0;color:#121212;border-radius:16px"><svg viewBox="0 0 24 24" style="fill:#121212;stroke:none"><path d="M8.5 5.8v12.4a.8.8 0 0 0 1.2.7l10-6.2a.8.8 0 0 0 0-1.4l-10-6.2a.8.8 0 0 0-1.2.7z"/></svg></button>
+      <button class="ib" aria-label="Fotograma siguiente, punto"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="ib" aria-label="Dibujo siguiente, S"><svg viewBox="0 0 24 24"><path d="M18 5v14M6 6l8 6-8 6z"/></svg></button>
+      <span class="mono" style="font-size:14px;font-weight:600;margin-left:8px">08</span><span class="tab" style="font-size:12px;color:#A1A1A6">/ 24 · 0,58 s · 12 fps</span>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;background:#2A2A2E;border-radius:8px">
+        <button class="ib" aria-label="Papel cebolla, O: activado" style="color:#D9F45A"><svg viewBox="0 0 24 24"><circle cx="9.5" cy="12" r="5.5"/><circle cx="14.5" cy="12" r="5.5" stroke-dasharray="2.2 2.2"/></svg></button>
+        <button class="ib" aria-label="Ajustes del papel cebolla" aria-expanded="false" style="width:20px;color:#A1A1A6"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <button class="ib" aria-label="Bucle en el rango, L" style="background:#2A2A2E;color:#D9F45A"><svg viewBox="0 0 24 24"><path d="M17 3.5l3 3-3 3"/><path d="M4 11.5v-1a4 4 0 0 1 4-4h12"/><path d="M7 20.5l-3-3 3-3"/><path d="M20 12.5v1a4 4 0 0 1-4 4H4"/></svg></button>
+      <button class="ib" aria-label="Marcador, M"><svg viewBox="0 0 24 24"><path d="M7 3.5h10v15l-5-3.5-5 3.5z"/></svg></button>
+      <button class="ib" aria-label="Grabar voz"><svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v3"/></svg></button>
+      <div style="width:1px;height:20px;background:#2A2A2E;margin:0 6px"></div>
+      <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:#A1A1A6;stroke-width:1.75;stroke-linecap:round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M8.5 11h5M16 16l4 4"/></svg>
+      <div style="width:100px;height:4px;border-radius:2px;background:#2F2F33;position:relative" aria-label="Zoom de la línea de tiempo, Ctrl+rueda"><div style="position:absolute;left:0;top:0;bottom:0;width:55%;background:#A1A1A6;border-radius:2px"></div><div style="position:absolute;left:calc(55% - 6px);top:-4px;width:12px;height:12px;border-radius:6px;background:#F2F2F0"></div></div>
+    </div>
+    <div style="flex:1;position:relative;display:grid;grid-template-columns:210px 1fr">
+      <div style="border-right:1px solid #222225">
+        <div style="height:26px;border-bottom:1px solid #1C1C1F"></div>
+        <div class="lab"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#A1A1A6;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><rect x="3.5" y="6" width="13" height="12" rx="2.5"/><path d="M16.5 10.5l4-2.5v8l-4-2.5"/></svg><span style="flex:1">Cámara</span><button class="ib sm" aria-label="Desactivar cámara"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="ib sm" aria-label="Bloquear cámara" style="color:#75757B"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0"/></svg></button></div>
+        <div class="lab" style="background:#1D1D20"><span style="width:7px;height:7px;border-radius:4px;background:#8FC0F0"></span><span style="flex:1;font-weight:600">Tinta</span>
+          <button class="ib sm" aria-label="Ocultar Tinta"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="ib sm" aria-label="Bloquear Tinta" style="color:#75757B"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0"/></svg></button>
+          <button class="ib sm" aria-label="Solo esta pista, Alt+S" style="color:#8A8A90"><svg viewBox="0 0 24 24"><path d="M4.5 15v-3a7.5 7.5 0 0 1 15 0v3"/><rect x="3.5" y="14" width="4" height="6" rx="1.5"/><rect x="16.5" y="14" width="4" height="6" rx="1.5"/></svg></button></div>
+        <div class="lab"><span style="width:7px;height:7px;border-radius:4px;background:#EDA287"></span><span style="flex:1">Acuarela</span>
+          <button class="ib sm" aria-label="Ocultar"><svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="ib sm" aria-label="Bloquear" style="color:#75757B"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0"/></svg></button>
+          <button class="ib sm" aria-label="Solo esta pista, Alt+S" style="color:#8A8A90"><svg viewBox="0 0 24 24"><path d="M4.5 15v-3a7.5 7.5 0 0 1 15 0v3"/><rect x="3.5" y="14" width="4" height="6" rx="1.5"/><rect x="16.5" y="14" width="4" height="6" rx="1.5"/></svg></button></div>
+        <div class="lab" style="color:#A1A1A6"><span style="width:7px;height:7px;border-radius:4px;background:#AFD39B"></span><span style="flex:1">Boceto</span>
+          <button class="ib sm" aria-label="Mostrar" style="color:#75757B"><svg viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M6.3 7.6A15.6 15.6 0 0 0 2.5 12S6 18.5 12 18.5a9 9 0 0 0 4.1-1M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.6 3.4"/></svg></button>
+          <button class="ib sm" aria-label="Bloquear" style="color:#75757B"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0"/></svg></button>
+          <button class="ib sm" aria-label="Solo esta pista, Alt+S" style="color:#8A8A90"><svg viewBox="0 0 24 24"><path d="M4.5 15v-3a7.5 7.5 0 0 1 15 0v3"/><rect x="3.5" y="14" width="4" height="6" rx="1.5"/><rect x="16.5" y="14" width="4" height="6" rx="1.5"/></svg></button></div>
+        <div class="lab" style="height:18px;font-size:11px;color:#A1A1A6"><span style="width:7px;height:7px;border-radius:4px;background:#D4C292"></span>Papel</div>
+        <div class="lab" style="height:46px"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg><span style="flex:1">viento.mp3</span>
+          <button class="ib sm" aria-label="Silenciar"><svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></button><button class="ib sm" aria-label="Bloquear audio" style="color:#8A8A90"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0"/></svg></button><button class="ib sm" aria-label="Solo esta pista" style="color:#8A8A90"><svg viewBox="0 0 24 24"><path d="M4.5 15v-3a7.5 7.5 0 0 1 15 0v3"/><rect x="3.5" y="14" width="4" height="6" rx="1.5"/><rect x="16.5" y="14" width="4" height="6" rx="1.5"/></svg></button></div>
+      </div>
+      <div style="position:relative;overflow:hidden">
+        <!-- Ruler with play range 3–18 and a marker -->
+        <div class="tab" style="position:relative;height:26px;border-bottom:1px solid #1C1C1F;font-size:10px;color:#A1A1A6">
+          <div style="position:absolute;left:94px;width:752px;top:0;bottom:0;background:rgba(242,242,240,0.12)"></div>
+          <div style="position:absolute;left:92px;top:2px;width:4px;height:22px;border-radius:2px;background:#F2F2F0" aria-label="Inicio del rango, I"></div>
+          <div style="position:absolute;left:844px;top:2px;width:4px;height:22px;border-radius:2px;background:#F2F2F0" aria-label="Fin del rango, O"></div>
+          <span style="position:absolute;left:4px;top:7px">1</span><span style="position:absolute;left:192px;top:7px">5</span><span style="position:absolute;left:427px;top:7px">10</span><span style="position:absolute;left:662px;top:7px">15</span><span style="position:absolute;left:897px;top:7px">20</span>
+          <span style="position:absolute;left:520px;top:7px;color:#75757B">1 s</span><span style="position:absolute;left:1086px;top:7px;color:#75757B">2 s</span>
+          <div aria-label="Marcador: grito" style="position:absolute;left:518px;top:0;width:16px;height:14px;border-radius:0 0 4px 4px;background:#B7A6E0;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:9px;height:9px;fill:#1B1530"><path d="M7 3.5h10v15l-5-3.5-5 3.5z"/></svg></div>
+        </div>
+        <div class="trk"><svg viewBox="0 0 1090 30" preserveAspectRatio="none" style="position:absolute;left:6px;top:0;width:1090px;height:30px" aria-hidden="true"><path d="M0 24C300 24 790 6 1090 6" style="fill:none;stroke:#6A6A70;stroke-width:1.5;stroke-dasharray:4 4"/></svg><span style="position:absolute;left:520px;top:8px;font-size:10px;color:#A1A1A6">suave al entrar y salir</span><div style="position:absolute;left:0;top:8px;width:13px;height:13px;transform:rotate(45deg);background:#F2F2F0;border-radius:2px"></div><div style="position:absolute;left:1090px;top:8px;width:13px;height:13px;transform:rotate(45deg);background:#F2F2F0;border-radius:2px"></div></div>
+        <div class="trk" style="background:#1D1D20">
+          <div class="c" style="left:2px;width:45px;background:#35587A"><span style="opacity:0.6">1</span></div><div class="c" style="left:49px;width:45px;background:#35587A"><span style="opacity:0.6">2</span></div><div class="c" style="left:96px;width:45px;background:#35587A"><span style="opacity:0.6">3</span></div><div class="c" style="left:143px;width:45px;background:#35587A"><span style="opacity:0.6">4</span></div><div class="c" style="left:190px;width:45px;background:#35587A"><span style="opacity:0.6">5</span></div><div class="c" style="left:237px;width:45px;background:#35587A"><span style="opacity:0.6">6</span></div><div class="c" style="left:284px;width:45px;background:#35587A"><span style="opacity:0.6">7</span></div>
+          <div class="c" style="left:331px;width:45px;background:#8FC0F0;box-shadow:0 0 0 2px #D9F45A;color:#0E2236;font-weight:700;align-items:flex-start;padding-top:2px">8</div>
+          <div class="c" style="left:378px;width:92px;background:#35587A"><span style="opacity:0.6">9</span><span style="margin-left:auto;margin-right:4px;width:4px;height:14px;border-radius:2px;background:rgba(255,255,255,0.35)"></span></div>
+          <div class="c" style="left:472px;width:45px;background:#35587A"><span style="opacity:0.6">10</span></div><div class="c" style="left:519px;width:45px;background:#35587A"><span style="opacity:0.6">11</span></div><div class="c" style="left:566px;width:45px;background:#35587A"><span style="opacity:0.6">12</span></div><div class="c" style="left:613px;width:45px;background:#35587A"><span style="opacity:0.6">13</span></div><div class="c" style="left:660px;width:45px;background:#35587A"><span style="opacity:0.6">14</span></div><div class="c" style="left:707px;width:45px;background:#35587A"><span style="opacity:0.6">15</span></div><div class="c" style="left:754px;width:45px;background:#35587A"><span style="opacity:0.6">16</span></div><div class="c" style="left:801px;width:45px;background:#35587A"><span style="opacity:0.6">17</span></div><div class="c" style="left:848px;width:45px;background:#35587A"><span style="opacity:0.6">18</span></div><div class="c" style="left:895px;width:45px;background:#35587A"><span style="opacity:0.6">19</span></div><div class="c" style="left:942px;width:45px;background:#35587A"><span style="opacity:0.6">20</span></div><div class="c" style="left:989px;width:45px;background:#35587A"><span style="opacity:0.6">21</span></div><div class="c" style="left:1036px;width:45px;background:transparent;box-shadow:inset 0 0 0 1.5px #4A6A8A;border:0" aria-label="Fotograma vacío"></div>
+        </div>
+        <div class="trk"><div class="c" style="left:2px;width:92px;background:#7A4636"><span style="opacity:0.6">1</span></div><div class="c" style="left:96px;width:92px;background:#7A4636"><span style="opacity:0.6">2</span></div><div class="c" style="left:190px;width:92px;background:#7A4636"><span style="opacity:0.6">3</span></div><div class="c" style="left:284px;width:92px;background:#7A4636"><span style="opacity:0.6">4</span></div><div class="c" style="left:378px;width:92px;background:#7A4636"><span style="opacity:0.6">5</span></div><div class="c" style="left:472px;width:92px;background:#7A4636"><span style="opacity:0.6">6</span></div><div class="c" style="left:566px;width:92px;background:#7A4636"><span style="opacity:0.6">7</span></div><div class="c" style="left:660px;width:92px;background:#7A4636"><span style="opacity:0.6">8</span></div><div class="c" style="left:754px;width:92px;background:#7A4636"><span style="opacity:0.6">9</span></div><div class="c" style="left:848px;width:92px;background:#7A4636"><span style="opacity:0.6">10</span></div><div class="c" style="left:942px;width:92px;background:#7A4636"><span style="opacity:0.6">11</span></div><div class="c" style="left:1036px;width:45px;background:#7A4636"><span style="opacity:0.6">12</span></div></div>
+        <div class="trk"><div class="c" style="left:2px;width:186px;background:#3F5536"><span style="opacity:0.6">1</span></div><div class="c" style="left:190px;width:186px;background:#3F5536"><span style="opacity:0.6">2</span></div><div class="c" style="left:378px;width:186px;background:#3F5536"><span style="opacity:0.6">3</span></div><div class="c" style="left:566px;width:186px;background:#3F5536"><span style="opacity:0.6">4</span></div><div class="c" style="left:754px;width:186px;background:#3F5536"><span style="opacity:0.6">5</span></div><div class="c" style="left:942px;width:139px;background:#3F5536"><span style="opacity:0.6">6</span></div></div>
+        <div class="trk" style="height:18px"><div class="c" style="left:2px;width:1079px;top:4px;height:10px;background:#4F4730"></div></div>
+        <div class="trk" style="height:46px"><div class="c" style="left:2px;width:1079px;height:40px;background:#25304D;overflow:hidden;padding:0"><svg viewBox="0 0 600 40" preserveAspectRatio="none" style="width:100%;height:100%" aria-hidden="true"><path d="M0 20h600" style="stroke:#3E4A6B"/><path d="M1 18.0V22.0M3 17.8V22.2M5 17.3V22.7M7 15.8V24.2M9 16.6V23.4M11 16.2V23.8M13 16.5V23.5M15 13.7V26.3M17 12.1V27.9M19 14.1V25.9M21 12.7V27.3M23 9.7V30.3M25 13.0V27.0M27 9.8V30.2M29 12.5V27.5M31 12.8V27.2M33 5.4V34.6M35 10.6V29.4M37 7.0V33.0M39 4.6V35.4M41 9.5V30.5M43 8.9V31.1M45 11.5V28.5M47 11.2V28.8M49 10.3V29.7M51 9.9V30.1M53 10.7V29.3M55 10.3V29.7M57 12.3V27.7M59 11.6V28.4M61 10.4V29.6M63 11.9V28.1M65 13.4V26.6M67 14.9V25.1M69 12.4V27.6M71 15.0V25.0M73 15.2V24.8M75 15.2V24.8M77 14.1V25.9M79 15.0V25.0M81 17.2V22.8M83 16.5V23.5M85 16.8V23.2M87 17.1V22.9M89 17.9V22.1M91 18.0V22.0M93 16.9V23.1M95 18.1V21.9M97 17.9V22.1M99 17.7V22.3M101 18.0V22.0M103 17.6V22.4M105 18.0V22.0M107 17.9V22.1M109 17.9V22.1M111 17.5V22.5M113 16.9V23.1M115 17.5V22.5M117 17.6V22.4M119 17.5V22.5M121 17.6V22.4M123 17.6V22.4M125 17.0V23.0M127 17.5V22.5M129 17.8V22.2M131 17.9V22.1M133 17.0V23.0M135 18.1V21.9M137 17.4V22.6M139 17.6V22.4M141 17.3V22.7M143 17.2V22.8M145 18.0V22.0M147 17.0V23.0M149 16.9V23.1M151 17.3V22.7M153 17.3V22.7M155 17.5V22.5M157 17.3V22.7M159 16.9V23.1M161 18.0V22.0M163 16.9V23.1M165 18.1V21.9M167 18.0V22.0M169 17.3V22.7M171 17.9V22.1M173 17.4V22.6M175 16.6V23.4M177 17.8V22.2M179 17.3V22.7M181 16.7V23.3M183 14.4V25.6M185 14.3V25.7M187 14.9V25.1M189 14.1V25.9M191 11.0V29.0M193 12.5V27.5M195 15.2V24.8M197 11.2V28.8M199 9.1V30.9M201 12.5V27.5M203 8.9V31.1M205 9.9V30.1M207 11.2V28.8M209 9.8V30.2M211 9.2V30.8M213 10.1V29.9M215 10.2V29.8M217 9.8V30.2M219 7.2V32.8M221 7.0V33.0M223 11.4V28.6M225 10.4V29.6M227 8.8V31.2M229 8.9V31.1M231 10.1V29.9M233 14.0V26.0M235 12.7V27.3M237 10.4V29.6M239 14.8V25.2M241 13.8V26.2M243 13.4V26.6M245 16.1V23.9M247 14.7V25.3M249 15.4V24.6M251 15.8V24.2M253 16.5V23.5M255 16.6V23.4M257 16.9V23.1M259 17.0V23.0M261 17.3V22.7M263 17.9V22.1M265 17.7V22.3M267 18.0V22.0M269 17.9V22.1M271 17.9V22.1M273 17.7V22.3M275 17.7V22.3M277 18.0V22.0M279 16.9V23.1M281 17.3V22.7M283 17.7V22.3M285 18.1V21.9M287 17.1V22.9M289 17.1V22.9M291 17.9V22.1M293 17.5V22.5M295 16.9V23.1M297 16.9V23.1M299 17.3V22.7M301 17.2V22.8M303 17.1V22.9M305 16.9V23.1M307 17.4V22.6M309 17.2V22.8M311 17.8V22.2M313 17.3V22.7M315 17.0V23.0M317 17.6V22.4M319 17.8V22.2M321 18.1V21.9M323 17.4V22.6M325 17.3V22.7M327 16.9V23.1M329 17.9V22.1M331 16.9V23.1M333 17.0V23.0M335 17.7V22.3M337 17.8V22.2M339 16.9V23.1M341 17.1V22.9M343 17.8V22.2M345 16.8V23.2M347 16.8V23.2M349 16.6V23.4M351 16.6V23.4M353 16.6V23.4M355 16.9V23.1M357 16.1V23.9M359 13.4V26.6M361 12.6V27.4M363 11.5V28.5M365 9.8V30.2M367 9.5V30.5M369 10.1V29.9M371 9.8V30.2M373 12.4V27.6M375 8.8V31.2M377 13.1V26.9M379 9.7V30.3M381 8.4V31.6M383 8.8V31.2M385 9.8V30.2M387 8.7V31.3M389 8.3V31.7M391 12.5V27.5M393 5.2V34.8M395 10.2V29.8M397 8.4V31.6M399 9.5V30.5M401 7.3V32.7M403 6.7V33.3M405 10.1V29.9M407 10.6V29.4M409 13.1V26.9M411 13.2V26.8M413 11.9V28.1M415 15.8V24.2M417 15.5V24.5M419 14.7V25.3M421 15.3V24.7M423 16.7V23.3M425 16.1V23.9M427 16.6V23.4M429 17.2V22.8M431 17.5V22.5M433 17.7V22.3M435 17.2V22.8M437 17.4V22.6M439 17.8V22.2M441 18.0V22.0M443 17.0V23.0M445 18.0V22.0M447 17.1V22.9M449 18.1V21.9M451 17.3V22.7M453 18.1V21.9M455 18.1V21.9M457 17.9V22.1M459 17.0V23.0M461 17.1V22.9M463 17.6V22.4M465 18.1V21.9M467 16.9V23.1M469 17.0V23.0M471 17.2V22.8M473 17.2V22.8M475 17.9V22.1M477 17.0V23.0M479 17.8V22.2M481 17.6V22.4M483 17.1V22.9M485 17.3V22.7M487 17.5V22.5M489 17.8V22.2M491 17.0V23.0M493 17.2V22.8M495 16.9V23.1M497 18.0V22.0M499 16.9V23.1M501 17.0V23.0M503 18.0V22.0M505 17.5V22.5M507 17.9V22.1M509 17.0V23.0M511 16.9V23.1M513 17.4V22.6M515 17.0V23.0M517 16.9V23.1M519 16.8V23.2M521 16.4V23.6M523 17.0V23.0M525 16.5V23.5M527 14.1V25.9M529 14.9V25.1M531 14.5V25.5M533 12.3V27.7M535 10.8V29.2M537 13.5V26.5M539 9.3V30.7M541 8.6V31.4M543 13.5V26.5M545 11.7V28.3M547 9.4V30.6M549 8.6V31.4M551 5.9V34.1M553 12.9V27.1M555 11.7V28.3M557 10.7V29.3M559 9.4V30.6M561 8.1V31.9M563 9.7V30.3M565 6.8V33.2M567 13.4V26.6M569 9.2V30.8M571 6.4V33.6M573 13.3V26.7M575 10.6V29.4M577 13.7V26.3M579 12.7V27.3M581 13.3V26.7M583 15.8V24.2M585 12.5V27.5M587 15.9V24.1M589 15.2V24.8M591 15.3V24.7M593 15.8V24.2M595 16.5V23.5M597 16.8V23.2M599 18.0V22.0" style="stroke:#9DB3EA;stroke-width:1.2;stroke-linecap:round"/></svg></div></div>
+        <div style="position:absolute;left:352px;top:0;bottom:0;width:2px;background:#D9F45A"></div>
+        <div class="tab" style="position:absolute;left:340px;top:3px;width:26px;height:20px;border-radius:6px;background:#D9F45A;color:#121212;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">8</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar: hints for what is under the pointer -->
+  <div style="grid-column:1/5;background:#0E0E0F;border-top:1px solid #1C1C1F;display:flex;align-items:center;gap:18px;padding:0 12px;font-size:11px;color:#A1A1A6">
+    <span><span class="kb">1</span>–<span class="kb">9</span> fija la duración</span><span>Arrastra el borde de un dibujo para alargarlo</span><span><span class="kb">Alt</span> + clic: tomar color</span><span><span class="kb">Espacio</span> + arrastrar: mover</span>
+    <div style="flex:1"></div>
+    <span class="tab">1080 × 1350</span><span class="tab">RAM 180 MB</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

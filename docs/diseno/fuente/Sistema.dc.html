@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Sistema visual de Trazo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.sw{display:flex;flex-direction:column;gap:8px;width:150px}
+.chip{height:84px;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08)}
+.n{font-size:13px;font-weight:600;color:#F2F2F0}
+.h{font-size:11px;color:#8A8A90;font-family:'JetBrains Mono',ui-monospace,monospace}
+h2{margin:0 0 16px;font-size:13px;font-weight:600;color:#8A8A90;letter-spacing:0.2px}
+</style>
+</helmet>
+<div style="width:1440px;height:1000px;box-sizing:border-box;padding:56px 64px;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0;display:flex;flex-direction:column;gap:44px">
+  <div style="display:flex;align-items:flex-end;gap:20px">
+    <div style="width:56px;height:56px;border-radius:16px;background:#D9F45A;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:none;stroke:#121212;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M4 16c2-1 3-4 5-8 1-2 3-2 4 1s2 5 4 5 3-1 3-3"/></svg></div>
+    <h1 style="margin:0;font-size:44px;font-weight:700;letter-spacing:-1.2px;line-height:1">Trazo</h1>
+    <span style="font-size:15px;color:#A1A1A6;padding-bottom:4px">Grafito, papel y un solo acento</span>
+  </div>
+
+  <div>
+    <h2>Superficies</h2>
+    <div style="display:flex;gap:16px">
+      <div class="sw"><div class="chip" style="background:#0E0E0F"></div><span class="n">Fondo</span><span class="h">#0E0E0F</span></div>
+      <div class="sw"><div class="chip" style="background:#141416"></div><span class="n">Panel fijo</span><span class="h">#141416</span></div>
+      <div class="sw"><div class="chip" style="background:#161618"></div><span class="n">Hoja / panel</span><span class="h">#161618</span></div>
+      <div class="sw"><div class="chip" style="background:#1B1B1D"></div><span class="n">Isla</span><span class="h">#1B1B1D</span></div>
+      <div class="sw"><div class="chip" style="background:#252528"></div><span class="n">Elevado / menú</span><span class="h">#252528</span></div>
+      <div class="sw"><div class="chip" style="background:#2F2F33"></div><span class="n">Seleccionado</span><span class="h">#2F2F33</span></div>
+      <div class="sw"><div class="chip" style="background:#ECE6D6"></div><span class="n">Papel</span><span class="h">#ECE6D6</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:64px">
+    <div>
+      <h2>Texto</h2>
+      <div style="display:flex;gap:16px">
+        <div class="sw" style="width:120px"><div class="chip" style="background:#1B1B1D;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:#F2F2F0">Aa</div><span class="n">Principal</span><span class="h">#F2F2F0 · 15:1</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#1B1B1D;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:#A1A1A6">Aa</div><span class="n">Secundario</span><span class="h">#A1A1A6 · 6,9:1</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#1B1B1D;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:#8A8A90">Aa</div><span class="n">Terciario</span><span class="h">#8A8A90 · solo 12 px+</span></div>
+      </div>
+    </div>
+    <div>
+      <h2>Acento y estados</h2>
+      <div style="display:flex;gap:16px">
+        <div class="sw" style="width:120px"><div class="chip" style="background:#D9F45A"></div><span class="n">Lima · lo activo</span><span class="h">#D9F45A</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#F2F2F0"></div><span class="n">Principal</span><span class="h">#F2F2F0</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#FF7A6E"></div><span class="n">Borrar</span><span class="h">#FF7A6E</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#FF2D7A"></div><span class="n">Grabando</span><span class="h">#FF2D7A</span></div>
+        <div class="sw" style="width:120px"><div class="chip" style="background:#5BD6C0"></div><span class="n">Guardado</span><span class="h">#5BD6C0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Pistas de la línea de tiempo</h2>
+    <div style="display:flex;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#35587A"><span style="width:8px;height:8px;border-radius:4px;background:#8FC0F0"></span><span style="font-size:13px">Cielo</span></div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#7A4636"><span style="width:8px;height:8px;border-radius:4px;background:#EDA287"></span><span style="font-size:13px">Arcilla</span></div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#3F5536"><span style="width:8px;height:8px;border-radius:4px;background:#AFD39B"></span><span style="font-size:13px">Salvia</span></div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#4F4730"><span style="width:8px;height:8px;border-radius:4px;background:#D4C292"></span><span style="font-size:13px">Arena</span></div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#463F5C"><span style="width:8px;height:8px;border-radius:4px;background:#B7A6E0"></span><span style="font-size:13px">Lavanda</span></div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#232838"><span style="width:8px;height:8px;border-radius:4px;background:#8EA2D6"></span><span style="font-size:13px">Audio</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:64px">
+    <div style="flex:1.3">
+      <h2>Tipografía · Hanken Grotesk (cifras tabulares) · JetBrains Mono solo en el contador</h2>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:baseline;gap:20px"><span class="h" style="width:120px">Portada 32/700</span><span style="font-size:32px;font-weight:700;letter-spacing:-0.8px">Mis animaciones</span></div>
+        <div style="display:flex;align-items:baseline;gap:20px"><span class="h" style="width:120px">Título 20/600</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.3px">Pinceles</span></div>
+        <div style="display:flex;align-items:baseline;gap:20px"><span class="h" style="width:120px">Cuerpo 15/500</span><span style="font-size:15px;font-weight:500">Insertar dibujo después</span></div>
+        <div style="display:flex;align-items:baseline;gap:20px"><span class="h" style="width:120px">Etiqueta 13/500</span><span style="font-size:13px;font-weight:500;color:#D6D6D3">Multiplicar · 85%</span></div>
+        <div style="display:flex;align-items:baseline;gap:20px"><span class="h" style="width:120px">Contador 20/600</span><span class="mono" style="font-size:20px;font-weight:600">08 <span style="font-size:13px;color:#A1A1A6;font-family:'Hanken Grotesk'">/ 24 · 0,58 s</span></span></div>
+      </div>
+    </div>
+    <div style="flex:1">
+      <h2>Forma y espacio</h2>
+      <div style="display:flex;gap:14px;align-items:flex-end;margin-bottom:22px">
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:52px;height:52px;border-radius:7px;background:#252528"></div><span class="h">6 · PC dentro</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:52px;height:52px;border-radius:12px;background:#252528"></div><span class="h">12 · teléfono dentro</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:52px;height:52px;border-radius:16px;background:#252528"></div><span class="h">16</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:52px;height:52px;border-radius:22px;background:#252528"></div><span class="h">20 · islas</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:52px;height:52px;border-radius:26px;background:#252528"></div><span class="h">pastilla</span></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div style="width:4px;height:24px;background:#D9F45A;border-radius:2px"></div><span class="h">4</span>
+        <div style="width:8px;height:24px;background:#D9F45A;border-radius:2px"></div><span class="h">8</span>
+        <div style="width:12px;height:24px;background:#D9F45A;border-radius:2px"></div><span class="h">12</span>
+        <div style="width:16px;height:24px;background:#D9F45A;border-radius:2px"></div><span class="h">16</span>
+        <div style="width:24px;height:24px;background:#D9F45A;border-radius:2px"></div><span class="h">24</span>
+        <div style="width:44px;height:44px;border-radius:12px;box-shadow:inset 0 0 0 1.5px #D9F45A;display:flex;align-items:center;justify-content:center;margin-left:20px"><span class="h" style="color:#D9F45A">44</span></div><span class="h">toque mínimo</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Componentes de Trazo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+h2{margin:0 0 14px;font-size:13px;font-weight:600;color:#A1A1A6}
+.cap{font-size:11px;color:#A1A1A6;text-align:center}
+.cell{display:flex;flex-direction:column;align-items:center;gap:8px}
+.ib{width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0;position:relative}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tab{font-variant-numeric:tabular-nums}
+.box{background:#141416;border-radius:20px;padding:22px}
+</style>
+</helmet>
+<div style="width:1440px;height:1000px;box-sizing:border-box;padding:56px 64px;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-content:start">
+  <div style="grid-column:1/4;display:flex;align-items:baseline;gap:18px;margin-bottom:8px">
+    <h1 style="margin:0;font-size:32px;font-weight:700;letter-spacing:-0.8px">Componentes</h1>
+    <span style="font-size:14px;color:#A1A1A6">Lima solo marca lo activo: herramienta, dibujo actual, cabezal, opciones e interruptores encendidos. Un solo botón blanco por pantalla.</span>
+  </div>
+
+  <div class="box">
+    <h2>Botones</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <button style="height:44px;border:0;border-radius:12px;background:#F2F2F0;color:#121212;font-size:15px;font-weight:700;padding:0 18px">Exportar</button>
+      <button style="height:44px;border:0;border-radius:12px;background:#252528;color:#F2F2F0;font-size:15px;font-weight:600;padding:0 18px">Cancelar</button>
+      <button style="height:44px;border:0;border-radius:12px;background:transparent;color:#FF7A6E;font-size:15px;font-weight:600;padding:0 14px">Borrar</button>
+      <button disabled style="height:44px;border:0;border-radius:12px;background:#1B1B1D;color:#5E5E64;font-size:15px;font-weight:600;padding:0 18px;box-shadow:inset 0 0 0 1px #2A2A2E">No disponible</button>
+    </div>
+    <h2 style="margin-top:22px">Botón de icono · normal, encima, pulsado, apagado</h2>
+    <div style="display:flex;gap:18px">
+      <div class="cell"><button class="ib" aria-label="Goma"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/></svg></button><span class="cap">normal</span></div>
+      <div class="cell"><button class="ib" aria-label="Goma" style="background:#252528"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/></svg></button><span class="cap">encima</span></div>
+      <div class="cell"><button class="ib" aria-label="Goma" style="background:#2F2F33;transform:scale(0.94)"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/></svg></button><span class="cap">pulsado</span></div>
+      <div class="cell"><button class="ib" disabled aria-label="Rehacer" style="color:#5E5E64"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H9a5 5 0 0 0 0 10h3"/></svg></button><span class="cap">apagado</span></div>
+      <div class="cell"><button class="ib" aria-label="Pincel" style="background:#D9F45A;color:#121212"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-4.3 9.6-9.6a2.2 2.2 0 0 1 3.1 3.1l-9.6 9.6z"/></svg></button><span class="cap">herramienta</span></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>Opción encendida y apagada</h2>
+    <div style="display:flex;gap:18px;margin-bottom:22px">
+      <div class="cell"><button class="ib" aria-label="Papel cebolla encendido" style="background:#2A2A2E;color:#D9F45A"><svg viewBox="0 0 24 24"><circle cx="9.5" cy="12" r="5.5"/><circle cx="14.5" cy="12" r="5.5" stroke-dasharray="2.2 2.2"/></svg><span style="position:absolute;bottom:4px;left:50%;margin-left:-3px;width:6px;height:6px;border-radius:3px;background:#D9F45A"></span></button><span class="cap">encendida</span></div>
+      <div class="cell"><button class="ib" aria-label="Bucle apagado" style="color:#A1A1A6"><svg viewBox="0 0 24 24"><path d="M17 3.5l3 3-3 3"/><path d="M4 11.5v-1a4 4 0 0 1 4-4h12"/><path d="M7 20.5l-3-3 3-3"/><path d="M20 12.5v1a4 4 0 0 1-4 4H4"/></svg></button><span class="cap">apagada</span></div>
+    </div>
+    <h2>Interruptor y selector</h2>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <span role="switch" aria-checked="true" style="width:46px;height:28px;border-radius:14px;background:#D9F45A;position:relative;display:block"><span style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#121212;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:#D9F45A;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M6 12.5l4 4 8-9"/></svg></span></span>
+      <span role="switch" aria-checked="false" style="width:46px;height:28px;border-radius:14px;background:#3A3A3E;position:relative;display:block"><span style="position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#A1A1A6"></span></span>
+    </div>
+    <div style="display:flex;background:#0E0E0F;border-radius:12px;padding:3px">
+      <button style="flex:1;height:38px;border:0;border-radius:9px;background:#2F2F33;color:#F2F2F0;font-size:14px;font-weight:600">Capas</button>
+      <button style="flex:1;height:38px;border:0;border-radius:9px;background:transparent;color:#A1A1A6;font-size:14px">Pincel</button>
+      <button style="flex:1;height:38px;border:0;border-radius:9px;background:transparent;color:#A1A1A6;font-size:14px">Color</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>Deslizador con valor</h2>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
+      <span style="width:66px;font-size:13px;color:#A1A1A6">Tamaño</span>
+      <div style="flex:1;height:6px;border-radius:3px;background:#2F2F33;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:30%;border-radius:3px;background:#F2F2F0"></div><div style="position:absolute;left:calc(30% - 12px);top:-9px;width:24px;height:24px;border-radius:12px;background:#F2F2F0;box-shadow:0 2px 6px rgba(0,0,0,0.5)"></div></div>
+      <span class="tab" style="width:44px;text-align:right;font-size:13px">6 px</span>
+    </div>
+    <h2>Número arrastrable (PC)</h2>
+    <div style="display:flex;gap:8px;margin-bottom:22px">
+      <div style="flex:1;height:30px;border-radius:7px;background:#1F1F22;display:flex;align-items:center;padding:0 10px;font-size:12px;cursor:ew-resize"><span style="color:#A1A1A6">Opacidad</span><span class="tab" style="margin-left:auto">85 %</span></div>
+      <div style="flex:1;height:30px;border-radius:7px;background:#1F1F22;box-shadow:inset 0 0 0 1.5px #F2F2F0;display:flex;align-items:center;padding:0 10px;font-size:12px"><span style="color:#A1A1A6">Tamaño</span><span class="tab" style="margin-left:auto">14 px</span></div>
+    </div>
+    <h2>Contador</h2>
+    <div style="display:flex;align-items:center;height:44px;border-radius:22px;background:#252528;width:150px"><button aria-label="Menos" style="width:50px;height:44px;border:0;background:transparent;color:#F2F2F0;font-size:20px">−</button><span class="tab" style="flex:1;text-align:center;font-size:15px;font-weight:600">2</span><button aria-label="Más" style="width:50px;height:44px;border:0;background:transparent;color:#F2F2F0;font-size:20px">+</button></div>
+  </div>
+
+  <div class="box">
+    <h2>Desplegable</h2>
+    <button style="width:100%;height:44px;border:0;border-radius:12px;background:#252528;color:#F2F2F0;font-size:14px;display:flex;align-items:center;justify-content:space-between;padding:0 14px">Multiplicar<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 14l5-5 5 5"/></svg></button>
+    <div role="listbox" style="margin-top:6px;border-radius:14px;background:#252528;box-shadow:0 18px 40px rgba(0,0,0,0.6),inset 0 0 0 1px rgba(255,255,255,0.07);padding:5px">
+      <div style="height:40px;display:flex;align-items:center;padding:0 12px;font-size:14px;border-radius:9px">Normal</div>
+      <div style="height:40px;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:14px;border-radius:9px;background:#2F2F33"><svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:#F2F2F0;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Multiplicar</div>
+      <div style="height:40px;display:flex;align-items:center;padding:0 12px;font-size:14px;border-radius:9px">Pantalla</div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>Aviso con deshacer (al borrar)</h2>
+    <div style="height:56px;border-radius:16px;background:#2A2A2E;box-shadow:0 14px 30px rgba(0,0,0,0.5);display:flex;align-items:center;gap:12px;padding:0 6px 0 16px;margin-bottom:22px">
+      <span style="flex:1;font-size:14px">Dibujo 9 borrado</span>
+      <button style="height:44px;border:0;border-radius:12px;background:transparent;color:#F2F2F0;font-size:14px;font-weight:700;padding:0 14px;text-decoration:underline;text-underline-offset:3px">Deshacer</button>
+    </div>
+    <h2>Pista con atajo (PC)</h2>
+    <div style="display:inline-flex;height:28px;border-radius:7px;background:#2A2A2E;box-shadow:0 8px 20px rgba(0,0,0,0.5);align-items:center;gap:8px;padding:0 10px;font-size:12px">Papel cebolla <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#C8C8C5;background:#38383C;border-radius:4px;padding:1px 5px">O</span></div>
+  </div>
+
+  <div class="box">
+    <h2>Hoja desde abajo (teléfono)</h2>
+    <div style="height:150px;border-radius:24px 24px 0 0;background:#161618;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05);padding-top:8px">
+      <div style="width:36px;height:5px;border-radius:3px;background:#3A3A3E;margin:0 auto 12px"></div>
+      <div style="display:flex;align-items:center;padding:0 10px 0 18px"><span style="font-size:20px;font-weight:600;flex:1">Pinceles</span><button class="ib" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p style="margin:8px 18px 0;font-size:13px;color:#A1A1A6">Se abre a media altura; se arrastra hacia arriba para verla completa y hacia abajo para cerrarla.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

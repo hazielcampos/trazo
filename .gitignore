@@ -11,3 +11,7 @@ Thumbs.db
 *.jks
 *.keystore
 clave.txt
+
+# Local exports and downloaded builds (not part of the project)
+/design/
+/Trazo-*.exe

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Gestos la primera vez</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.g{display:flex;align-items:center;gap:14px}
+.fig{width:60px;height:60px;border-radius:16px;background:#252528;flex:none}
+.fig circle.f{fill:#F2F2F0}
+.fig .m{fill:none;stroke:#F2F2F0;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:0.55}
+.t{display:flex;flex-direction:column;gap:2px}
+.t b{font-size:16px;font-weight:600}
+.t span{font-size:13px;color:#A1A1A6}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:24px;top:104px;width:342px;height:428px;border-radius:3px">
+  <div style="position:absolute;left:10px;right:10px;top:552px;height:60px;border-radius:20px;background:#1B1B1D"></div>
+  <div style="position:absolute;left:0;right:0;top:628px;bottom:0;background:#161618;border-radius:24px 24px 0 0"></div>
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.62)"></div>
+
+  <div role="dialog" aria-label="Así se dibuja en Trazo" style="position:absolute;left:12px;right:12px;bottom:28px;border-radius:24px;background:#1B1B1D;box-shadow:0 24px 60px rgba(0,0,0,0.7),inset 0 0 0 1px rgba(255,255,255,0.07);padding:22px 18px 18px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:13px;color:#A1A1A6">Antes de empezar</span>
+      <h1 style="margin:0;font-size:24px;font-weight:700;letter-spacing:-0.5px">Cuatro gestos y listo</h1>
+    </div>
+    <div class="g"><svg class="fig" viewBox="0 0 60 60" aria-hidden="true"><circle class="f" cx="23" cy="30" r="6"/><circle class="f" cx="37" cy="30" r="6"/><circle class="m" cx="23" cy="30" r="11"/><circle class="m" cx="37" cy="30" r="11"/></svg><div class="t"><b>Toca con dos dedos</b><span>Deshace lo último. Con tres, lo rehace.</span></div></div>
+    <div class="g"><svg class="fig" viewBox="0 0 60 60" aria-hidden="true"><circle class="f" cx="21" cy="37" r="5.5"/><circle class="f" cx="39" cy="23" r="5.5"/><path class="m" d="M15 43l-5 5M45 17l5-5M10 42v6h6M50 18v-6h-6"/></svg><div class="t"><b>Pellizca</b><span>Acerca, aleja y gira el dibujo.</span></div></div>
+    <div class="g"><svg class="fig" viewBox="0 0 60 60" aria-hidden="true"><circle class="f" cx="30" cy="30" r="6"/><circle class="m" cx="30" cy="30" r="12"/><circle class="m" cx="30" cy="30" r="18" stroke-dasharray="3 3"/></svg><div class="t"><b>Mantén el dedo quieto</b><span>Toma el color que hay debajo.</span></div></div>
+    <div class="g"><svg class="fig" viewBox="0 0 60 60" aria-hidden="true"><rect x="10" y="38" width="40" height="14" rx="4" style="fill:#3A3A3E"/><circle class="f" cx="30" cy="38" r="5.5"/><path class="m" d="M30 28V12M25 17l5-5 5 5"/></svg><div class="t"><b>Sube el panel de abajo</b><span>Ves cada capa y el sonido por separado.</span></div></div>
+    <p style="margin:0;font-size:13px;color:#A1A1A6;background:#232326;border-radius:12px;padding:10px 12px">Con lápiz óptico, el dedo solo mueve el lienzo: así la palma no pinta.</p>
+    <div style="display:flex;gap:10px">
+      <button style="flex:1;height:50px;border:0;border-radius:14px;background:#252528;color:#F2F2F0;font-size:15px;font-weight:600">Ver todos</button>
+      <button style="flex:1.4;height:50px;border:0;border-radius:14px;background:#F2F2F0;color:#121212;font-size:15px;font-weight:700">Empezar a dibujar</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

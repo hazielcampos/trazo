@@ -1,5 +1,22 @@
 # TODO
 
+## Rediseño de la interfaz — hecho (0.4.0, 24-10-2026)
+- Diseño completo en `docs/diseno/` (tableros de teléfono, horizontal, tablet y PC) y programado en
+  `panels/phone_up.rs`: isla de herramientas, dock con tira y pistas, menú del dibujo, color flotante,
+  inicio, exportar, tarjeta de gestos, tablet (vista estudio) y PC.
+- Sonido dentro de la línea de tiempo: filas con forma de onda, mover/recortar clips, barra del clip
+  (volumen, cortar, silenciar, borrar, fundidos, normalizar, separar en frases), grabar voz e importar
+  desde la última fila.
+- Android: importar con el selector de archivos del sistema (`android/TrazoPicker.java`).
+- En prueba (`test/rediseno`): vista limpia en tablet (la UI del teléfono) que se alterna con la de estudio.
+
+## Pendiente del rediseño
+- [ ] Mantener el dedo quieto para tomar color y rechazo de palma con lápiz (el diseño lo prometía).
+- [ ] Seleccionar varios dibujos («Seleccionar varios» del menú del dibujo).
+- [ ] PC: pista de cámara con fotogramas clave, «solo» por pista, marcadores y tiradores del rango.
+- [ ] Mover un clip de sonido a otra pista arrastrándolo en vertical.
+- [ ] Capturas nuevas para el README.
+
 ## Idiomas — hecho (23-10-2026)
 - Interfaz en español e inglés (`crates/trazo_app/src/i18n.rs`, tabla `i18n/en.rs`). Los textos se
   escriben en español con `tr("…")` / `tf!("… {}", x)`; se elige el idioma al abrir la app por primera

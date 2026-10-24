@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Menús y atajos en PC</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.menu{position:absolute;background:#232326;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,0.7),inset 0 0 0 1px rgba(255,255,255,0.07);padding:5px;font-size:13px}
+.mi{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border:0;background:transparent;color:#F2F2F0;font-size:13px;width:100%;text-align:left;border-radius:7px}
+.mi svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.k{margin-left:auto;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:#8A8A90}
+.hr{height:1px;background:rgba(255,255,255,0.07);margin:4px 8px}
+.cap{position:absolute;font-size:12px;color:#8A8A90;font-weight:500}
+</style>
+</helmet>
+<div style="width:1440px;height:900px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <!-- Faint editor shell -->
+  <div style="position:absolute;left:0;right:0;top:0;height:48px;background:#141416;border-bottom:1px solid #222225"></div>
+  <div style="position:absolute;left:0;top:48px;bottom:296px;width:56px;background:#141416;border-right:1px solid #222225"></div>
+  <div style="position:absolute;right:0;top:48px;bottom:296px;width:300px;background:#141416;border-left:1px solid #222225"></div>
+  <div style="position:absolute;left:0;right:0;bottom:26px;height:270px;background:#141416;border-top:1px solid #222225"></div>
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:520px;top:76px;width:400px;height:500px;opacity:0.5">
+  <div style="position:absolute;left:10px;top:7px;width:34px;height:34px;border-radius:9px;background:#F2F2F0;box-shadow:0 0 0 3px rgba(242,242,240,0.25);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:#121212;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M4 16c2-1 3-4 5-8 1-2 3-2 4 1s2 5 4 5 3-1 3-3"/></svg></div>
+
+  <!-- App menu + submenu -->
+  <div class="menu" role="menu" style="left:10px;top:48px;width:260px">
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nueva animación<span class="k">Ctrl N</span></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg>Mis animaciones<span class="k">Ctrl O</span></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8V6.5A2 2 0 0 0 13.5 4.5h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2H8"/></svg>Guardar una copia<span class="k">Ctrl Mayús S</span></button>
+    <div class="hr"></div>
+    <button class="mi" role="menuitem" aria-expanded="true" style="background:#2F2F33"><svg viewBox="0 0 24 24"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 17.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>Importar<svg viewBox="0 0 24 24" style="margin-left:auto"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><path d="M12 15V4.5"/><path d="M8 8.5l4-4 4 4"/><path d="M5 13.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5"/></svg>Exportar…<span class="k">Ctrl E</span></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg>Versiones anteriores</button>
+    <div class="hr"></div>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h1M11 10h1M15 10h2M7 14h10"/></svg>Atajos de teclado<span class="k">Ctrl /</span></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/></svg>Idioma<span class="k" style="font-family:inherit">Español</span></button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Preferencias<span class="k">Ctrl ,</span></button>
+  </div>
+  <div class="menu" role="menu" style="left:274px;top:144px;width:230px">
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20 16l-5-5-8.5 8.5"/></svg>Imagen como capa</button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="12.5" height="13" rx="2.5"/><path d="M16 10.5l4.5-2.8v8.6L16 13.5"/></svg>Video para calcar</button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>Audio</button>
+    <button class="mi" role="menuitem"><svg viewBox="0 0 24 24"><path d="M14 4.5l5.5 5.5-7 7-5.5-5.5z"/><path d="M7 11.5L4.5 19.5l8-2.5"/></svg>Pincel (.animbrush)</button>
+  </div>
+  <span class="cap" style="left:10px;top:420px">Menú de Trazo (clic en el logo)</span>
+
+  <!-- Right-click on a drawing in the timeline -->
+  <div style="position:absolute;left:530px;top:668px;width:45px;height:24px;border-radius:5px;background:#8FB8DE;box-shadow:0 0 0 2px #D9F45A"></div>
+  <div class="menu" role="menu" style="left:560px;top:460px;width:270px">
+    <button class="mi" role="menuitem">Cortar<span class="k">Ctrl X</span></button>
+    <button class="mi" role="menuitem">Copiar<span class="k">Ctrl C</span></button>
+    <button class="mi" role="menuitem">Pegar<span class="k">Ctrl V</span></button>
+    <button class="mi" role="menuitem">Duplicar<span class="k">Ctrl D</span></button>
+    <div class="hr"></div>
+    <button class="mi" role="menuitem">Insertar dibujo después<span class="k">N</span></button>
+    <button class="mi" role="menuitem">Alargar un fotograma<span class="k">Mayús →</span></button>
+    <button class="mi" role="menuitem">Generar intermedios…<span class="k">Ctrl I</span></button>
+    <div class="hr"></div>
+    <button class="mi" role="menuitem" style="color:#FF7A6E">Borrar dibujo<span class="k">Supr</span></button>
+  </div>
+  <span class="cap" style="left:560px;top:432px">Clic derecho en un dibujo</span>
+
+  <!-- Blend mode dropdown in the inspector -->
+  <div style="position:absolute;right:14px;top:400px;width:272px;height:32px;border-radius:8px;background:#2F2F33;display:flex;align-items:center;padding:0 10px;font-size:13px;box-sizing:border-box">Multiplicar<svg viewBox="0 0 24 24" style="margin-left:auto;width:14px;height:14px;fill:none;stroke:#A1A1A6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 14l5-5 5 5"/></svg></div>
+  <div class="menu" role="listbox" style="right:14px;top:436px;width:272px">
+    <button class="mi" role="option">Normal<span class="k" style="font-family:inherit">por defecto</span></button>
+    <button class="mi" role="option" aria-selected="true" style="background:#2F2F33"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Multiplicar<span class="k" style="font-family:inherit">oscurece</span></button>
+    <button class="mi" role="option">Pantalla<span class="k" style="font-family:inherit">aclara</span></button>
+    <button class="mi" role="option">Superponer<span class="k" style="font-family:inherit">contraste</span></button>
+    <button class="mi" role="option">Sumar<span class="k" style="font-family:inherit">brillos</span></button>
+  </div>
+  <span class="cap" style="right:186px;top:376px">Desplegable de fusión</span>
+
+  <!-- Number scrubbing hint -->
+  <div style="position:absolute;right:14px;top:120px;width:272px;display:flex;flex-direction:column;gap:8px">
+    <span style="font-size:12px;color:#8A8A90;font-weight:500">Números: arrastra a los lados o escribe</span>
+    <div style="height:30px;border-radius:8px;background:#1F1F22;box-shadow:inset 0 0 0 1.5px #F2F2F0;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;cursor:ew-resize"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#F2F2F0;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg><span style="color:#8A8A90">Tamaño</span><span class="mono" style="margin-left:auto">14 px</span></div>
+    <div style="height:30px;border-radius:8px;background:#1F1F22;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px"><span style="color:#8A8A90">Opacidad</span><span class="mono" style="margin-left:auto;background:#3A3A3E;padding:1px 4px;border-radius:3px">85</span><span class="mono" style="color:#8A8A90">%</span></div>
+  </div>
+  <!-- Onion skin settings (from the arrow next to the onion button) -->
+  <div class="menu" role="dialog" aria-label="Papel cebolla" style="left:856px;top:470px;width:262px;padding:14px">
+    <div style="display:flex;align-items:center;margin-bottom:12px"><span style="font-size:14px;font-weight:600;flex:1">Papel cebolla</span><span class="k">O</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><span style="font-size:11px;color:#A1A1A6">Antes</span><div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="width:12px;height:12px;border-radius:3px;background:#FF8A7A"></span><div style="flex:1;height:28px;border-radius:7px;background:#1B1B1D;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:12px"><span>−</span><span style="font-variant-numeric:tabular-nums">2</span><span>+</span></div></div></div>
+      <div><span style="font-size:11px;color:#A1A1A6">Después</span><div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="width:12px;height:12px;border-radius:3px;background:#7FD69B"></span><div style="flex:1;height:28px;border-radius:7px;background:#1B1B1D;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:12px"><span>−</span><span style="font-variant-numeric:tabular-nums">1</span><span>+</span></div></div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;height:30px;font-size:12px"><span style="width:78px;color:#A1A1A6">Opacidad</span><div style="flex:1;height:4px;border-radius:2px;background:#3A3A3E;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:40%;background:#F2F2F0;border-radius:2px"></div><div style="position:absolute;left:calc(40% - 7px);top:-5px;width:14px;height:14px;border-radius:7px;background:#F2F2F0"></div></div><span style="width:34px;text-align:right;font-variant-numeric:tabular-nums">40 %</span></div>
+    <div style="display:flex;align-items:center;height:30px;font-size:12px"><span style="flex:1">Más tenue cuanto más lejos</span><span style="width:30px;height:18px;border-radius:9px;background:#F2F2F0;position:relative"><span style="position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#121212"></span></span></div>
+    <div style="display:flex;background:#1B1B1D;border-radius:8px;padding:2px;margin-top:6px"><button style="flex:1;height:26px;border:0;border-radius:6px;background:#3A3A3E;color:#F2F2F0;font-size:12px">Por dibujos</button><button style="flex:1;height:26px;border:0;border-radius:6px;background:transparent;color:#A1A1A6;font-size:12px">Por fotogramas</button></div>
+  </div>
+  <span class="cap" style="left:856px;top:442px">Ajustes del papel cebolla</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

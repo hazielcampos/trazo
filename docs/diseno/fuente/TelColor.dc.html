@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Color en teléfono</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0F}
+a{color:#D9F45A}a:hover{color:#E8FF8A}
+button{font-family:inherit;cursor:pointer}
+.ib{width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#F2F2F0;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.sw{width:44px;height:44px;border-radius:22px;border:0;padding:0;flex:none;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.22)}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0E0E0F;font-family:'Hanken Grotesk',system-ui,sans-serif;color:#F2F2F0">
+  <img src="/_blob/bb5e6c92b21c09b25a134fbfbda5db4c" alt="" style="position:absolute;left:24px;top:104px;width:342px;height:428px;border-radius:3px;opacity:0.45">
+
+  <!-- Tool island (same as the editor) -->
+  <div style="position:absolute;left:10px;right:10px;top:552px;height:60px;border-radius:20px;background:#1B1B1D;box-shadow:0 10px 30px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 6px;box-sizing:border-box;gap:1px">
+    <button class="ib" aria-label="Deshacer" style="width:40px"><svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button class="ib" aria-label="Rehacer" disabled style="width:40px;color:#5E5E64"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H9a5 5 0 0 0 0 10h3"/></svg></button>
+    <div style="width:1px;height:28px;background:#2F2F33;margin:0 2px"></div>
+    <button class="ib" aria-label="Pincel" style="width:44px;height:46px;border-radius:14px;background:#D9F45A;color:#121212"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l1.2-4.3 9.6-9.6a2.2 2.2 0 0 1 3.1 3.1l-9.6 9.6z"/><path d="M13.6 7.3l3.1 3.1"/></svg></button>
+    <button class="ib" aria-label="Goma"><svg viewBox="0 0 24 24"><path d="M9 19.5h10"/><path d="M5.6 15.1l8-8a2 2 0 0 1 2.8 0l2.5 2.5a2 2 0 0 1 0 2.8l-7.1 7.1H9.9z"/><path d="M9.6 11.1l4.3 4.3"/></svg></button>
+    <button class="ib" aria-label="Relleno"><svg viewBox="0 0 24 24"><path d="M6 10.5l5-5.5 7.5 7.5-5.4 5.4a2 2 0 0 1-2.8 0L6 13.6a2.2 2.2 0 0 1 0-3.1z"/><path d="M6.2 12.4h12"/><path d="M20.5 17c0 1.1-.7 1.9-1.5 1.9s-1.5-.8-1.5-1.9c0-1 1.5-2.6 1.5-2.6s1.5 1.6 1.5 2.6z"/></svg></button>
+    <button class="ib" aria-label="Selección"><svg viewBox="0 0 24 24"><path d="M12 4.5c4.3 0 7.7 2 7.7 4.6S16.3 13.7 12 13.7 4.3 11.7 4.3 9.1 7.7 4.5 12 4.5z"/><path d="M8.2 13.1c-1.4.5-2.1 1.6-1.6 2.6.5 1 2 1.2 2.8.3"/><path d="M9.4 16c.1 1.6-.8 3-2.4 3.7"/></svg></button>
+    <button class="ib" aria-label="Más herramientas"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.5" style="fill:currentColor;stroke:none"/><circle cx="18.5" cy="12" r="1.5" style="fill:currentColor;stroke:none"/></svg></button>
+    <button aria-label="Color actual" aria-expanded="true" style="width:44px;height:46px;border:0;border-radius:14px;background:#2F2F33;display:flex;align-items:center;justify-content:center;padding:0;flex:none"><span style="width:30px;height:30px;border-radius:15px;background:#C2523A;box-shadow:0 0 0 2px #2F2F33,0 0 0 4px #F2F2F0;display:block"></span></button>
+  </div>
+
+  <!-- Color popover, anchored to the color button -->
+  <div role="dialog" aria-label="Color" style="position:absolute;left:12px;right:12px;top:112px;height:428px;border-radius:20px;background:#1B1B1D;box-shadow:0 20px 50px rgba(0,0,0,0.65),inset 0 0 0 1px rgba(255,255,255,0.07);padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;border-radius:12px;overflow:hidden;width:72px;height:40px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12)" role="img" aria-label="Nuevo color y anterior"><span style="flex:1;background:#C2523A"></span><span style="flex:1;background:#2A2522"></span></div>
+      <span style="font-size:15px;font-weight:600;flex:1">Rojo teja</span>
+      <button class="ib" aria-label="Escribir un código de color" style="background:#252528;color:#A1A1A6;font-size:15px;font-weight:700">#</button>
+      <button class="ib" aria-label="Tomar un color del dibujo" style="background:#252528"><svg viewBox="0 0 24 24"><path d="M14.5 5.5l4 4"/><path d="M16.8 3.2l4 4-2.6 2.6-4-4z"/><path d="M15 7.8l-8.6 8.6-.9 3.1 3.1-.9 8.6-8.6"/></svg></button>
+    </div>
+    <div style="position:relative;height:170px;border-radius:14px;background:linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,#E5462B)">
+      <div style="position:absolute;left:62%;top:22%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:13px;box-shadow:0 0 0 3px #fff,0 2px 8px rgba(0,0,0,0.6);background:#C2523A"></div>
+    </div>
+    <div style="position:relative;height:20px;border-radius:10px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)">
+      <div style="position:absolute;left:3%;top:-5px;width:30px;height:30px;border-radius:15px;background:#E5462B;box-shadow:0 0 0 3px #fff,0 2px 8px rgba(0,0,0,0.6)"></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
+      <span style="font-size:13px;color:#A1A1A6">Colores de «Viento»</span>
+      <button style="border:0;background:transparent;color:#F2F2F0;font-size:13px;font-weight:600;height:36px;text-decoration:underline;text-underline-offset:3px">Otras paletas</button>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:space-between">
+      <button class="sw" aria-label="Tinta" style="background:#211C1A"></button>
+      <button class="sw" aria-label="Bufanda, elegido" style="background:#C2523A;box-shadow:0 0 0 2px #1B1B1D,0 0 0 4px #F2F2F0"></button>
+      <button class="sw" aria-label="Abrigo" style="background:#7B90A0"></button>
+      <button class="sw" aria-label="Piel" style="background:#F3C7A9"></button>
+      <button class="sw" aria-label="Pelo" style="background:#4A3A33"></button>
+      <button class="sw" aria-label="Papel" style="background:#ECE6D6"></button>
+      <button class="sw" aria-label="Guardar este color" style="background:transparent;box-shadow:inset 0 0 0 1.5px #5E5E64;color:#D6D6D3;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M12 6v12M6 12h12"/></svg></button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
