@@ -1,88 +1,95 @@
 <p align="center">
-  <img src="assets/icon/icon-256.png" width="128" height="128" alt="Icono de Trazo">
+  <img src="assets/icon/icon-256.png" width="128" height="128" alt="Trazo icon">
 </p>
 
 <h1 align="center">Trazo</h1>
 
 <p align="center">
-  <b>Animación cuadro a cuadro y dibujo para Android, tablets y PC.</b><br>
-  Libre, sin anuncios, sin conexión y escrita 100&nbsp;% en Rust.
+  <b>Frame-by-frame animation and drawing for Android, tablets and PC.</b><br>
+  Free, ad-free, offline and written 100&nbsp;% in Rust.
 </p>
 
 <p align="center">
-  <img alt="Licencia GPL-3.0" src="https://img.shields.io/badge/licencia-GPL--3.0-8C7BFF">
-  <img alt="Rust" src="https://img.shields.io/badge/hecho%20con-Rust-1C1C1E?logo=rust">
+  <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-8C7BFF">
+  <img alt="Rust" src="https://img.shields.io/badge/made%20with-Rust-1C1C1E?logo=rust">
   <img alt="Android" src="https://img.shields.io/badge/Android-10%2B-34A853?logo=android&logoColor=white">
-  <img alt="Escritorio" src="https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-escritorio-555">
+  <img alt="Desktop" src="https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-desktop-555">
 </p>
 
 <p align="center">
-  <img src="docs/capturas/telefono_dibujar.png" width="19%" alt="Dibujar con papel cebolla">
-  <img src="docs/capturas/telefono_capas.png" width="19%" alt="Capas">
-  <img src="docs/capturas/telefono_pinceles.png" width="19%" alt="Pinceles">
+  <img src="docs/capturas/telefono_dibujar.png" width="19%" alt="Drawing with onion skin">
+  <img src="docs/capturas/telefono_capas.png" width="19%" alt="Layers">
+  <img src="docs/capturas/telefono_pinceles.png" width="19%" alt="Brushes">
   <img src="docs/capturas/telefono_color.png" width="19%" alt="Color">
-  <img src="docs/capturas/telefono_exportar.png" width="19%" alt="Exportar para redes">
+  <img src="docs/capturas/telefono_exportar.png" width="19%" alt="Export for social media">
 </p>
 
-Trazo es una app para animar a mano, fotograma a fotograma, al estilo de FlipaClip o ibis Paint. Está pensada
-primero para el teléfono, se adapta a tablets y también funciona en el ordenador. Todo ocurre en tu dispositivo:
-no hay cuentas, anuncios ni muros de pago.
+Trazo is an app for hand-drawn, frame-by-frame animation, in the spirit of FlipaClip and ibis Paint. It is
+designed for phones first, adapts to tablets and also runs on desktop. Everything happens on your device:
+no accounts, no ads, no paywalls.
 
-## Qué puedes hacer
+## What you can do
 
-**Dibujar**
-- 24 pinceles: lápices, tinta, rotuladores, pintura, aerógrafo y texturas. Cada uno tiene una vista
-  previa de su trazo y responde a la presión.
-- Pinceles propios: crea copias, ajústalas e importa o exporta pinceles `.animbrush`. También puedes usar
-  imágenes PNG como punta.
-- Estabilizador, simetría, figuras (línea, rectángulo y elipse), relleno que cierra huecos, cuentagotas,
-  selección rectangular, lazo y varita mágica para mover, escalar y girar.
-- Capas con opacidad, 5 modos de fusión, máscara de recorte, bloqueo de transparencia y capas de fondo fijas.
+**Draw**
+- 24 brushes: pencils, ink, markers, paint, airbrush and textures. Each one shows a preview of its
+  stroke and responds to pressure.
+- Custom brushes: duplicate and tweak them, and import or export `.animbrush` files. PNG images can be
+  used as brush tips.
+- Stabilizer, symmetry, shapes (line, rectangle and ellipse), gap-closing fill, eyedropper, and
+  rectangle, lasso and magic-wand selection to move, scale and rotate.
+- Layers with opacity, 5 blend modes, clipping masks, alpha lock and fixed background layers.
 
-**Animar**
-- Línea de tiempo con una pista por capa: cada capa lleva su propio ritmo. Arrastra el borde de un dibujo
-  para que dure más o menos; la burbuja te muestra fotogramas y segundos. Un fondo puede durar todo el
-  plano mientras el personaje cambia cada dos fotogramas.
-- Miniaturas, zoom con dos dedos, papel cebolla por capa, rango de reproducción, bucle e ida y vuelta.
-- Reordena arrastrando, copia y pega fotogramas, y selecciona varios a la vez.
-- **Rotoscopia:** importa un video o un GIF como capa de referencia, con tinte gris o azul para calcar. La capa
-  crea los fotogramas por ti y no sale en el resultado exportado.
+**Animate**
+- A timeline with one track per layer, so each layer keeps its own timing. Drag the edge of a drawing
+  to make it last longer or shorter; a bubble shows the length in frames and seconds. A background can
+  hold for the whole shot while the character changes every two frames.
+- Thumbnails, pinch-to-zoom, per-layer onion skin, playback range, loop and ping-pong.
+- Reorder by dragging, copy and paste frames, and select several at once.
+- **Rotoscoping:** import a video or GIF as a reference layer, with a grey or blue tint for tracing. The
+  layer creates the frames for you and is left out of the exported result.
 
-**Sonido**
-- Varias pistas de audio que se mezclan; admite WAV, MP3, OGG, FLAC y M4A.
-- Graba voz en off sobre la animación, con cuenta atrás y pre-roll.
-- Recorta, divide, normaliza y añade fundidos.
-- Lip-sync con scrub, marcadores y fonemas.
+**Sound**
+- Several audio tracks mixed together; supports WAV, MP3, OGG, FLAC and M4A.
+- Record voice-over on top of the animation, with countdown and pre-roll.
+- Trim, split, normalize and add fades.
+- Lip-sync with scrubbing, markers and phonemes.
 
-**Exportar y compartir**
-- Atajos para TikTok / Reels (9:16), Instagram (4:5), cuadrado, YouTube (16:9) y GIF para WhatsApp.
-- Formatos:
-  - MP4 con H.264 y AAC, usando el codificador del teléfono.
-  - GIF, PNG y secuencia PNG.
-  - AVI y WAV.
-- Comparte directamente desde la app.
+**Export and share**
+- Presets for TikTok / Reels (9:16), Instagram (4:5), square, YouTube (16:9) and GIF for WhatsApp.
+- Formats:
+  - MP4 with H.264 and AAC, using the phone's hardware encoder.
+  - GIF, PNG and PNG sequence.
+  - AVI and WAV.
+- Share straight from the app.
 
-**Interfaz**
-- Diseñada para el pulgar en teléfonos verticales, con un riel lateral en horizontal y paneles fijos en tablet
-  y escritorio.
-- Tema oscuro neutro para que los colores de tu dibujo se vean fieles.
-- Deshacer con dos dedos y rehacer con tres.
+**Interface**
+- Built for the thumb on phones in portrait, with a side rail in landscape and docked panels on tablets
+  and desktop.
+- A neutral dark theme so the colors of your drawing look true.
+- Two-finger tap to undo, three-finger tap to redo.
+- The interface is currently in Spanish.
 
 <p align="center">
-  <img src="docs/capturas/telefono_horizontal.png" width="49%" alt="Teléfono en horizontal">
+  <img src="docs/capturas/telefono_horizontal.png" width="49%" alt="Phone in landscape">
   <img src="docs/capturas/tablet.png" width="49%" alt="Tablet">
 </p>
 
-## Instalar
+## Install
 
-Por ahora no hay versión en Play Store: compila el APK con los pasos de abajo o descárgalo desde
-[Releases](../../releases) cuando haya una publicada. Necesitas Android 10 o superior.
+Download the latest version from [Releases](../../releases):
 
-## Compilar
+- **Android** (64-bit ARM phones and tablets, Android 10 or later): the `.apk` file. Allow
+  "install unknown apps" when asked.
+- **Windows** (64-bit): the `.exe` file. It runs without installation. It is not code-signed, so
+  Windows SmartScreen may show a warning.
 
-Requisitos: [Rust](https://rustup.rs) estable.
+There is no Play Store version yet. You can also build it yourself with the steps below.
 
-### Escritorio (Windows, macOS, Linux)
+## Build
+
+Requirements: stable [Rust](https://rustup.rs).
+
+### Desktop (Windows, macOS, Linux)
 
 ```bash
 cargo run --release -p trazo_app
@@ -90,73 +97,75 @@ cargo run --release -p trazo_app
 
 ### Android
 
-Necesitas Android Studio (o el SDK de Android), el NDK y [`cargo-apk`](https://crates.io/crates/cargo-apk):
+You need Android Studio (or the Android SDK), the NDK and [`cargo-apk`](https://crates.io/crates/cargo-apk):
 
 ```bash
 cargo install cargo-apk
 rustup target add aarch64-linux-android x86_64-linux-android
 ```
 
-Para un teléfono o tablet real (arm64):
+For a real phone or tablet (arm64):
 
 ```bash
 cargo apk build -p trazo_app --lib --target aarch64-linux-android --release
 adb install -r target/release/apk/Trazo.apk
 ```
 
-`scripts/android.sh` compila para el emulador x86_64, lo arranca si hace falta (AVD `Animate_Tablet`, o el
-que indiques con `AVD=...`), instala la app y la abre.
+`scripts/android.sh` builds for the x86_64 emulator, starts it if needed (AVD `Animate_Tablet`, or the one
+you pass with `AVD=...`), installs the app and opens it.
 
-### Pruebas
+### Tests
 
 ```bash
 cargo test --workspace
 ```
 
-## Cómo está hecho
+## How it's built
 
-| Crate | Qué contiene |
+| Crate | Contents |
 |---|---|
-| [`crates/trazo_core`](crates/trazo_core) | El motor, sin interfaz: lienzo por mosaicos, pinceles y trazos, relleno, capas y fotogramas, deshacer y rehacer, mezcla de audio, capas de video, guardado (`.anim`, un zip con PNG y JSON) y exportadores. Se puede probar por separado. |
-| [`crates/trazo_app`](crates/trazo_app) | La interfaz con [egui](https://github.com/emilk/egui) / eframe: distribuciones de teléfono, horizontal y tablet; audio en tiempo real con cpal; y en Android, MediaCodec y MediaStore a través del NDK. |
+| [`crates/trazo_core`](crates/trazo_core) | The engine, with no UI: tiled canvas, brushes and strokes, fill, layers and frames, undo and redo, audio mixing, video layers, saving (`.anim`, a zip of PNG and JSON) and exporters. It can be tested on its own. |
+| [`crates/trazo_app`](crates/trazo_app) | The interface, built with [egui](https://github.com/emilk/egui) / eframe: phone, landscape and tablet layouts; real-time audio with cpal; and on Android, MediaCodec and MediaStore through the NDK. |
 
-- **Todo en Rust:** también la parte de Android (JNI y NDK), sin código Java ni Kotlin.
-- **Iconos vectoriales** propios, para que se vean igual en cualquier dispositivo.
-- **Diseño:** en la carpeta [`assets/icon`](assets/icon) están el icono en todos los tamaños y el script que lo genera.
+- **All Rust:** the Android side too (JNI and NDK), with no Java or Kotlin code.
+- **Custom vector icons**, so they look the same on every device.
+- **Design:** the [`assets/icon`](assets/icon) folder holds the icon in every size and the script that generates it.
 
-## Atajos de teclado
+## Keyboard shortcuts
 
 | | |
 |---|---|
-| B · E · G · I | pincel · borrador · relleno · cuentagotas |
-| S · L · W · U · H | selección · lazo · varita · figuras · mano |
-| `,` `.` · N · O | fotograma anterior / siguiente · nuevo fotograma · papel cebolla |
-| `[` `]` · R · M | tamaño del pincel · girar lienzo · voltear vista |
-| Enter · K | reproducir · marcador de audio |
-| Ctrl+Z / Ctrl+Y · Ctrl+S · Ctrl+E | deshacer / rehacer · guardar · exportar |
+| B · E · G · I | brush · eraser · fill · eyedropper |
+| S · L · W · U · H | selection · lasso · magic wand · shapes · hand |
+| `,` `.` · N · O | previous / next frame · new drawing · onion skin |
+| `[` `]` · R · M | brush size · rotate canvas · flip view |
+| Enter · K | play · audio marker |
+| Ctrl+Z / Ctrl+Y · Ctrl+S · Ctrl+E | undo / redo · save · export |
 
-## Hoja de ruta
+## Roadmap
 
-Ya está hecho: dibujo y animación completos, audio con voz en off, exportación para redes, importación de video
-para rotoscopia y la interfaz adaptable. Próximos pasos (detalle en [TODO.md](TODO.md)):
+Done: full drawing and animation, per-layer timeline, audio with voice-over, export for social media, video
+import for rotoscoping and the adaptive interface. Next steps (details in [TODO.md](TODO.md), in Spanish):
 
-- Mover y recortar el clip de video arrastrándolo en la línea de tiempo, y tiradores en el lienzo.
-- Exportar MP4 en escritorio y en segundo plano en Android.
-- Marca de agua opcional y hoja de sprites.
+- Move and trim the video clip by dragging it on the timeline, and on-canvas handles.
+- Move drawings by dragging them, and select several drawings at once.
+- MP4 export on desktop, and background export on Android.
+- Optional watermark and sprite sheets.
 
-## Contribuir
+## Contributing
 
-Se agradecen issues y pull requests. Antes de enviar un cambio, ejecuta `cargo test --workspace` y
-`cargo clippy --workspace`. La interfaz está en español; si quieres ayudar a traducirla, abre un issue.
+Issues and pull requests are welcome. Before sending a change, run `cargo test --workspace` and
+`cargo clippy --workspace`. The interface is in Spanish; if you'd like to help translate it, please open an
+issue.
 
-## Licencia
+## License
 
-Trazo es software libre bajo la [GNU GPL v3.0 o posterior](LICENSE): puedes usarlo, estudiarlo, modificarlo y
-compartirlo. Si distribuyes una versión modificada, también debe ser libre.
+Trazo is free software under the [GNU GPL v3.0 or later](LICENSE): you can use, study, modify and share it.
+If you distribute a modified version, it must be free as well.
 
 ---
 
-*In English:* **Trazo** is a free, open-source frame-by-frame animation and drawing app (FlipaClip / ibis Paint style)
-for Android phones, tablets and desktop, written entirely in Rust with egui. It offers layers, 24 brushes, onion skin,
-audio tracks with voice-over and lip-sync, video rotoscoping, and export to MP4, GIF and PNG for social media.
-GPL-3.0 licensed.
+*En español:* **Trazo** es una app libre y gratuita para animar a mano, cuadro a cuadro, al estilo de FlipaClip o
+ibis Paint, para teléfonos Android, tablets y PC, escrita en Rust. Tiene capas con su propio ritmo, 24 pinceles,
+papel cebolla, pistas de audio con voz en off y lip-sync, rotoscopia con video y exportación a MP4, GIF y PNG para
+redes. La interfaz está en español. Licencia GPL-3.0.
