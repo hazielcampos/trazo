@@ -43,6 +43,10 @@ pub struct ExportUi {
     job: Option<Job>,
     pub last: Option<Done>,
     preview: Option<(PreviewKey, egui::TextureHandle)>,
+    /// Phone: the rest of the settings are shown.
+    more: bool,
+    /// Share as soon as the export finishes ("Guardar y compartir").
+    share_after: bool,
 }
 
 #[derive(Clone, PartialEq)]
@@ -58,7 +62,7 @@ impl Default for ExportUi {
         if !mp4_available() {
             settings.format = ExportFormat::Gif;
         }
-        Self { open: false, settings, use_range: false, file_name: String::new(), job: None, last: None, preview: None }
+        Self { open: false, settings, use_range: false, file_name: String::new(), job: None, last: None, preview: None, more: false, share_after: false }
     }
 }
 
@@ -206,7 +210,9 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
     settings.frame = app.doc.frame;
     let preview = preview_texture(app, ctx, &settings);
 
-    if crate::widgets::SizeClass::of(ctx) != crate::widgets::SizeClass::Wide {
+    if crate::widgets::SizeClass::of(ctx) == crate::widgets::SizeClass::Phone {
+        phone_sheet(app, ctx, settings, preview, range, &mut start, &mut cancel, &mut open);
+    } else if crate::widgets::SizeClass::of(ctx) != crate::widgets::SizeClass::Wide {
         phone_screen(app, ctx, settings, preview, range, &mut start, &mut cancel, &mut share, &mut open);
     } else {
     crate::widgets::backdrop(ctx);
@@ -496,8 +502,14 @@ fn poll(app: &mut TrazoApp, ctx: &egui::Context) {
             app.toast(ctx, tf!("Exportado en {}", done.place));
             app.export_ui.last = Some(done);
             app.export_ui.file_name = default_file_name(&app.doc.project.name);
+            if std::mem::take(&mut app.export_ui.share_after) {
+                share_last(app, ctx);
+            }
         }
-        Err(e) if e == CANCELLED => app.toast(ctx, tr("Exportación cancelada")),
+        Err(e) if e == CANCELLED => {
+            app.export_ui.share_after = false;
+            app.toast(ctx, tr("Exportación cancelada"));
+        }
         Err(e) => app.toast(ctx, tf!("No se pudo exportar: {}", crate::i18n::tr_err(&e.to_string()))),
     }
 }
@@ -848,4 +860,260 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
         if settings.format == ExportFormat::Wav && app.doc.project.audio.is_empty() {
             ui.label(RichText::new(tr("El proyecto no tiene audio: el WAV saldrá en silencio.")).color(Color32::from_rgb(255, 204, 0)));
         }
+}
+
+// ---- phone sheet (TelExportar) -------------------------------------------------------------
+
+/// Destination cards of the phone sheet: preset index, label, shape (w, h).
+const SHEET_CARDS: [(usize, &str, f32, f32); 4] = [(0, "TikTok y Reels", 16.0, 26.0), (1, "Instagram", 21.0, 26.0), (3, "YouTube", 32.0, 18.0), (4, "GIF", 0.0, 0.0)];
+
+fn aspect_badge(s: &ExportSettings, w: u32, h: u32) -> String {
+    match s.aspect {
+        Aspect::Vertical => "9:16".into(),
+        Aspect::Portrait => "4:5".into(),
+        Aspect::Square => "1:1".into(),
+        Aspect::Wide => "16:9".into(),
+        Aspect::Canvas => format!("{w}×{h}"),
+    }
+}
+
+/// Export as a sheet: picture of the result, where it goes, a few choices.
+#[allow(clippy::too_many_arguments)]
+fn phone_sheet(
+    app: &mut TrazoApp,
+    ctx: &egui::Context,
+    settings: ExportSettings,
+    preview: Option<egui::TextureHandle>,
+    range: Option<(usize, usize)>,
+    start: &mut bool,
+    cancel: &mut bool,
+    open: &mut bool,
+) {
+    use crate::theme::{self, font, ACCENT, DANGER, TEXT, TEXT2, W};
+    let screen = ctx.content_rect();
+    let (top, bottom) = crate::widgets::insets(app.platform.touch_first);
+    let rect = egui::Rect::from_min_max(egui::pos2(screen.left(), screen.top() + top + 8.0), screen.max);
+    let busy = app.export_ui.job.is_some();
+    // Dim behind; a tap there closes (unless exporting).
+    egui::Area::new(egui::Id::unique("export_dim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+        let (r, resp) = ui.allocate_exact_size(screen.size(), egui::Sense::click());
+        ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(140));
+        if resp.clicked() && !busy {
+            *open = false;
+        }
+    });
+    let pl = plan(&app.doc.project, &settings);
+    egui::Area::new(egui::Id::unique("export_sheet")).order(egui::Order::Foreground).fixed_pos(rect.min).show(ctx, |ui| {
+        egui::Frame::new()
+            .fill(theme::SHEET)
+            .corner_radius(egui::CornerRadius { nw: theme::R_SHEET, ne: theme::R_SHEET, sw: 0, se: 0 })
+            .inner_margin(egui::Margin { left: 16, right: 16, top: 8, bottom: (bottom as i8).saturating_add(14) })
+            .show(ui, |ui| {
+                ui.set_width(rect.width() - 32.0);
+                ui.set_height(rect.height() - 22.0 - bottom);
+                ui.spacing_mut().item_spacing.y = 0.0;
+                // Grabber and title.
+                let (g, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 5.0), egui::Sense::hover());
+                ui.painter().rect_filled(egui::Rect::from_center_size(g.center(), egui::vec2(36.0, 5.0)), 3.0, theme::CONTROL);
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.set_height(44.0);
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(tr("Exportar")).font(font(20.0, W::Semi)).color(TEXT));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if crate::widgets::icon_button(ui, Icon::Close, if busy { tr("Ocultar") } else { tr("Cerrar") }).clicked() {
+                            *open = false;
+                        }
+                    });
+                });
+                let footer = 92.0;
+                let body_h = (ui.available_height() - footer).max(120.0);
+                egui::ScrollArea::vertical().id_salt("export_sheet_body").max_height(body_h).auto_shrink([false, false]).show(ui, |ui| {
+                    ui.add_enabled_ui(!busy, |ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        ui.add_space(8.0);
+                        // The result, as it will look.
+                        let (pr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 266.0), egui::Sense::hover());
+                        let k = (150.0 / pl.width as f32).min(266.0 / pl.height as f32);
+                        let box_r = egui::Rect::from_center_size(pr.center(), egui::vec2(pl.width as f32 * k, pl.height as f32 * k));
+                        let p = ui.painter();
+                        p.rect_filled(box_r, 12.0, Color32::BLACK);
+                        if let Some(t) = &preview {
+                            let mut mesh = egui::Mesh::with_texture(t.id());
+                            mesh.add_rect_with_uv(box_r, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE);
+                            p.add(mesh);
+                            p.with_clip_rect(box_r).rect_stroke(box_r.expand(6.0), 18.0, egui::Stroke::new(12.0, theme::SHEET), egui::StrokeKind::Middle);
+                        }
+                        p.rect_stroke(box_r, 12.0, egui::Stroke::new(1.0, Color32::from_white_alpha(20)), egui::StrokeKind::Outside);
+                        let badge = aspect_badge(&settings, pl.width, pl.height);
+                        let bg = p.layout_no_wrap(badge, font(10.0, W::Semi), TEXT);
+                        let br = egui::Rect::from_min_size(box_r.min + egui::vec2(6.0, 6.0), egui::vec2(bg.size().x + 14.0, 20.0));
+                        p.rect_filled(br, 6.0, theme::ELEVATED);
+                        p.galley(egui::pos2(br.left() + 7.0, br.center().y - bg.size().y / 2.0), bg, TEXT);
+                        ui.add_space(8.0);
+                        let (cw, ch) = (app.doc.project.canvas.width as f32, app.doc.project.canvas.height as f32);
+                        let taller = (pl.height as f32 / pl.width as f32) > ch / cw + 0.01;
+                        let wider = (pl.width as f32 / pl.height as f32) > cw / ch + 0.01;
+                        let caption = match (settings.aspect, settings.fit) {
+                            (Aspect::Canvas, _) => tf!("Como el lienzo · {}×{}", pl.width, pl.height),
+                            (_, Fit::Pad) if taller => tr("El papel se alarga arriba y abajo · no se corta nada").to_string(),
+                            (_, Fit::Pad) if wider => tr("El papel se alarga a los lados · no se corta nada").to_string(),
+                            (_, Fit::Crop) if taller => tr("Se recortan los lados para llenar la pantalla").to_string(),
+                            (_, Fit::Crop) if wider => tr("Se recorta arriba y abajo para llenar la pantalla").to_string(),
+                            _ => tr("Cabe justo · no se corta nada").to_string(),
+                        };
+                        ui.vertical_centered(|ui| ui.label(RichText::new(caption).font(font(12.0, W::Regular)).color(TEXT2)));
+                        ui.add_space(16.0);
+                        // Where it goes.
+                        let n = SHEET_CARDS.len() as f32;
+                        let w = ((ui.available_width() - 8.0 * (n - 1.0)) / n).floor();
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            for (i, label, sw, sh) in SHEET_CARDS {
+                                let enabled = mp4_available() || label == "GIF";
+                                let sel = preset_selected(i, &app.export_ui.settings);
+                                let (r, resp) = ui.allocate_exact_size(egui::vec2(w, 92.0), if enabled { egui::Sense::click() } else { egui::Sense::hover() });
+                                let p = ui.painter();
+                                p.rect_filled(r, 16.0, Color32::from_rgb(35, 35, 38));
+                                if sel {
+                                    p.rect_stroke(r, 16.0, egui::Stroke::new(2.0, TEXT), egui::StrokeKind::Inside);
+                                }
+                                let fg = if !enabled { crate::theme::TEXT3 } else if sel { TEXT } else { Color32::from_rgb(214, 214, 211) };
+                                let g = p.layout(tr(label).to_string(), font(12.0, W::Semi), fg, w - 8.0);
+                                let total = 26.0 + 8.0 + g.size().y;
+                                let y0 = r.center().y - total / 2.0;
+                                let c = egui::pos2(r.center().x, y0 + 13.0);
+                                if sw > 0.0 {
+                                    p.rect_stroke(egui::Rect::from_center_size(c, egui::vec2(sw, sh)), 4.0, egui::Stroke::new(2.0, fg), egui::StrokeKind::Inside);
+                                } else {
+                                    let t = p.text(c, egui::Align2::CENTER_CENTER, "GIF", font(11.0, W::Semi), fg);
+                                    p.rect_stroke(t.expand2(egui::vec2(5.0, 3.0)), 5.0, egui::Stroke::new(2.0, fg), egui::StrokeKind::Middle);
+                                }
+                                let gw = g.size().x;
+                                p.galley(egui::pos2(r.center().x - gw / 2.0, y0 + 34.0), g, fg);
+                                if resp.on_hover_text(tr(PRESETS[i].hint)).clicked() {
+                                    (PRESETS[i].apply)(&mut app.export_ui.settings);
+                                }
+                            }
+                        });
+                        ui.add_space(16.0);
+                        egui::Frame::new().inner_margin(egui::Margin::symmetric(4, 0)).show(ui, |ui| {
+                            let s = &mut app.export_ui.settings;
+                            if s.format.has_video() && s.aspect != Aspect::Canvas {
+                                let mut i = if s.fit == Fit::Pad { 0 } else { 1 };
+                                if crate::widgets::segmented(ui, &mut i, &[tr("Alargar el fondo"), tr("Recortar")], ui.available_width()) {
+                                    s.fit = if i == 0 { Fit::Pad } else { Fit::Crop };
+                                }
+                                ui.add_space(6.0);
+                            }
+                            // Sound.
+                            if matches!(s.format, ExportFormat::Mp4 | ExportFormat::Avi) && !app.doc.project.audio.is_empty() {
+                                let name = app.doc.project.audio.assets.values().next().map(|a| a.name.clone()).unwrap_or_default();
+                                sheet_row(ui, |ui| {
+                                    let mut job = egui::text::LayoutJob::default();
+                                    job.append(tr("Sonido"), 0.0, egui::TextFormat { font_id: font(15.0, W::Medium), color: TEXT, ..Default::default() });
+                                    if !name.is_empty() {
+                                        job.append(&format!(" · {name}"), 0.0, egui::TextFormat { font_id: font(15.0, W::Regular), color: TEXT2, ..Default::default() });
+                                    }
+                                    ui.label(job);
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        crate::widgets::switch(ui, &mut s.include_audio);
+                                    });
+                                });
+                            }
+                            if s.format.is_timed_video() {
+                                let r = sheet_value_row(ui, tr("Repetir"), &if s.loops == 1 { tr("Una vez").to_string() } else { tf!("{} veces", s.loops) });
+                                egui::Popup::menu(&r).show(|ui| {
+                                    ui.set_min_width(180.0);
+                                    for n in [1u32, 2, 3, 5, 10] {
+                                        let l = if n == 1 { tr("Una vez").to_string() } else { tf!("{} veces", n) };
+                                        if ui.add(egui::Button::selectable(s.loops as u32 == n, l).min_size(egui::vec2(160.0, 40.0))).clicked() {
+                                            s.loops = n as _;
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            let r = sheet_value_row(ui, tr("Formato"), tr(s.format.label()));
+                            egui::Popup::menu(&r).show(|ui| {
+                                ui.set_min_width(240.0);
+                                for f in FORMATS {
+                                    let ok = f != ExportFormat::Mp4 || mp4_available();
+                                    if ui.add_enabled(ok, egui::Button::selectable(s.format == f, tr(f.label())).min_size(egui::vec2(220.0, 40.0))).clicked() {
+                                        s.format = f;
+                                        ui.close();
+                                    }
+                                }
+                            });
+                            let more = app.export_ui.more;
+                            if sheet_value_row(ui, tr("Más ajustes"), if more { tr("Ocultar") } else { tr("Tamaño, calidad, nombre…") }).clicked() {
+                                app.export_ui.more = !more;
+                            }
+                        });
+                        if app.export_ui.more {
+                            ui.add_space(10.0);
+                            ui.spacing_mut().item_spacing.y = 10.0;
+                            export_settings(app, ui, range, settings);
+                        }
+                        ui.add_space(12.0);
+                    });
+                });
+                // Footer: one white button and what it makes.
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.y = 8.0;
+                    let size = human_bytes(estimate_bytes(&app.doc.project, &settings));
+                    if let Some(job) = &app.export_ui.job {
+                        let p = f32::from_bits(job.progress.load(Ordering::Relaxed));
+                        let elapsed = job.started.elapsed().as_secs_f32();
+                        let eta = if p > 0.03 { tf!(" · quedan ≈ {} s", format!("{:.0}", elapsed * (1.0 - p) / p)) } else { String::new() };
+                        if ui.add(egui::Button::new(RichText::new(tr("Cancelar exportación")).color(DANGER).font(font(15.0, W::Semi))).fill(theme::ELEVATED).corner_radius(16).min_size(egui::vec2(ui.available_width(), 50.0))).clicked() {
+                            *cancel = true;
+                        }
+                        ui.label(RichText::new(tf!("Exportando {}", tr(job.format.label())) + &eta).font(font(12.0, W::Regular)).color(TEXT2));
+                        ui.add(egui::ProgressBar::new(p).desired_height(8.0).corner_radius(4).fill(ACCENT));
+                        ctx.request_repaint_after(std::time::Duration::from_millis(150));
+                    } else {
+                        let place = if cfg!(target_os = "android") { tr("se guarda en tu galería") } else { tr("se guarda en tu carpeta de Videos") };
+                        ui.label(RichText::new(tf!("Unos {} · {}", size, place)).font(font(12.0, W::Regular)).color(TEXT2));
+                        let label = if cfg!(target_os = "android") { tr("Guardar y compartir") } else { tr("Guardar") };
+                        let (r, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 54.0), egui::Sense::click());
+                        let p = ui.painter();
+                        p.rect_filled(r, 16.0, if resp.is_pointer_button_down_on() { theme::PRIMARY.gamma_multiply(0.85) } else { theme::PRIMARY });
+                        let g = p.layout_no_wrap(label.to_string(), font(16.0, W::Bold), theme::ON_ACCENT);
+                        let x = r.center().x - (g.size().x + 28.0) / 2.0;
+                        crate::icons::paint(p, egui::Rect::from_center_size(egui::pos2(x + 10.0, r.center().y), egui::vec2(20.0, 20.0)), Icon::Export, theme::ON_ACCENT);
+                        p.galley(egui::pos2(x + 28.0, r.center().y - g.size().y / 2.0), g, theme::ON_ACCENT);
+                        if resp.clicked() {
+                            app.export_ui.share_after = cfg!(target_os = "android");
+                            *start = true;
+                        }
+                    }
+                });
+            });
+    });
+}
+
+/// A row of the sheet with a hairline on top.
+fn sheet_row(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
+    let (r, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    ui.painter().hline(r.x_range(), r.center().y, egui::Stroke::new(1.0, Color32::from_rgb(35, 35, 38)));
+    ui.horizontal(|ui| {
+        ui.set_height(56.0);
+        add(ui);
+    });
+}
+
+/// "Label            value ›" row; returns its response (for a menu).
+fn sheet_value_row(ui: &mut egui::Ui, label: &str, value: &str) -> egui::Response {
+    use crate::theme::{font, TEXT, TEXT2, W};
+    let (line, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    ui.painter().hline(line.x_range(), line.center().y, egui::Stroke::new(1.0, Color32::from_rgb(35, 35, 38)));
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 56.0), egui::Sense::click());
+    let p = ui.painter();
+    if resp.is_pointer_button_down_on() {
+        p.rect_filled(r, 10.0, crate::theme::ELEVATED);
+    }
+    p.text(egui::pos2(r.left(), r.center().y), egui::Align2::LEFT_CENTER, label, font(15.0, W::Medium), TEXT);
+    p.text(egui::pos2(r.right(), r.center().y), egui::Align2::RIGHT_CENTER, format!("{value} ›"), font(14.0, W::Regular), TEXT2);
+    resp
 }

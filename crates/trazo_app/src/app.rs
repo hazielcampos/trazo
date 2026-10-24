@@ -244,6 +244,8 @@ pub struct UiState {
     pub dock_open: bool,
     /// Menu of the drawing that starts at this frame (long press in the strip).
     pub drawing_menu: Option<usize>,
+    /// First time in the editor on a touch screen: the gestures card.
+    pub gestures_card: Option<bool>,
     /// Zoom and gestures of the per-layer timeline.
     pub tracks: panels::timeline::TracksState,
 }
@@ -329,6 +331,7 @@ impl TrazoApp {
                 sheet: None,
                 dock_open: false,
                 drawing_menu: None,
+                gestures_card: None,
                 tracks: Default::default(),
             },
             thumbs: Default::default(),
@@ -1001,6 +1004,7 @@ impl eframe::App for TrazoApp {
                 Ok("pistas") => self.ui.dock_open = true,
                 Ok("menu") => self.ui.drawing_menu = Some(self.doc.frame),
                 Ok("exportar") => self.export_ui.open = true,
+                Ok("gestos") => self.ui.gestures_card = Some(false),
                 _ => {}
             }
         }
@@ -1172,6 +1176,7 @@ impl eframe::App for TrazoApp {
                     panels::phone_up::island(self, &ctx, canvas_rect);
                 }
                 panels::phone_up::drawing_menu(self, &ctx);
+                panels::phone_up::gestures_card(self, &ctx);
                 panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Bottom);
             }
             crate::widgets::SizeClass::PhoneLandscape => {

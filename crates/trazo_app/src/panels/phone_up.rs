@@ -1098,3 +1098,152 @@ fn action_bar(app: &mut TrazoApp, ui: &mut Ui) {
         do_action(app, &ctx, layer, b, a);
     }
 }
+
+// ---- first time: gestures ----------------------------------------------------------------
+
+fn gestures_seen_path(app: &TrazoApp) -> std::path::PathBuf {
+    app.platform.data_dir.join("gestos_vistos.txt")
+}
+
+/// "Cuatro gestos y listo": shown once, the first time the editor opens on a
+/// touch screen. `Some(true)` = every gesture listed.
+pub fn gestures_card(app: &mut TrazoApp, ctx: &egui::Context) {
+    let checked = egui::Id::unique("gestures_checked");
+    if app.ui.gestures_card.is_none() && app.platform.touch_first && !ctx.data(|d| d.get_temp::<bool>(checked).unwrap_or(false)) {
+        ctx.data_mut(|d| d.insert_temp(checked, true));
+        if !gestures_seen_path(app).exists() {
+            app.ui.gestures_card = Some(false);
+        }
+    }
+    let Some(all) = app.ui.gestures_card else { return };
+    let screen = ctx.content_rect();
+    egui::Area::new(egui::Id::unique("gestures_dim")).order(Order::Foreground).fixed_pos(screen.min).show(ctx, |ui| {
+        let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
+        ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(158));
+    });
+    let bottom = crate::widgets::insets(app.platform.touch_first).1;
+    let w = (screen.width() - 24.0).min(440.0);
+    let h_id = egui::Id::unique("gestures_h");
+    let h = ctx.data(|d| d.get_temp::<f32>(h_id)).unwrap_or(520.0);
+    let mut close = false;
+    let mut more = false;
+    let resp = egui::Area::new(egui::Id::unique("gestures_card")).order(Order::Tooltip).pivot(Align2::CENTER_TOP)
+        .fixed_pos(Pos2::new(screen.center().x, (screen.bottom() - 28.0 - bottom - h).max(screen.top() + 8.0))).constrain(false)
+        .show(ctx, |ui| {
+            Frame::new().fill(SURFACE).corner_radius(24).inner_margin(Margin { left: 18, right: 18, top: 22, bottom: 18 })
+                .stroke(Stroke::new(1.0, Color32::from_white_alpha(18)))
+                .shadow(egui::Shadow { offset: [0, 24], blur: 60, spread: 0, color: Color32::from_black_alpha(178) })
+                .show(ui, |ui| {
+                    ui.set_width(w - 36.0);
+                    ui.spacing_mut().item_spacing.y = 16.0;
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        ui.label(egui::RichText::new(tr("Antes de empezar")).font(theme::font(13.0, W::Regular)).color(TEXT2));
+                        ui.label(egui::RichText::new(if all { tr("Todos los gestos") } else { tr("Cuatro gestos y listo") }).font(theme::font(24.0, W::Bold)).color(TEXT));
+                    });
+                    let max_h = screen.height() - 300.0;
+                    egui::ScrollArea::vertical().max_height(max_h).auto_shrink([false, true]).show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.y = 16.0;
+                        gesture_row(ui, 0, tr("Toca con dos dedos"), tr("Deshace lo último. Con tres, lo rehace."));
+                        gesture_row(ui, 1, tr("Pellizca"), tr("Acerca, aleja y gira el dibujo."));
+                        gesture_row(ui, 2, tr("Mantén pulsado un dibujo"), tr("Abre su menú: copiar, duplicar, duración…"));
+                        gesture_row(ui, 3, tr("Sube el panel de abajo"), tr("Ves cada capa y el sonido por separado."));
+                        if all {
+                            gesture_row(ui, 4, tr("Arrastra con dos dedos"), tr("Mueve el lienzo."));
+                            gesture_row(ui, 5, tr("Toca otra vez la herramienta"), tr("Abre sus ajustes: pinceles, relleno, formas…"));
+                        }
+                    });
+                    Frame::new().fill(Color32::from_rgb(35, 35, 38)).corner_radius(12).inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(egui::RichText::new(tr("Toca el nombre de la animación para girar, voltear o recolocar el lienzo.")).font(theme::font(13.0, W::Regular)).color(TEXT2));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 10.0;
+                        let full = ui.available_width() - 10.0;
+                        let (a, b) = (full / 2.4, full * 1.4 / 2.4);
+                        if !all {
+                            let (r, resp) = ui.allocate_exact_size(Vec2::new(a, 50.0), Sense::click());
+                            ui.painter().rect_filled(r, 14.0, if resp.hovered() { SEPARATOR } else { ELEVATED });
+                            ui.painter().text(r.center(), Align2::CENTER_CENTER, tr("Ver todos"), theme::font(15.0, W::Semi), TEXT);
+                            more = resp.clicked();
+                        }
+                        let bw = if all { full + 10.0 } else { b };
+                        let (r, resp) = ui.allocate_exact_size(Vec2::new(bw, 50.0), Sense::click());
+                        ui.painter().rect_filled(r, 14.0, theme::PRIMARY);
+                        ui.painter().text(r.center(), Align2::CENTER_CENTER, tr("Empezar a dibujar"), theme::font(15.0, W::Bold), theme::ON_ACCENT);
+                        close = resp.clicked();
+                    });
+                });
+        });
+    let r = resp.response.rect;
+    if (r.height() - h).abs() > 0.5 {
+        ctx.data_mut(|d| d.insert_temp(h_id, r.height()));
+        ctx.request_repaint();
+    }
+    if more {
+        app.ui.gestures_card = Some(true);
+    }
+    if close {
+        app.ui.gestures_card = None;
+        let _ = std::fs::write(gestures_seen_path(app), "1");
+    }
+}
+
+/// A gesture: a small drawing of the fingers, what to do and what it does.
+fn gesture_row(ui: &mut Ui, kind: u8, title: &str, what: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 14.0;
+        let (r, _) = ui.allocate_exact_size(Vec2::splat(60.0), Sense::hover());
+        let p = ui.painter();
+        p.rect_filled(r, 16.0, ELEVATED);
+        let o = r.min;
+        let at = |x: f32, y: f32| o + Vec2::new(x, y);
+        let mark = Stroke::new(1.6, TEXT.gamma_multiply(0.55));
+        match kind {
+            0 => {
+                for x in [23.0, 37.0] {
+                    p.circle_stroke(at(x, 30.0), 11.0, mark);
+                    p.circle_filled(at(x, 30.0), 6.0, TEXT);
+                }
+            }
+            1 => {
+                p.circle_filled(at(21.0, 37.0), 5.5, TEXT);
+                p.circle_filled(at(39.0, 23.0), 5.5, TEXT);
+                for pts in [[(15.0, 43.0), (10.0, 48.0)], [(45.0, 17.0), (50.0, 12.0)]] {
+                    p.line_segment([at(pts[0].0, pts[0].1), at(pts[1].0, pts[1].1)], mark);
+                }
+                p.add(Shape::line(vec![at(10.0, 42.0), at(10.0, 48.0), at(16.0, 48.0)], mark));
+                p.add(Shape::line(vec![at(50.0, 18.0), at(50.0, 12.0), at(44.0, 12.0)], mark));
+            }
+            2 => {
+                p.rect_stroke(Rect::from_min_size(at(17.0, 14.0), Vec2::new(26.0, 32.0)), 5.0, mark, egui::StrokeKind::Middle);
+                p.circle_stroke(at(30.0, 30.0), 11.0, mark);
+                p.circle_filled(at(30.0, 30.0), 6.0, TEXT);
+            }
+            3 => {
+                p.rect_filled(Rect::from_min_size(at(10.0, 38.0), Vec2::new(40.0, 14.0)), 4.0, CONTROL);
+                p.circle_filled(at(30.0, 38.0), 5.5, TEXT);
+                p.line_segment([at(30.0, 28.0), at(30.0, 12.0)], mark);
+                p.add(Shape::line(vec![at(25.0, 17.0), at(30.0, 12.0), at(35.0, 17.0)], mark));
+            }
+            4 => {
+                for x in [24.0, 36.0] {
+                    p.circle_filled(at(x, 34.0), 5.5, TEXT);
+                }
+                p.line_segment([at(18.0, 22.0), at(42.0, 22.0)], mark);
+                p.add(Shape::line(vec![at(37.0, 17.0), at(42.0, 22.0), at(37.0, 27.0)], mark));
+            }
+            _ => {
+                p.rect_filled(Rect::from_min_size(at(16.0, 16.0), Vec2::new(28.0, 28.0)), 8.0, ACCENT);
+                p.circle_filled(at(36.0, 38.0), 5.5, TEXT);
+                p.circle_stroke(at(36.0, 38.0), 11.0, mark);
+            }
+        }
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new(title).font(theme::font(16.0, W::Semi)).color(TEXT));
+            ui.label(egui::RichText::new(what).font(theme::font(13.0, W::Regular)).color(TEXT2));
+        });
+    });
+}
