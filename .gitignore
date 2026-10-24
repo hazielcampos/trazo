@@ -6,3 +6,8 @@
 Thumbs.db
 .idea/
 .vscode/
+
+# Llaves de firma (nunca al repositorio)
+*.jks
+*.keystore
+clave.txt
