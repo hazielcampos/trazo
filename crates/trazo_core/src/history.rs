@@ -106,6 +106,9 @@ pub enum Edit {
     Audio { before: Vec<crate::audio::AudioTrack>, after: Vec<crate::audio::AudioTrack> },
     /// Timeline markers (dialogue, phonemes).
     Markers { before: Vec<crate::audio::Marker>, after: Vec<crate::audio::Marker> },
+    /// Whole frame list before/after a per-layer timing change (pixels are
+    /// shared tiles, so this is cheap).
+    Timeline { before: Vec<Frame>, after: Vec<Frame> },
     /// Several edits that undo as one step.
     Batch(Vec<Edit>),
 }
@@ -126,6 +129,7 @@ impl Edit {
             Edit::SharedCel { .. } => "capa de fondo",
             Edit::Audio { .. } => "audio",
             Edit::Markers { .. } => "marcadores",
+            Edit::Timeline { .. } => "línea de tiempo",
             Edit::Batch(_) => "varios cambios",
         }
     }
@@ -215,6 +219,7 @@ impl Edit {
                     }
                     for f in &mut p.frames {
                         f.cels.remove(&layer.id);
+                        f.cont.remove(&layer.id);
                     }
                     p.shared_cels.remove(&layer.id);
                 }
@@ -242,6 +247,9 @@ impl Edit {
                     Some(c) => p.shared_cels.insert(*layer, c.clone()),
                     None => p.shared_cels.remove(layer),
                 };
+            }
+            Edit::Timeline { before, after } => {
+                p.frames = if forward { after.clone() } else { before.clone() };
             }
             Edit::Batch(edits) => {
                 if forward {

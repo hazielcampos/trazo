@@ -184,7 +184,8 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
             extend_to = e;
         }
         if let Some((end, hold)) = extend_to {
-            ops::extend_to_ticks(&mut doc.project, &mut doc.history, end, hold);
+            let target = doc.project.layers.iter().rev().find(|l| l.props.video.is_none() && !l.props.shared).map(|l| l.id);
+            ops::extend_to_ticks(&mut doc.project, &mut doc.history, end, hold, target);
             doc.invalidate_all();
         }
     } else {

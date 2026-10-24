@@ -3,7 +3,7 @@
 //! Layers are shared by every frame (like FlipaClip): a frame holds one cel
 //! per layer, created lazily the first time something is drawn on it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -59,11 +59,14 @@ pub struct Frame {
     /// How many timeline ticks this drawing stays on screen ("on twos" = 2).
     pub hold: u32,
     pub cels: BTreeMap<LayerId, TiledImage>,
+    /// Layers whose drawing from an earlier frame is still shown here
+    /// (per-layer timing, see [`crate::timeline`]).
+    pub cont: BTreeSet<LayerId>,
 }
 
 impl Frame {
     pub fn new(id: FrameId) -> Self {
-        Self { id, hold: 1, cels: BTreeMap::new() }
+        Self { id, hold: 1, cels: BTreeMap::new(), cont: BTreeSet::new() }
     }
 
     pub fn cel(&self, layer: LayerId) -> Option<&TiledImage> {
@@ -141,9 +144,24 @@ impl Project {
     /// Which frame id owns the cel for `layer` in `frame` (shared layers use [`SHARED_FRAME`]).
     pub fn cel_owner(&self, frame: FrameId, layer: LayerId) -> FrameId {
         if self.layer(layer).is_some_and(|l| l.props.shared) {
-            SHARED_FRAME
-        } else {
-            frame
+            return SHARED_FRAME;
+        }
+        // A frame that continues a drawing paints on the frame where it starts.
+        self.frame_index(frame).and_then(|i| self.drawing_start(i, layer)).map_or(frame, |s| self.frames[s].id)
+    }
+
+    /// Index of the frame where the drawing of `layer` shown at `i` starts.
+    pub fn drawing_start(&self, i: usize, layer: LayerId) -> Option<usize> {
+        let mut j = i.min(self.frames.len().checked_sub(1)?);
+        loop {
+            let f = &self.frames[j];
+            if f.cels.contains_key(&layer) {
+                return Some(j);
+            }
+            if !f.cont.contains(&layer) || j == 0 {
+                return None;
+            }
+            j -= 1;
         }
     }
 
@@ -153,7 +171,45 @@ impl Project {
         if shared {
             self.shared_cels.get(&layer)
         } else {
-            self.frames.get(frame_index)?.cel(layer)
+            let s = self.drawing_start(frame_index, layer)?;
+            self.frames[s].cel(layer)
+        }
+    }
+
+    /// Start of the `k`-th drawing of `layer` before (`k < 0`) or after
+    /// (`k > 0`) the one shown at `i` (for onion skin).
+    pub fn neighbor_drawing(&self, i: usize, layer: LayerId, k: i32) -> Option<usize> {
+        let n = self.frames.len();
+        if k < 0 {
+            let mut s = self.drawing_start(i, layer).unwrap_or(i);
+            for _ in 0..(-k) {
+                let mut j = s.checked_sub(1)?;
+                s = loop {
+                    if let Some(t) = self.drawing_start(j, layer) {
+                        break t;
+                    }
+                    j = j.checked_sub(1)?;
+                };
+            }
+            Some(s)
+        } else {
+            let mut s = match self.drawing_start(i, layer) {
+                Some(s) => s,
+                None => i,
+            };
+            for _ in 0..k {
+                let mut j = s + 1;
+                s = loop {
+                    if j >= n {
+                        return None;
+                    }
+                    if self.frames[j].cels.contains_key(&layer) {
+                        break j;
+                    }
+                    j += 1;
+                };
+            }
+            Some(s)
         }
     }
 
@@ -281,6 +337,7 @@ mod tests {
         let mut p = Project::new("t", CanvasSettings::default());
         let id = p.alloc_id();
         p.frames.push(Frame { hold: 2, ..Frame::new(id) });
+        let _ = &p;
         let id = p.alloc_id();
         p.frames.push(Frame::new(id));
         // frames: [1 tick][2 ticks][1 tick]

@@ -92,6 +92,19 @@ impl TiledImage {
         self.tiles.iter().filter(|t| t.is_some()).count()
     }
 
+    /// Cheap value that changes whenever the pixels change (tiles are
+    /// copy-on-write, so an edited tile is a new allocation).
+    pub fn fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for (i, t) in self.tiles.iter().enumerate() {
+            if let Some(t) = t {
+                (i, Arc::as_ptr(t) as usize).hash(&mut h);
+            }
+        }
+        h.finish()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.tiles.iter().all(|t| t.is_none())
     }

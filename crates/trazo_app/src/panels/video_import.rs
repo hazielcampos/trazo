@@ -208,7 +208,8 @@ fn finish(app: &mut TrazoApp, ctx: &egui::Context, job: &Job, out: Output) {
         index -= 1;
     }
     ops::add_video_layer(&mut d.project, &mut d.history, index, format!("Video: {}", job.name), video, 0.6);
-    let added = if job.frames_hold > 0 { ops::extend_to_ticks(&mut d.project, &mut d.history, end, job.frames_hold) } else { 0 };
+    let target = d.project.layers.iter().rev().find(|l| l.props.video.is_none() && !l.props.shared).map(|l| l.id);
+    let added = if job.frames_hold > 0 { ops::extend_to_ticks(&mut d.project, &mut d.history, end, job.frames_hold, target) } else { 0 };
     let mut note = String::new();
     match out.audio {
         Some(Ok(samples)) if !samples.is_empty() => {

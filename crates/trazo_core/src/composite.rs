@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::color::{blend_px, pack, BlendMode, Rgba};
-use crate::document::{Frame, Project};
+use crate::document::{LayerId, Project};
 use crate::geom::IRect;
 use crate::raster::{TiledImage, TILE};
 
@@ -76,17 +76,15 @@ fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOption
     }
 
     if let Some(onion) = opts.onion.filter(|o| o.enabled) {
-        let ghosts = (1..=onion.before)
-            .rev()
-            .filter_map(|k| frame_index.checked_sub(k as usize).map(|i| (i, k, onion.before, onion.before_tint)))
-            .chain((1..=onion.after).filter_map(|k| {
-                let i = frame_index + k as usize;
-                (i < p.frames.len()).then_some((i, k, onion.after, onion.after_tint))
-            }));
-        for (i, k, n, tint) in ghosts {
+        // Each layer shows its own neighbouring drawings (layers have their
+        // own timing), not simply the neighbouring frames.
+        let before = (1..=onion.before).rev().map(|k| (-(k as i32), k, onion.before, onion.before_tint));
+        let after = (1..=onion.after).map(|k| (k as i32, k, onion.after, onion.after_tint));
+        for (step, k, n, tint) in before.chain(after) {
             let fade = 1.0 - (k - 1) as f32 / n.max(1) as f32;
             let tint = (!onion.keep_colors).then_some(tint);
-            composite_frame(p, &p.frames[i], rect, acc, onion.opacity * fade.max(0.3), tint, None);
+            let cel_of = |l: LayerId| p.neighbor_drawing(frame_index, l, step).and_then(|s| p.frames[s].cel(l));
+            composite_frame(p, &cel_of, rect, acc, onion.opacity * fade.max(0.3), tint, None);
         }
     }
 
@@ -95,7 +93,8 @@ fn render_into(p: &Project, frame_index: usize, rect: IRect, opts: &RenderOption
         next_tick: p.tick_of_frame(frame_index + 1),
         hide_reference: opts.hide_reference,
     });
-    composite_frame(p, &p.frames[frame_index], rect, acc, 1.0, None, video);
+    let cel_of = |l: LayerId| p.visible_cel(frame_index, l);
+    composite_frame(p, &cel_of, rect, acc, 1.0, None, video);
 }
 
 /// Which pictures video layers show in this render.
@@ -109,7 +108,7 @@ struct VideoPass {
 
 /// Composite all visible layers of `frame` into `acc` (covering `rect`).
 /// Video layers are drawn only with a `video` pass (never in onion ghosts).
-fn composite_frame(p: &Project, frame: &Frame, rect: IRect, acc: &mut [[f32; 4]], opacity: f32, tint: Option<Rgba>, video: Option<VideoPass>) {
+fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a TiledImage>, rect: IRect, acc: &mut [[f32; 4]], opacity: f32, tint: Option<Rgba>, video: Option<VideoPass>) {
     let w = rect.width() as usize;
     // Cel that clipping layers are masked by (the nearest non-clipped layer below).
     let mut base: Option<&TiledImage> = None;
@@ -126,7 +125,7 @@ fn composite_frame(p: &Project, frame: &Frame, rect: IRect, acc: &mut [[f32; 4]]
             }
             continue;
         }
-        let own_cel = if layer.props.shared { p.shared_cels.get(&layer.id) } else { frame.cel(layer.id) };
+        let own_cel = if layer.props.shared { p.shared_cels.get(&layer.id) } else { cel_of(layer.id) };
         if !layer.props.clip {
             base = own_cel;
             base_visible = layer.props.visible && layer.props.opacity > 0.0;
@@ -150,8 +149,7 @@ fn composite_frame(p: &Project, frame: &Frame, rect: IRect, acc: &mut [[f32; 4]]
         if ghost && (layer.props.shared || !layer.props.onion_skin) {
             continue;
         }
-        let cel = if layer.props.shared { p.shared_cels.get(&layer.id) } else { frame.cel(layer.id) };
-        let Some(cel) = cel else { continue };
+        let Some(cel) = own_cel else { continue };
         let op = layer.props.opacity * opacity;
         // Ghosts always use normal blending so they stay readable.
         let mode = if tint.is_some() || opacity < 1.0 { BlendMode::Normal } else { layer.props.blend };
@@ -452,4 +450,27 @@ mod tests {
         assert_eq!(&img[(5 * 64 + 5) * 4..][..4], &[255, 0, 0, 255]);
         assert_eq!(&img[(6 * 64 + 6) * 4..][..4], &[0, 0, 0, 0], "clipped away outside the base");
     }
+}
+
+/// Small preview of one drawing (premultiplied RGBA8 on white), `max_w` wide.
+pub fn cel_thumbnail(cel: &TiledImage, max_w: u32) -> (usize, usize, Vec<u8>) {
+    let (cw, ch) = (cel.width().max(1) as f32, cel.height().max(1) as f32);
+    let step = (cw / max_w.max(1) as f32).max(1.0);
+    let (tw, th) = (((cw / step) as usize).max(1), ((ch / step) as usize).max(1));
+    let mut out = Vec::with_capacity(tw * th * 4);
+    let offs = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
+    for y in 0..th {
+        for x in 0..tw {
+            let mut sum = [0.0f32; 4];
+            for (ox, oy) in offs {
+                let s = cel.pixel(((x as f32 + ox) * step) as i32, ((y as f32 + oy) * step) as i32);
+                let acc = blend_px([1.0, 1.0, 1.0, 1.0], s, 1.0, BlendMode::Normal);
+                for i in 0..4 {
+                    sum[i] += acc[i] * 0.25;
+                }
+            }
+            out.extend_from_slice(&pack(sum));
+        }
+    }
+    (tw, th, out)
 }

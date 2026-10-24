@@ -40,8 +40,10 @@ no hay cuentas, anuncios ni muros de pago.
 - Capas con opacidad, 5 modos de fusión, máscara de recorte, bloqueo de transparencia y capas de fondo fijas.
 
 **Animar**
-- Línea de tiempo con miniaturas y papel cebolla configurable.
-- Duración por dibujo («a doses», «a treses»), rango de reproducción, bucle e ida y vuelta.
+- Línea de tiempo con una pista por capa: cada capa lleva su propio ritmo. Arrastra el borde de un dibujo
+  para que dure más o menos; la burbuja te muestra fotogramas y segundos. Un fondo puede durar todo el
+  plano mientras el personaje cambia cada dos fotogramas.
+- Miniaturas, zoom con dos dedos, papel cebolla por capa, rango de reproducción, bucle e ida y vuelta.
 - Reordena arrastrando, copia y pega fotogramas, y selecciona varios a la vez.
 - **Rotoscopia:** importa un video o un GIF como capa de referencia, con tinte gris o azul para calcar. La capa
   crea los fotogramas por ti y no sale en el resultado exportado.

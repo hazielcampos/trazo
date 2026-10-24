@@ -1,21 +1,26 @@
-//! Bottom timeline: frame thumbnails, frame operations and onion skin settings.
+//! Timeline with one track per layer (see the design canvas): every layer has
+//! its own row of drawings, each lasting as many frames as you stretch it.
 
 use std::collections::HashMap;
 
-use trazo_core::composite::render_thumbnail;
-use trazo_core::{ops, FrameId};
-use egui::{Color32, ColorImage, Rect, RichText, TextureHandle, TextureOptions, Vec2};
+use egui::{Align2, Color32, ColorImage, FontId, Pos2, Rect, RichText, Sense, Stroke, TextureHandle, TextureOptions, Vec2};
+use trazo_core::timeline::{self as tl, Block};
+use trazo_core::{FrameId, LayerId};
 
-use crate::app::{TrazoApp, Document, Redraw};
-use crate::icons::{Icon, IconButton};
+use crate::app::{Document, Redraw, TrazoApp};
+use crate::icons::{paint, Icon, IconButton};
+use crate::theme::{ACCENT, CONTROL, DANGER, ELEVATED, SEPARATOR, TEXT, TEXT2, TEXT3};
 
-const THUMB_W: u32 = 96;
-/// Thumbnails regenerated per UI frame (keeps the UI responsive).
-const THUMBS_PER_FRAME: usize = 2;
+/// Width of a drawing thumbnail.
+const THUMB_W: u32 = 48;
+/// Thumbnails made per UI frame (keeps the UI responsive).
+const THUMBS_PER_FRAME: usize = 3;
 
+/// Thumbnails of drawings, remade when their pixels change.
 #[derive(Default)]
 pub struct ThumbCache {
-    map: HashMap<FrameId, TextureHandle>,
+    map: HashMap<(FrameId, LayerId), (u64, TextureHandle)>,
+    budget: usize,
 }
 
 impl ThumbCache {
@@ -23,135 +28,132 @@ impl ThumbCache {
         self.map.clear();
     }
 
-    pub fn update(&mut self, ctx: &egui::Context, doc: &mut Document, busy: bool) {
-        self.map.retain(|id, _| doc.project.frame_index(*id).is_some());
-        doc.stale_frames.retain(|id| doc.project.frame_index(*id).is_some());
-        if busy || doc.stale_frames.is_empty() {
-            return;
+    /// Once per UI frame: refill the budget and drop thumbnails of frames that are gone.
+    pub fn update(&mut self, _ctx: &egui::Context, doc: &mut Document, busy: bool) {
+        self.budget = if busy { 0 } else { THUMBS_PER_FRAME };
+        doc.stale_frames.clear();
+        if self.map.len() > 4 * doc.project.frames.len().max(1) * doc.project.layers.len().max(1) {
+            let alive: std::collections::HashSet<FrameId> = doc.project.frames.iter().map(|f| f.id).collect();
+            self.map.retain(|(f, _), _| alive.contains(f));
         }
-        // Current frame first, then the rest.
-        let current = doc.frame_id();
-        let mut todo: Vec<FrameId> = Vec::new();
-        if doc.stale_frames.contains(&current) {
-            todo.push(current);
-        }
-        todo.extend(doc.stale_frames.iter().copied().filter(|id| *id != current).take(THUMBS_PER_FRAME));
-        todo.truncate(THUMBS_PER_FRAME);
-        for id in todo {
-            doc.stale_frames.remove(&id);
-            let Some(idx) = doc.project.frame_index(id) else { continue };
-            let (w, h, data) = render_thumbnail(&doc.project, idx, THUMB_W);
-            let img = ColorImage::from_rgba_premultiplied([w, h], &data);
-            match self.map.get_mut(&id) {
-                Some(t) => t.set(img, TextureOptions::LINEAR),
-                None => {
-                    let t = ctx.load_texture(format!("thumb{id}"), img, TextureOptions::LINEAR);
-                    self.map.insert(id, t);
-                }
+    }
+
+    /// Thumbnail of the drawing of `layer` that starts in frame `index`.
+    fn get(&mut self, ctx: &egui::Context, doc: &Document, index: usize, layer: LayerId) -> Option<TextureHandle> {
+        let f = doc.project.frames.get(index)?;
+        let cel = f.cel(layer)?;
+        let fp = cel.fingerprint();
+        let key = (f.id, layer);
+        if let Some((have, t)) = self.map.get(&key) {
+            if *have == fp || self.budget == 0 {
+                return Some(t.clone());
             }
         }
-        if !doc.stale_frames.is_empty() {
+        if self.budget == 0 {
             ctx.request_repaint();
+            return None;
         }
+        self.budget -= 1;
+        let (w, h, data) = trazo_core::composite::cel_thumbnail(cel, THUMB_W);
+        let img = ColorImage::from_rgba_premultiplied([w, h], &data);
+        let t = match self.map.remove(&key) {
+            Some((_, mut t)) => {
+                t.set(img, TextureOptions::LINEAR);
+                t
+            }
+            None => ctx.load_texture(format!("cel{}_{}", f.id, layer), img, TextureOptions::LINEAR),
+        };
+        self.map.insert(key, (fp, t.clone()));
+        Some(t)
     }
 }
 
+/// View state of the tracks (zoom and the edge being dragged).
+pub struct TracksState {
+    /// Width of one frame in points.
+    pub ppf: f32,
+    stretch: Option<Stretch>,
+}
+
+impl Default for TracksState {
+    fn default() -> Self {
+        Self { ppf: 26.0, stretch: None }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Stretch {
+    layer: LayerId,
+    start: usize,
+    len: usize,
+}
+
+/// The drawing selected in the timeline: the current layer's drawing at the playhead.
+pub fn selected_block(app: &TrazoApp) -> Option<Block> {
+    let d = &app.doc;
+    let l = d.project.layer(d.layer)?;
+    if l.props.shared || l.props.video.is_some() {
+        return None;
+    }
+    tl::block_at(&d.project, d.layer, d.frame)
+}
+
+/// New drawing on the current layer, right after the one at the playhead (N).
 pub fn add_frame(app: &mut TrazoApp) {
     app.stop_playback();
     let d = &mut app.doc;
-    let idx = ops::insert_blank_frame(&mut d.project, &mut d.history, d.frame + 1);
+    if d.project.layer(d.layer).is_some_and(|l| l.props.shared || l.props.video.is_some()) {
+        return;
+    }
+    let at = tl::insert_drawing(&mut d.project, &mut d.history, d.layer, d.frame, 1, None);
     d.invalidate_all();
-    d.set_frame(idx);
+    d.set_frame(at);
 }
 
+/// Wide layout: controls on top, tracks below, actions of the selected drawing.
 pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
     egui::Panel::bottom("timeline").resizable(false).show(ui, |ui| {
         commit_selection_on_click(app, ui);
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| controls(app, ui));
         ui.add_space(2.0);
-        frames_strip(app, ui, THUMB_W as f32, 90.0);
+        tracks(app, ui, false, 4.5);
+        block_actions(app, ui);
         ui.add_space(4.0);
     });
 }
 
 fn controls(app: &mut TrazoApp, ui: &mut egui::Ui) {
     let mut tab = usize::from(app.audio_ui.show);
-    if crate::widgets::segmented(ui, &mut tab, &["Fotogramas", "Audio"], 220.0) {
+    if crate::widgets::segmented(ui, &mut tab, &["Animación", "Audio"], 220.0) {
         app.audio_ui.show = tab == 1;
         ui.ctx().request_repaint();
     }
     ui.separator();
     let n = app.doc.project.frames.len();
     let cur = app.displayed_frame();
+    let fps = app.doc.project.canvas.fps.max(1) as f32;
     ui.label(RichText::new(format!("Fotograma {} / {}", cur + 1, n)).strong());
+    ui.label(RichText::new(format!("{:.2} s de {:.1} s", cur as f32 / fps, n as f32 / fps).replace('.', ",")).color(TEXT2));
     ui.separator();
-
     let mut goto = None;
     if ui.add(IconButton::new(Icon::First)).on_hover_text("Primero").clicked() {
-        goto = Some(Nav::First);
+        goto = Some(0);
     }
     if ui.add(IconButton::new(Icon::Prev)).on_hover_text("Anterior (,)").clicked() {
-        goto = Some(Nav::Prev);
+        goto = Some(cur.saturating_sub(1));
     }
     if ui.add(IconButton::new(Icon::Next)).on_hover_text("Siguiente (.)").clicked() {
-        goto = Some(Nav::Next);
+        goto = Some(cur + 1);
     }
     if ui.add(IconButton::new(Icon::Last)).on_hover_text("Último").clicked() {
-        goto = Some(Nav::Last);
+        goto = Some(n - 1);
     }
     if let Some(g) = goto {
-        let shown = app.displayed_frame();
         app.stop_playback();
-        let g = match g {
-            Nav::First => 0,
-            Nav::Prev => shown.saturating_sub(1),
-            Nav::Next => shown + 1,
-            Nav::Last => n - 1,
-        };
         app.doc.set_frame(g);
     }
     ui.separator();
-
-    if ui.add(IconButton::new(Icon::Plus).text("Nuevo")).on_hover_text("Fotograma vacío después del actual (N)").clicked() {
-        add_frame(app);
-    }
-    if ui.add(IconButton::new(Icon::Plus).text("Antes")).on_hover_text("Fotograma vacío antes del actual").clicked() {
-        insert_before(app);
-    }
-    let multi = app.frame_selection.len() > 1;
-    let dup_tip = if multi { "Duplicar los fotogramas seleccionados" } else { "Duplicar fotograma" };
-    if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text(dup_tip).clicked() {
-        duplicate_frames(app);
-    }
-    if ui.add(IconButton::new(Icon::Copy)).on_hover_text("Copiar fotograma").clicked() {
-        copy_frame(app, ui.ctx());
-    }
-    if ui.add_enabled(app.frame_clipboard.is_some(), IconButton::new(Icon::Paste)).on_hover_text("Pegar fotograma después del actual").clicked() {
-        paste_frame(app, ui.ctx());
-    }
-    let del_tip = if multi { "Borrar los fotogramas seleccionados" } else { "Borrar fotograma" };
-    if ui.add(IconButton::new(Icon::Trash)).on_hover_text(del_tip).clicked() {
-        delete_frames(app);
-    }
-    if ui.add_enabled(app.doc.frame > 0, IconButton::new(Icon::ArrowLeft)).on_hover_text("Mover a la izquierda").clicked() {
-        move_frame_by(app, -1);
-    }
-    if ui.add_enabled(app.doc.frame + 1 < n, IconButton::new(Icon::ArrowRight)).on_hover_text("Mover a la derecha").clicked() {
-        move_frame_by(app, 1);
-    }
-    // Hold ("exposición"): one undo step per click.
-    let hold = app.doc.project.frames[app.doc.frame].hold;
-    ui.label("Duración").on_hover_text("Cuántos tiempos dura este dibujo (2 = «a doses»)");
-    if ui.add_enabled(hold > 1, IconButton::new(Icon::Minus).size(26.0)).clicked() {
-        change_hold(app, -1);
-    }
-    ui.label(format!("×{hold}"));
-    if ui.add_enabled(hold < 48, IconButton::new(Icon::Plus).size(26.0)).clicked() {
-        change_hold(app, 1);
-    }
-    ui.separator();
-
     // Playback range and ping-pong.
     let cur = app.doc.frame;
     if ui.add(IconButton::new(Icon::RangeIn)).on_hover_text("Inicio del rango de reproducción = fotograma actual").clicked() {
@@ -169,163 +171,373 @@ fn controls(app: &mut TrazoApp, ui: &mut egui::Ui) {
         app.playback.ping_pong = !app.playback.ping_pong;
     }
     ui.separator();
-
     let o = &mut app.onion;
     let mut changed = false;
-    let (r, _) = ui.allocate_exact_size(egui::Vec2::splat(22.0), egui::Sense::hover());
-    crate::icons::paint(ui.painter(), r, Icon::Onion, ui.visuals().text_color());
-    changed |= ui.add(egui::DragValue::new(&mut o.before).range(0..=5).prefix("antes ")).on_hover_text("Fotogramas anteriores").changed();
-    changed |= ui.add(egui::DragValue::new(&mut o.after).range(0..=5).prefix("después ")).on_hover_text("Fotogramas siguientes").changed();
+    let (r, _) = ui.allocate_exact_size(Vec2::splat(22.0), Sense::hover());
+    paint(ui.painter(), r, Icon::Onion, ui.visuals().text_color());
+    changed |= ui.add(egui::DragValue::new(&mut o.before).range(0..=5).prefix("antes ")).on_hover_text("Dibujos anteriores").changed();
+    changed |= ui.add(egui::DragValue::new(&mut o.after).range(0..=5).prefix("después ")).on_hover_text("Dibujos siguientes").changed();
     changed |= ui.add(egui::Slider::new(&mut o.opacity, 0.05..=0.9).show_value(false)).on_hover_text("Opacidad del papel cebolla").changed();
     changed |= ui.checkbox(&mut o.keep_colors, "Colores reales").changed();
     if changed {
         app.doc.redraw = Redraw::Full;
     }
-    ui.label(format!("{:.1} s", app.doc.project.duration_secs()));
+    ui.separator();
+    ui.label("Zoom");
+    ui.add(egui::Slider::new(&mut app.ui.tracks.ppf, 6.0..=48.0).show_value(false)).on_hover_text("Ancho de cada fotograma (también Ctrl+rueda o pellizcar)");
 }
 
-/// Thumbnails of every frame (`thumb_w` wide): tap to go, long-press to
-/// pick several, drag to reorder, "+" to add at the end.
-pub fn frames_strip(app: &mut TrazoApp, ui: &mut egui::Ui, thumb_w: f32, max_h: f32) {
-    let current = app.displayed_frame();
-    let (cw, ch) = (app.doc.project.canvas.width as f32, app.doc.project.canvas.height as f32);
-    let thumb_h = (thumb_w * ch / cw).clamp(30.0, max_h);
-    let n = app.doc.project.frames.len();
-    let range = app.playback.range.map(|_| app.playback.bounds(n));
-    let mods = ui.input(|i| i.modifiers);
-    let mut action: Option<StripAction> = None;
-    let drag_id = egui::Id::unique("frame_drag");
-    let dragging: Option<usize> = ui.data(|d| d.get_temp(drag_id));
-    let mut rects: Vec<egui::Rect> = Vec::with_capacity(n);
-    egui::ScrollArea::horizontal().id_salt("frames").show(ui, |ui| {
-        ui.horizontal(|ui| {
-            for (i, f) in app.doc.project.frames.iter().enumerate() {
-                let size = Vec2::new(thumb_w, thumb_h);
-                let (rect, resp) = ui.allocate_exact_size(size + Vec2::new(0.0, 16.0), egui::Sense::click_and_drag());
-                rects.push(rect);
-                let img_rect = egui::Rect::from_min_size(rect.min, size);
+/// One row per layer (top layer first), time running to the right.
+/// `rows` is how many rows are visible before the list scrolls.
+pub fn tracks(app: &mut TrazoApp, ui: &mut egui::Ui, compact: bool, rows: f32) {
+    let ctx = ui.ctx().clone();
+    let head_w = if compact { 84.0 } else { 160.0 };
+    let row_h = if compact { 44.0 } else { 46.0 };
+    let ruler_h = 22.0;
+    let n_layers = app.doc.project.layers.len();
+    let visible = (n_layers as f32).min(rows);
+    let height = ruler_h + visible * row_h + 4.0;
+
+    // Pinch / Ctrl+wheel zoom over the tracks.
+    let area = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), height));
+    if ui.rect_contains_pointer(area) {
+        let z = ui.input(|i| i.zoom_delta());
+        if z != 1.0 {
+            app.ui.tracks.ppf = (app.ui.tracks.ppf * z).clamp(6.0, 48.0);
+        }
+    }
+    let ppf = app.ui.tracks.ppf;
+
+    egui::ScrollArea::vertical().id_salt("tracks_v").max_height(height).auto_shrink([false, true]).show(ui, |ui| {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            // Track names.
+            let (hr, _) = ui.allocate_exact_size(Vec2::new(head_w, ruler_h + n_layers as f32 * row_h), Sense::hover());
+            let mut picked_layer = None;
+            for (row, li) in (0..n_layers).rev().enumerate() {
+                let layer = &app.doc.project.layers[li];
+                let r = Rect::from_min_size(Pos2::new(hr.left(), hr.top() + ruler_h + row as f32 * row_h), Vec2::new(head_w, row_h));
+                let active = layer.id == app.doc.layer;
+                let resp = ui.interact(r, ui.scope_id().with(("track_head", layer.id)), Sense::click());
                 let p = ui.painter();
-                let dim = dragging == Some(i);
-                p.rect_filled(img_rect, 8.0, if dim { Color32::from_gray(150) } else { Color32::WHITE });
-                if let Some(t) = app.thumbs.map.get(&f.id) {
-                    let tint = if dim { Color32::from_white_alpha(90) } else { Color32::WHITE };
-                    p.image(t.id(), img_rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), tint);
+                if active {
+                    p.rect_filled(r.shrink2(Vec2::new(0.0, 1.0)), 8.0, crate::theme::accent_soft());
                 }
-                // Frames outside the playback range are greyed out.
-                if range.is_some_and(|(a, b)| i < a || i > b) {
-                    p.rect_filled(img_rect, 4.0, Color32::from_black_alpha(120));
-                }
-                let picked = app.frame_selection.contains(&i);
-                if picked {
-                    p.rect_filled(img_rect, 4.0, crate::theme::ACCENT.gamma_multiply(0.25));
-                }
-                let stroke = if i == current {
-                    egui::Stroke::new(2.5, crate::theme::ACCENT)
-                } else if picked {
-                    egui::Stroke::new(2.0, crate::theme::ACCENT.gamma_multiply(0.7))
-                } else {
-                    egui::Stroke::NONE
-                };
-                p.rect_stroke(img_rect.expand(if i == current { 2.0 } else { 0.0 }), 9.0, stroke, egui::StrokeKind::Outside);
-                let label = if f.hold > 1 { format!("{}  ×{}", i + 1, f.hold) } else { format!("{}", i + 1) };
-                p.text(egui::pos2(img_rect.center().x, img_rect.max.y + 8.0), egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(12.0), ui.visuals().text_color());
-                if i == current && app.playback.playing {
-                    resp.scroll_to_me(Some(egui::Align::Center));
-                }
-                if resp.drag_started() {
-                    ui.data_mut(|d| d.insert_temp(drag_id, i));
-                }
-                if resp.long_touched() {
-                    action = Some(StripAction::Toggle(i));
-                } else if resp.clicked() {
-                    action = Some(if mods.command {
-                        StripAction::Toggle(i)
-                    } else if mods.shift {
-                        StripAction::Extend(i)
-                    } else {
-                        StripAction::Select(i)
-                    });
+                let dot = if layer.props.video.is_some() || layer.props.shared { Color32::from_rgb(74, 111, 165) } else if active { ACCENT } else { CONTROL };
+                p.circle_filled(Pos2::new(r.left() + 10.0, r.center().y), 4.0, dot);
+                let name = layer.props.name.clone();
+                let font = FontId::proportional(if compact { 12.0 } else { 13.0 });
+                let galley = p.layout(name, font, if layer.props.visible { TEXT } else { TEXT3 }, head_w - 24.0);
+                p.galley(Pos2::new(r.left() + 20.0, r.center().y - galley.size().y / 2.0), galley, TEXT);
+                if resp.clicked() {
+                    picked_layer = Some(layer.id);
                 }
             }
-            // "+" slot at the end, like FlipaClip.
-            let (rect, resp) = ui.allocate_exact_size(Vec2::new(44.0, thumb_h), egui::Sense::click());
-            ui.painter().rect_stroke(rect, 8.0, egui::Stroke::new(1.5, crate::theme::TEXT3), egui::StrokeKind::Inside);
-            crate::icons::paint(ui.painter(), Rect::from_center_size(rect.center(), Vec2::splat(20.0)), Icon::Plus, crate::theme::TEXT);
-            if resp.on_hover_text("Añadir fotograma al final").clicked() {
-                action = Some(StripAction::Append);
+            if let Some(l) = picked_layer {
+                app.doc.layer = l;
             }
 
-            // Drag to reorder: show where the frame will land.
-            if let Some(from) = dragging {
-                let pointer = ui.input(|i| i.pointer.interact_pos());
-                let to = pointer.map(|p| rects.iter().filter(|r| r.center().x < p.x).count()).unwrap_or(from);
-                if let Some(r) = rects.get(to).or(rects.last()) {
-                    let x = if to < rects.len() { r.min.x - 3.0 } else { r.max.x + 3.0 };
-                    ui.painter().line_segment([egui::pos2(x, r.min.y), egui::pos2(x, r.min.y + thumb_h)], egui::Stroke::new(3.0, crate::theme::ACCENT));
-                }
-                if ui.input(|i| !i.pointer.any_down()) {
-                    ui.data_mut(|d| d.remove::<usize>(drag_id));
-                    // Inserting after itself is a no-op.
-                    let target = if to > from { to - 1 } else { to };
-                    if target != from {
-                        action = Some(StripAction::Move(from, target));
-                    }
-                }
-            }
+            // Lanes, scrolling in time.
+            let n_frames = app.doc.project.frames.len();
+            let content_w = (n_frames as f32 + 4.0) * ppf + 60.0;
+            egui::ScrollArea::horizontal().id_salt("tracks_h").auto_shrink([false, true]).show(ui, |ui| {
+                lanes(app, ui, &ctx, content_w, ruler_h, row_h, ppf, compact);
+            });
         });
     });
-    match action {
-        Some(StripAction::Append) => {
-            app.stop_playback();
-            let d = &mut app.doc;
-            let idx = ops::insert_blank_frame(&mut d.project, &mut d.history, n);
-            d.invalidate_all();
-            d.set_frame(idx);
-            app.frame_selection.clear();
-        }
-        Some(StripAction::Select(i)) => {
-            app.stop_playback();
-            app.doc.set_frame(i);
-            app.frame_selection.clear();
-        }
-        Some(StripAction::Toggle(i)) => {
-            if app.frame_selection.is_empty() {
-                app.frame_selection.insert(app.doc.frame);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lanes(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context, content_w: f32, ruler_h: f32, row_h: f32, ppf: f32, compact: bool) {
+    let n_layers = app.doc.project.layers.len();
+    let (rect, bg) = ui.allocate_exact_size(Vec2::new(content_w, ruler_h + n_layers as f32 * row_h), Sense::click_and_drag());
+    let x_of = |f: f32| rect.left() + f * ppf;
+    let frame_at = |x: f32| (((x - rect.left()) / ppf).floor().max(0.0)) as usize;
+    let n_frames = app.doc.project.frames.len();
+    let fps = app.doc.project.canvas.fps.max(1) as usize;
+    let shown = app.displayed_frame();
+
+    // Ruler: frame numbers, seconds in bold.
+    {
+        let p = ui.painter();
+        let ruler = Rect::from_min_size(rect.min, Vec2::new(rect.width(), ruler_h));
+        p.hline(ruler.x_range(), ruler.bottom(), Stroke::new(1.0, SEPARATOR));
+        let label_every = [1usize, 2, 4, 5, 10, 20, 50].into_iter().find(|k| *k as f32 * ppf >= 34.0).unwrap_or(100);
+        for f in 0..=n_frames {
+            let x = x_of(f as f32);
+            let sec = f % fps == 0 && f > 0;
+            let tick_h = if sec { 10.0 } else if f % label_every == 0 { 6.0 } else { 3.0 };
+            if ppf >= 6.0 || sec {
+                p.vline(x, (ruler.bottom() - tick_h)..=ruler.bottom(), Stroke::new(1.0, if sec { TEXT2 } else { TEXT3 }));
             }
-            if !app.frame_selection.remove(&i) {
-                app.frame_selection.insert(i);
+            if sec {
+                p.text(Pos2::new(x + 3.0, ruler.top() + 7.0), Align2::LEFT_CENTER, format!("{} s", f / fps), FontId::proportional(10.0), TEXT);
+            } else if f % label_every == 0 && f < n_frames {
+                p.text(Pos2::new(x + 3.0, ruler.top() + 7.0), Align2::LEFT_CENTER, format!("{}", f + 1), FontId::proportional(10.0), TEXT3);
             }
         }
-        Some(StripAction::Extend(i)) => {
-            let a = app.doc.frame;
-            app.frame_selection = (a.min(i)..=a.max(i)).collect();
+        // End of the animation.
+        let end = x_of(n_frames as f32);
+        p.vline(end, rect.top()..=rect.bottom(), Stroke::new(1.0, SEPARATOR));
+    }
+
+    let mut set_frame: Option<(usize, Option<LayerId>)> = None;
+    let mut commit_stretch: Option<Stretch> = None;
+    let mut append: Option<LayerId> = None;
+    let selected = selected_block(app);
+    let stretch = app.ui.tracks.stretch;
+
+    for (row, li) in (0..n_layers).rev().enumerate() {
+        let layer = app.doc.project.layers[li].clone();
+        let top = rect.top() + ruler_h + row as f32 * row_h;
+        let lane = Rect::from_min_size(Pos2::new(rect.left(), top), Vec2::new(rect.width(), row_h));
+        let active = layer.id == app.doc.layer;
+        if active {
+            ui.painter().rect_filled(lane, 0.0, Color32::from_rgba_unmultiplied(140, 123, 255, 14));
         }
-        Some(StripAction::Move(from, to)) => {
-            app.stop_playback();
-            let d = &mut app.doc;
-            ops::move_frame(&mut d.project, &mut d.history, from, to);
+        let pad = 3.0;
+        let bar = |a: f32, b: f32| Rect::from_min_max(Pos2::new(x_of(a) + 1.0, top + pad), Pos2::new(x_of(b) - 1.0, top + row_h - pad));
+
+        if let Some(v) = &layer.props.video {
+            let a = v.start.max(0) as f32;
+            let b = (v.end_tick(app.doc.project.canvas.fps).max(0) as f32).max(a + 1.0);
+            let r = bar(a, b);
+            ui.painter().rect_filled(r, 6.0, Color32::from_rgb(45, 75, 115));
+            ui.painter().text(Pos2::new(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, "Video", FontId::proportional(11.0), Color32::from_rgb(181, 233, 255));
+            continue;
+        }
+        if layer.props.shared {
+            let r = bar(0.0, n_frames as f32);
+            ui.painter().rect_filled(r, 6.0, Color32::from_rgb(46, 59, 82));
+            ui.painter().text(Pos2::new(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, "Fondo fijo · todo el plano", FontId::proportional(11.0), Color32::from_rgb(201, 216, 240));
+            continue;
+        }
+
+        let blocks = tl::blocks(&app.doc.project, layer.id);
+        let mut offset = 0isize; // how far later drawings move while stretching
+        for b in &blocks {
+            let is_sel = active && selected == Some(*b);
+            let mut len = b.len;
+            if let Some(s) = stretch.filter(|s| s.layer == layer.id && s.start == b.start) {
+                offset = s.len as isize - b.len as isize;
+                len = s.len;
+            }
+            let start = if stretch.is_some_and(|s| s.layer == layer.id && b.start > s.start) { (b.start as isize + offset).max(0) as usize } else { b.start };
+            let r = bar(start as f32, (start + len) as f32);
+            let p = ui.painter();
+            p.rect_filled(r, 6.0, if is_sel { ACCENT } else { ELEVATED });
+            if is_sel {
+                p.rect_stroke(r, 6.0, Stroke::new(1.5, TEXT), egui::StrokeKind::Outside);
+            }
+            // Thumbnail and length.
+            let mut x = r.left() + 3.0;
+            if r.width() >= 18.0 {
+                if let Some(t) = app.thumbs.get(ctx, &app.doc, b.start, layer.id) {
+                    let s = t.size_vec2();
+                    let th = r.height() - 8.0;
+                    let tw = (th * s.x / s.y).min(r.width() - 6.0);
+                    let tr = Rect::from_min_size(Pos2::new(x, r.center().y - th / 2.0), Vec2::new(tw, th));
+                    ui.painter().image(t.id(), tr, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+                    x = tr.right() + 4.0;
+                }
+            }
+            if len > 1 && r.right() - x > 18.0 {
+                let txt = if r.right() - x > 64.0 && !compact { format!("×{} · {:.2} s", len, len as f32 / fps as f32).replace('.', ",") } else { format!("×{len}") };
+                ui.painter().text(Pos2::new(x, r.center().y), Align2::LEFT_CENTER, txt, FontId::proportional(10.5), if is_sel { Color32::from_rgb(28, 28, 30) } else { TEXT2 });
+            }
+            // Stretch handle on the selected drawing.
+            if is_sel && !layer.props.locked {
+                let hx = r.right();
+                let handle = Rect::from_center_size(Pos2::new(hx, r.center().y), Vec2::new(30.0, row_h));
+                let hr = ui.interact(handle, ui.scope_id().with(("stretch", layer.id, b.start)), Sense::drag());
+                ui.painter().rect_filled(Rect::from_center_size(Pos2::new(hx, r.center().y), Vec2::new(7.0, r.height() - 6.0)), 3.5, TEXT);
+                if hr.drag_started() {
+                    app.ui.tracks.stretch = Some(Stretch { layer: layer.id, start: b.start, len: b.len });
+                }
+                if hr.dragged() {
+                    if let Some(pos) = hr.interact_pointer_pos() {
+                        let new_len = (((pos.x - x_of(b.start as f32)) / ppf).round() as isize).max(1) as usize;
+                        app.ui.tracks.stretch = Some(Stretch { layer: layer.id, start: b.start, len: new_len });
+                        // Bubble with frames and seconds.
+                        let bubble = format!("×{} · {:.2} s", new_len, new_len as f32 / fps as f32).replace('.', ",");
+                        let at = Pos2::new(x_of((b.start + new_len) as f32), top - 4.0);
+                        let galley = ui.painter().layout_no_wrap(bubble, FontId::proportional(13.0), Color32::from_rgb(28, 28, 30));
+                        let br = Rect::from_center_size(Pos2::new(at.x, at.y - galley.size().y / 2.0 - 4.0), galley.size() + Vec2::new(16.0, 8.0));
+                        let fg = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, ui.scope_id().with("stretch_bubble")));
+                        fg.rect_filled(br, 8.0, ACCENT);
+                        fg.galley(br.min + Vec2::new(8.0, 4.0), galley, Color32::from_rgb(28, 28, 30));
+                    }
+                    ui.ctx().request_repaint();
+                }
+                if hr.drag_stopped() {
+                    commit_stretch = app.ui.tracks.stretch.take();
+                }
+                hr.on_hover_cursor(egui::CursorIcon::ResizeHorizontal).on_hover_text("Arrastra para que dure más o menos");
+            }
+        }
+
+        // "+" after the last drawing.
+        if !layer.props.locked {
+            let end = blocks.last().map(|b| b.end()).unwrap_or(0) as f32;
+            let end = if stretch.is_some_and(|s| s.layer == layer.id) { end + offset as f32 } else { end };
+            let r = Rect::from_min_size(Pos2::new(x_of(end) + 4.0, top + pad + 2.0), Vec2::new(row_h - 2.0 * pad - 4.0, row_h - 2.0 * pad - 4.0));
+            let resp = ui.interact(r, ui.scope_id().with(("append", layer.id)), Sense::click());
+            let p = ui.painter();
+            p.rect_stroke(r, 6.0, Stroke::new(1.2, if resp.hovered() { TEXT2 } else { TEXT3 }), egui::StrokeKind::Inside);
+            paint(p, Rect::from_center_size(r.center(), Vec2::splat(14.0)), Icon::Plus, TEXT2);
+            if resp.on_hover_text("Nuevo dibujo al final de esta capa").clicked() {
+                append = Some(layer.id);
+            }
+        }
+
+        // Tap on the lane: go to that frame on that layer.
+        if bg.clicked() || bg.dragged() {
+            if let Some(pos) = bg.interact_pointer_pos() {
+                if lane.contains(pos) {
+                    set_frame = Some((frame_at(pos.x).min(n_frames.saturating_sub(1)), Some(layer.id)));
+                }
+            }
+        }
+    }
+
+    // Tap or drag on the ruler: scrub.
+    if bg.clicked() || bg.dragged() {
+        if let Some(pos) = bg.interact_pointer_pos() {
+            if pos.y < rect.top() + ruler_h {
+                set_frame = Some((frame_at(pos.x).min(n_frames.saturating_sub(1)), None));
+            }
+        }
+    }
+
+    // Playhead.
+    let px = x_of(shown as f32 + 0.5);
+    let p = ui.painter();
+    p.vline(px, rect.top()..=rect.bottom(), Stroke::new(2.0, ACCENT));
+    p.rect_filled(Rect::from_center_size(Pos2::new(px, rect.top() + 5.0), Vec2::new(12.0, 10.0)), 3.0, ACCENT);
+    if app.playback.playing {
+        ui.scroll_to_rect(Rect::from_center_size(Pos2::new(px, rect.center().y), Vec2::new(ppf * 6.0, 4.0)), None);
+    }
+
+    if let Some((f, layer)) = set_frame {
+        app.stop_playback();
+        app.canvas.select.commit(&mut app.doc);
+        if let Some(l) = layer {
+            app.doc.layer = l;
+        }
+        app.doc.set_frame(f);
+    }
+    if let Some(s) = commit_stretch {
+        let d = &mut app.doc;
+        if tl::set_len(&mut d.project, &mut d.history, s.layer, s.start, s.len) {
             d.invalidate_all();
-            d.set_frame(to);
-            app.frame_selection.clear();
         }
-        None => {}
+        d.set_frame(s.start);
+    }
+    if let Some(l) = append {
+        app.stop_playback();
+        let d = &mut app.doc;
+        d.layer = l;
+        let at = tl::append_drawing(&mut d.project, &mut d.history, l);
+        d.invalidate_all();
+        d.set_frame(at);
     }
 }
 
-enum StripAction {
-    Append,
-    Select(usize),
-    Toggle(usize),
-    Extend(usize),
-    Move(usize, usize),
-}
-
-#[derive(Clone, Copy)]
-enum Nav {
-    First,
-    Prev,
-    Next,
-    Last,
+/// Actions on the selected drawing: duration, new, duplicate, move, delete.
+pub fn block_actions(app: &mut TrazoApp, ui: &mut egui::Ui) {
+    let Some(b) = selected_block(app) else {
+        let msg = match app.doc.project.layer(app.doc.layer) {
+            Some(l) if l.props.shared => "Capa de fondo fijo: se ve en todo el plano",
+            Some(l) if l.props.video.is_some() => "Capa de video: ajústala en Capas",
+            _ => "Nada en este fotograma: toca «+» o dibuja para crear un dibujo",
+        };
+        ui.horizontal(|ui| {
+            ui.set_min_height(40.0);
+            ui.label(RichText::new(msg).size(12.0).color(TEXT2));
+        });
+        return;
+    };
+    let fps = app.doc.project.canvas.fps.max(1) as f32;
+    let layer = app.doc.layer;
+    let index = tl::blocks(&app.doc.project, layer).iter().position(|x| *x == b).unwrap_or(0) + 1;
+    let name = app.doc.project.layer(layer).map(|l| l.props.name.clone()).unwrap_or_default();
+    let mut action: Option<u8> = None;
+    let mut new_len = None;
+    let narrow = ui.available_width() < 520.0;
+    ui.horizontal(|ui| {
+        ui.set_min_height(40.0);
+        if !narrow {
+            ui.label(RichText::new(format!("Dibujo {index} · {name}")).size(12.0).color(TEXT2));
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let small = |ui: &mut egui::Ui, icon: Icon, tip: &str, color: Color32| -> bool {
+                let (r, resp) = ui.allocate_exact_size(Vec2::new(40.0, 36.0), Sense::click());
+                ui.painter().rect_filled(r, 10.0, if resp.hovered() { SEPARATOR } else { ELEVATED });
+                paint(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(18.0)), icon, color);
+                resp.on_hover_text(tip).clicked()
+            };
+            if small(ui, Icon::Trash, "Borrar este dibujo", DANGER) {
+                action = Some(0);
+            }
+            if small(ui, Icon::Duplicate, "Duplicar", TEXT) {
+                action = Some(1);
+            }
+            if !narrow && small(ui, Icon::ArrowRight, "Mover después del siguiente", TEXT) {
+                action = Some(3);
+            }
+            if !narrow && small(ui, Icon::ArrowLeft, "Mover antes del anterior", TEXT) {
+                action = Some(4);
+            }
+            if small(ui, Icon::Plus, "Nuevo dibujo después (N)", TEXT) {
+                action = Some(2);
+            }
+            ui.add_space(6.0);
+            // Duration stepper.
+            egui::Frame::new().fill(ELEVATED).corner_radius(10).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    if ui.add(egui::Button::new(RichText::new("+").size(17.0)).frame(false).min_size(Vec2::new(34.0, 34.0))).on_hover_text("Que dure un fotograma más").clicked() {
+                        new_len = Some(b.len + 1);
+                    }
+                    ui.add_sized([86.0, 34.0], egui::Label::new(RichText::new(format!("×{} · {:.2} s", b.len, b.len as f32 / fps).replace('.', ",")).size(12.5).strong()));
+                    if ui.add_enabled(b.len > 1, egui::Button::new(RichText::new("−").size(17.0)).frame(false).min_size(Vec2::new(34.0, 34.0))).on_hover_text("Un fotograma menos").clicked() {
+                        new_len = Some(b.len - 1);
+                    }
+                });
+            });
+        });
+    });
+    if action.is_some_and(|a| a != 2) {
+        app.stop_playback();
+    }
+    let d = &mut app.doc;
+    if let Some(len) = new_len {
+        if tl::set_len(&mut d.project, &mut d.history, layer, b.start, len) {
+            d.invalidate_all();
+        }
+    }
+    match action {
+        Some(0) => {
+            if tl::delete(&mut d.project, &mut d.history, layer, b.start) {
+                d.invalidate_all();
+            }
+        }
+        Some(1) => {
+            if let Some(at) = tl::duplicate(&mut d.project, &mut d.history, layer, b.start) {
+                d.invalidate_all();
+                d.set_frame(at);
+            }
+        }
+        Some(2) => add_frame(app),
+        Some(3) | Some(4) => {
+            let dir = if action == Some(3) { 1 } else { -1 };
+            if let Some(at) = tl::shift(&mut d.project, &mut d.history, layer, b.start, dir) {
+                d.invalidate_all();
+                d.set_frame(at);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Clicking a panel applies any floating selection first, so frame and layer
@@ -333,98 +545,5 @@ enum Nav {
 pub fn commit_selection_on_click(app: &mut TrazoApp, ui: &egui::Ui) {
     if app.canvas.select.is_active() && ui.ui_contains_pointer() && ui.input(|i| i.pointer.any_pressed()) {
         app.canvas.select.commit(&mut app.doc);
-    }
-}
-
-// ---- frame operations (shared by the tablet bar and the phone menu) ----------
-
-/// Empty frame before the current one.
-pub fn insert_before(app: &mut TrazoApp) {
-    app.stop_playback();
-    let d = &mut app.doc;
-    let idx = ops::insert_blank_frame(&mut d.project, &mut d.history, d.frame);
-    d.invalidate_all();
-    d.frame = idx;
-    d.redraw = Redraw::Full;
-}
-
-/// Duplicate the current frame, or every picked frame.
-pub fn duplicate_frames(app: &mut TrazoApp) {
-    app.stop_playback();
-    let multi = app.frame_selection.len() > 1;
-    let sel: Vec<usize> = if multi { app.frame_selection.iter().copied().collect() } else { vec![app.doc.frame] };
-    let d = &mut app.doc;
-    let mark = d.history.undo_len();
-    let after = *sel.last().expect("non-empty");
-    for (k, idx) in sel.iter().enumerate() {
-        let mut f = d.project.frames[*idx].clone();
-        f.id = d.project.alloc_id();
-        d.history.execute(&mut d.project, trazo_core::Edit::InsertFrame { index: after + 1 + k, frame: f });
-    }
-    d.history.group_since(mark);
-    d.invalidate_all();
-    d.set_frame(after + 1);
-    app.frame_selection.clear();
-}
-
-pub fn copy_frame(app: &mut TrazoApp, ctx: &egui::Context) {
-    app.frame_clipboard = Some(app.doc.project.frames[app.doc.frame].clone());
-    app.toast(ctx, "Fotograma copiado");
-}
-
-/// Paste the copied frame after the current one.
-pub fn paste_frame(app: &mut TrazoApp, ctx: &egui::Context) {
-    app.stop_playback();
-    let (cw, ch) = (app.doc.project.canvas.width, app.doc.project.canvas.height);
-    if app.frame_clipboard.as_ref().is_some_and(|f| f.cels.values().any(|c| c.width() != cw || c.height() != ch)) {
-        app.toast(ctx, "Ese fotograma es de un lienzo de otro tamaño");
-    } else if let Some(mut f) = app.frame_clipboard.clone() {
-        let d = &mut app.doc;
-        // Drop cels of layers that no longer exist.
-        f.cels.retain(|lid, _| d.project.layer_index(*lid).is_some());
-        f.id = d.project.alloc_id();
-        let index = d.frame + 1;
-        d.history.execute(&mut d.project, trazo_core::Edit::InsertFrame { index, frame: f });
-        d.invalidate_all();
-        d.set_frame(index);
-    }
-}
-
-/// Delete the current frame, or every picked frame.
-pub fn delete_frames(app: &mut TrazoApp) {
-    app.stop_playback();
-    let multi = app.frame_selection.len() > 1;
-    let sel: Vec<usize> = if multi { app.frame_selection.iter().copied().collect() } else { vec![app.doc.frame] };
-    let d = &mut app.doc;
-    let mark = d.history.undo_len();
-    for idx in sel.iter().rev() {
-        ops::delete_frame(&mut d.project, &mut d.history, *idx);
-    }
-    d.history.group_since(mark);
-    d.invalidate_all();
-    app.frame_selection.clear();
-}
-
-/// Move the current frame one place left (-1) or right (+1).
-pub fn move_frame_by(app: &mut TrazoApp, delta: i32) {
-    let d = &mut app.doc;
-    let n = d.project.frames.len();
-    let to = d.frame as i64 + delta as i64;
-    if to < 0 || to >= n as i64 {
-        return;
-    }
-    ops::move_frame(&mut d.project, &mut d.history, d.frame, to as usize);
-    d.frame = to as usize;
-    d.invalidate_all();
-}
-
-/// Lengthen or shorten how long the current drawing stays on screen.
-pub fn change_hold(app: &mut TrazoApp, delta: i32) {
-    let d = &mut app.doc;
-    let hold = d.project.frames[d.frame].hold as i32;
-    let new = (hold + delta).clamp(1, 48) as u32;
-    if new as i32 != hold {
-        ops::set_frame_hold(&mut d.project, &mut d.history, d.frame, new);
-        d.timing_changed();
     }
 }

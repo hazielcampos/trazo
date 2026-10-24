@@ -218,6 +218,8 @@ pub struct UiState {
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
     pub sheet: Option<panels::SideTab>,
+    /// Zoom and gestures of the per-layer timeline.
+    pub tracks: panels::timeline::TracksState,
 }
 
 pub struct TrazoApp {
@@ -289,6 +291,7 @@ impl TrazoApp {
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
+                tracks: Default::default(),
             },
             thumbs: Default::default(),
             previews: Default::default(),

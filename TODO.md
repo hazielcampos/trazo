@@ -1,5 +1,13 @@
 # TODO
 
+## Línea de tiempo por capas — hecha (23-10-2026)
+- Una pista por capa; cada dibujo dura N fotogramas (`Frame.cont` marca las continuaciones).
+- Estirar arrastrando el borde (burbuja ×N · s), −/+ en la barra de acciones, añadir, duplicar,
+  mover y borrar dibujos por capa; deshacer de todo como «línea de tiempo».
+- Papel cebolla por capa (dibujo anterior/siguiente de esa capa). Formato compatible: los
+  proyectos viejos con «hold» se convierten al abrir.
+- Pendiente: arrastrar un dibujo para moverlo, selección múltiple de dibujos, pista del clip de video.
+
 ## Fase 4: importar video (rotoscopia) — hecha (23-10-2026)
 - Capa de video: fotogramas en JPEG (máx. 1280 px, 3600 imágenes, 400 MB), decodificados
   al vuelo con caché y precarga. Solo referencia por defecto (no se exporta), tinte gris/azul,

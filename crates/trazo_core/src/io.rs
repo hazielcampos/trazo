@@ -134,6 +134,12 @@ struct FrameManifest {
     id: FrameId,
     hold: u32,
     cels: Vec<CelManifest>,
+    /// Layers continuing an earlier drawing here (per-layer timing).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    cont: Vec<LayerId>,
+    /// Layers with a drawing that is still empty (keeps its place on the row).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    empty: Vec<LayerId>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -345,8 +351,12 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<()> {
         let mut frames = Vec::with_capacity(p.frames.len());
         for f in &p.frames {
             let mut cels = Vec::new();
+            let mut empty = Vec::new();
             for (&lid, img) in &f.cels {
-                let Some(b) = img.content_bounds() else { continue };
+                let Some(b) = img.content_bounds() else {
+                    empty.push(lid);
+                    continue;
+                };
                 let mut data = img.read_region(&b);
                 unpremultiply(&mut data);
                 let file = format!("cels/{}_{}.png", f.id, lid);
@@ -354,7 +364,7 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<()> {
                 zip.write_all(&encode_png(b.width() as u32, b.height() as u32, &data)?)?;
                 cels.push(CelManifest { layer: lid, x: b.x0, y: b.y0, file });
             }
-            frames.push(FrameManifest { id: f.id, hold: f.hold, cels });
+            frames.push(FrameManifest { id: f.id, hold: f.hold, cels, cont: f.cont.iter().copied().collect(), empty });
         }
         let mut shared_cels = Vec::new();
         for (&lid, img) in &p.shared_cels {
@@ -444,9 +454,12 @@ pub fn load_project(path: &Path) -> Result<Project> {
     };
     let mut frames = Vec::with_capacity(manifest.frames.len());
     for fm in &manifest.frames {
-        let mut frame = Frame { id: fm.id, hold: fm.hold.max(1), cels: Default::default() };
+        let mut frame = Frame { id: fm.id, hold: fm.hold.max(1), cels: Default::default(), cont: fm.cont.iter().copied().collect() };
         for c in &fm.cels {
             frame.cels.insert(c.layer, read_cel(c)?);
+        }
+        for &lid in &fm.empty {
+            frame.cels.entry(lid).or_insert_with(|| TiledImage::new(w, h));
         }
         frames.push(frame);
     }
@@ -500,7 +513,10 @@ pub fn load_project(path: &Path) -> Result<Project> {
             v.clamp();
         }
     }
-    Ok(Project::from_parts(manifest.name, manifest.canvas, layers, frames, shared, audio, manifest.next_id))
+    let mut p = Project::from_parts(manifest.name, manifest.canvas, layers, frames, shared, audio, manifest.next_id);
+    // Old projects timed every layer together: give each layer its own row.
+    crate::timeline::normalize_holds(&mut p);
+    Ok(p)
 }
 
 #[cfg(test)]
@@ -520,10 +536,21 @@ mod tests {
         let q = load_project(&path).unwrap();
         assert_eq!(q.name, "Prueba");
         assert_eq!(q.canvas.fps, 24);
-        assert_eq!(q.frames[0].hold, 3);
+        // An old-style hold of 3 becomes a drawing lasting 3 frames.
+        assert_eq!(q.frames.len(), 3);
+        assert_eq!(crate::timeline::block_at(&q, lid, 2), Some(crate::timeline::Block { start: 0, len: 3 }));
         let px = q.frames[0].cel(lid).unwrap().pixel(150, 100);
         assert!(px[3] == 128 && (px[0] as i32 - 100).abs() <= 2, "{px:?}");
         assert!(q.next_id() >= p.next_id());
+        // Per-layer timing and empty drawings survive a save.
+        let mut q = q;
+        let mut h = crate::History::default();
+        crate::timeline::append_drawing(&mut q, &mut h, lid);
+        crate::timeline::set_len(&mut q, &mut h, lid, 3, 2);
+        save_project(&q, &path).unwrap();
+        let r = load_project(&path).unwrap();
+        assert_eq!(crate::timeline::blocks(&r, lid), crate::timeline::blocks(&q, lid));
+        assert_eq!(r.frames.len(), 5);
         std::fs::remove_dir_all(&dir).ok();
     }
 

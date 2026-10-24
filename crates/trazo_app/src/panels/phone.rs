@@ -12,7 +12,7 @@ use trazo_core::shapes::ShapeKind;
 use crate::app::{TrazoApp, Redraw};
 use crate::icons::{paint, Icon};
 use crate::panels::SideTab;
-use crate::theme::{self, ACCENT, CONTROL, DANGER, ELEVATED, SURFACE, TEXT, TEXT2};
+use crate::theme::{self, ACCENT, CONTROL, ELEVATED, SURFACE, TEXT, TEXT2};
 use crate::tools::{LassoMode, Tool};
 use crate::widgets::{self, tool_button, SheetEdge};
 
@@ -300,7 +300,9 @@ pub fn timeline(app: &mut TrazoApp, ui: &mut Ui) {
         .show(ui, |ui| {
             crate::panels::timeline::commit_selection_on_click(app, ui);
             tabs_header(app, ui);
-            crate::panels::timeline::frames_strip(app, ui, 64.0, 48.0);
+            ui.add_space(4.0);
+            crate::panels::timeline::tracks(app, ui, true, 3.0);
+            crate::panels::timeline::block_actions(app, ui);
         });
 }
 
@@ -314,7 +316,7 @@ pub fn tabs_header(app: &mut TrazoApp, ui: &mut Ui) {
         ui.add_space(6.0);
         let mut tab = usize::from(app.audio_ui.show);
         let w = (ui.available_width() - 2.0 * theme::TOUCH - 8.0).clamp(120.0, 220.0);
-        if widgets::segmented(ui, &mut tab, &["Fotogramas", "Audio"], w) {
+        if widgets::segmented(ui, &mut tab, &["Animación", "Audio"], w) {
             app.audio_ui.show = tab == 1;
             ui.ctx().request_repaint();
         }
@@ -361,50 +363,9 @@ fn onion_toggle(app: &mut TrazoApp, ui: &mut Ui) {
     }
 }
 
-/// Frame operations, playback and onion-skin options.
+/// Playback and onion-skin options (drawing operations live in the timeline).
 pub fn frame_menu(app: &mut TrazoApp, ui: &mut Ui) {
-    use crate::panels::timeline as tl;
     ui.set_min_width(260.0);
-    let ctx = ui.ctx().clone();
-    let n = app.doc.project.frames.len();
-    let item = |ui: &mut Ui, icon: Icon, text: &str, enabled: bool| ui.add_enabled(enabled, crate::icons::IconButton::new(icon).keep_text().text(text).size(40.0)).clicked();
-    if item(ui, Icon::Plus, "Fotograma antes", true) {
-        tl::insert_before(app);
-        ui.close();
-    }
-    if item(ui, Icon::Duplicate, "Duplicar", true) {
-        tl::duplicate_frames(app);
-        ui.close();
-    }
-    if item(ui, Icon::Copy, "Copiar", true) {
-        tl::copy_frame(app, &ctx);
-        ui.close();
-    }
-    if item(ui, Icon::Paste, "Pegar después", app.frame_clipboard.is_some()) {
-        tl::paste_frame(app, &ctx);
-        ui.close();
-    }
-    ui.horizontal(|ui| {
-        if ui.add_enabled(app.doc.frame > 0, crate::icons::IconButton::new(Icon::ArrowLeft).size(40.0)).on_hover_text("Mover a la izquierda").clicked() {
-            tl::move_frame_by(app, -1);
-        }
-        if ui.add_enabled(app.doc.frame + 1 < n, crate::icons::IconButton::new(Icon::ArrowRight).size(40.0)).on_hover_text("Mover a la derecha").clicked() {
-            tl::move_frame_by(app, 1);
-        }
-        ui.label(RichText::new("Mover").color(TEXT2));
-    });
-    let hold = app.doc.project.frames[app.doc.frame].hold;
-    ui.horizontal(|ui| {
-        if ui.add_enabled(hold > 1, crate::icons::IconButton::new(Icon::Minus).size(40.0)).clicked() {
-            tl::change_hold(app, -1);
-        }
-        ui.label(RichText::new(format!("×{hold}")).strong());
-        if ui.add_enabled(hold < 48, crate::icons::IconButton::new(Icon::Plus).size(40.0)).clicked() {
-            tl::change_hold(app, 1);
-        }
-        ui.label(RichText::new("Duración").color(TEXT2));
-    });
-    ui.separator();
     ui.horizontal(|ui| {
         ui.label("Velocidad");
         let mut fps = app.doc.project.canvas.fps;
@@ -428,13 +389,7 @@ pub fn frame_menu(app: &mut TrazoApp, ui: &mut Ui) {
     if changed {
         app.doc.redraw = Redraw::Full;
     }
-    ui.separator();
-    let multi = app.frame_selection.len() > 1;
-    let del = if multi { "Borrar seleccionados" } else { "Borrar fotograma" };
-    if ui.add(egui::Button::new(RichText::new(del).color(DANGER)).frame(false).min_size(Vec2::new(0.0, 40.0))).clicked() {
-        tl::delete_frames(app);
-        ui.close();
-    }
+
 }
 
 // ---- on its side ----------------------------------------------------------------------
@@ -508,7 +463,7 @@ pub fn floating_strip(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
                 play_button(app, ui, 40.0);
                 counter(app, ui);
                 onion_toggle(app, ui);
-                crate::panels::timeline::frames_strip(app, ui, 56.0, 36.0);
+                ui.vertical(|ui| crate::panels::timeline::tracks(app, ui, true, 2.0));
             });
         });
     });

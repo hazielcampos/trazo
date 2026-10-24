@@ -101,7 +101,18 @@ pub fn duplicate_layer(p: &mut Project, h: &mut History, layer: LayerId) -> Opti
     let mut props = p.layers[i].props.clone();
     props.name = format!("{} copia", props.name);
     let cels = p.layer_cels(layer);
+    let before = p.frames.clone();
     h.execute(p, Edit::InsertLayer { index: i + 1, layer: Layer { id, props }, cels });
+    // Same timing as the original.
+    let mut after = p.frames.clone();
+    for f in &mut after {
+        if f.cont.contains(&layer) {
+            f.cont.insert(id);
+        }
+    }
+    let mark = h.undo_len();
+    h.execute(p, Edit::Timeline { before, after });
+    h.group_since(mark - 1);
     Some(id)
 }
 
@@ -113,7 +124,12 @@ pub fn delete_layer(p: &mut Project, h: &mut History, layer: LayerId) -> bool {
     let Some(index) = p.layer_index(layer) else { return false };
     let cels = p.layer_cels(layer);
     let l = p.layers[index].clone();
-    h.execute(p, Edit::RemoveLayer { index, layer: l, cels });
+    // The frame snapshot brings its timing back on undo.
+    let before = p.frames.clone();
+    let remove = Edit::RemoveLayer { index, layer: l, cels };
+    remove.redo(p);
+    let after = p.frames.clone();
+    h.push_applied(Edit::Batch(vec![Edit::Timeline { before, after }, remove]));
     true
 }
 
@@ -143,23 +159,34 @@ pub fn add_video_layer(p: &mut Project, h: &mut History, index: usize, name: Str
     id
 }
 
-/// Append empty frames, each lasting `hold` ticks ("on twos" = 2), until the
-/// animation lasts at least `ticks`. One undo step. Returns how many were added.
-pub fn extend_to_ticks(p: &mut Project, h: &mut History, ticks: u32, hold: u32) -> usize {
-    let hold = hold.clamp(1, 12);
-    let mut total = p.total_ticks();
-    let mut edits = Vec::new();
-    while total < ticks && edits.len() < 20_000 {
+/// Lengthen the animation to at least `ticks` frames. With a `layer`, the new
+/// time gets empty drawings on it, one every `hold` frames ("a doses" = 2),
+/// ready to draw on. One undo step. Returns how many drawings were added.
+pub fn extend_to_ticks(p: &mut Project, h: &mut History, ticks: u32, hold: u32, layer: Option<LayerId>) -> usize {
+    let hold = hold.clamp(1, 12) as usize;
+    let ticks = (ticks as usize).min(100_000);
+    if ticks <= p.frames.len() {
+        return 0;
+    }
+    let before = p.frames.clone();
+    let (w, ht) = (p.canvas.width, p.canvas.height);
+    let start = p.frames.len();
+    let mut after = before.clone();
+    let mut added = 0;
+    for i in start..ticks {
         let mut f = crate::Frame::new(p.alloc_id());
-        f.hold = hold;
-        edits.push(Edit::InsertFrame { index: p.frames.len() + edits.len(), frame: f });
-        total += hold;
+        if let Some(l) = layer {
+            if (i - start).is_multiple_of(hold) {
+                f.cels.insert(l, TiledImage::new(w, ht));
+                added += 1;
+            } else {
+                f.cont.insert(l);
+            }
+        }
+        after.push(f);
     }
-    let added = edits.len();
-    if added > 0 {
-        h.execute(p, Edit::Batch(edits));
-    }
-    added
+    h.execute(p, Edit::Timeline { before, after });
+    added.max(1)
 }
 
 /// Replace the audio track list as one undo step (no-op if unchanged).
@@ -211,6 +238,9 @@ pub fn merge_down(p: &mut Project, h: &mut History, layer: LayerId) -> Option<La
     if upper.props.video.is_some() || p.layers[i - 1].props.video.is_some() {
         return None; // video pictures aren't drawings
     }
+    if p.frames.iter().any(|f| f.cont.contains(&layer) || f.cont.contains(&lower)) {
+        return None; // different timings can't be merged frame by frame
+    }
     let (w, hgt) = (p.canvas.width, p.canvas.height);
     let mut edits = Vec::new();
     for f in &mut p.frames {
@@ -261,12 +291,13 @@ mod video_tests {
     fn extending_is_one_undo_step_with_holds() {
         let mut p = Project::new("t", CanvasSettings::default());
         let mut h = History::default();
-        assert_eq!(extend_to_ticks(&mut p, &mut h, 9, 2), 4);
-        assert_eq!((p.frames.len(), p.total_ticks()), (5, 9));
-        assert!(p.frames[1..].iter().all(|f| f.hold == 2));
+        let l = p.layers[0].id;
+        assert_eq!(extend_to_ticks(&mut p, &mut h, 9, 2, Some(l)), 4);
+        assert_eq!((p.frames.len(), p.total_ticks()), (9, 9));
+        assert_eq!(crate::timeline::block_at(&p, l, 2), Some(crate::timeline::Block { start: 1, len: 2 }));
         h.undo(&mut p);
         assert_eq!(p.frames.len(), 1, "a single undo removes them all");
-        assert_eq!(extend_to_ticks(&mut p, &mut h, 1, 1), 0);
+        assert_eq!(extend_to_ticks(&mut p, &mut h, 1, 1, None), 0);
     }
 }
 
