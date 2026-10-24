@@ -33,6 +33,7 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
     let tex = preview_texture(app, ctx);
     crate::widgets::backdrop(ctx);
     crate::widgets::dialog(ctx, tr("Cámara"), 460.0).min_height(0.0).open(&mut open).show(ctx, |ui| {
+        egui::ScrollArea::vertical().id_salt("camera_body").show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 8.0;
         let ui_state = &mut app.ui.camera;
         let cam = &mut app.doc.project.canvas.camera;
@@ -49,7 +50,8 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
             }
             // Preview: the frame with both framings on top.
             let avail = ui.available_width();
-            let scale = (avail / w as f32).min(260.0 / h as f32);
+            let max_h = (ui.ctx().content_rect().height() * 0.35).clamp(120.0, 260.0);
+            let scale = (avail / w as f32).min(max_h / h as f32);
             let (rect, resp) = ui.allocate_exact_size(Vec2::new(w as f32 * scale, h as f32 * scale), Sense::click_and_drag());
             let p = ui.painter_at(rect.expand(2.0));
             p.rect_filled(rect, 2.0, Color32::from_gray(40));
@@ -85,7 +87,7 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
             });
             let (mut reset, mut copy) = (false, false);
             ui.horizontal(|ui| {
-                reset = ui.button(tr("Centrar")).clicked();
+                reset = ui.button(tr("Restablecer")).clicked();
                 copy = ui.button(if ui_state.editing_end { tr("Igual que el inicio") } else { tr("Igual que el final") }).clicked();
             });
             let other = if ui_state.editing_end { cam.start } else { cam.end };
@@ -110,6 +112,7 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
             if crate::widgets::switch_row(ui, tr("Ver a través de la cámara al reproducir"), &mut view) {
                 ui_state.hide_view = !view;
             }
+        });
         });
     });
     if changed {

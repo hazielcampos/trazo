@@ -261,25 +261,42 @@ impl CanvasView {
         }
         if let Some(tex) = &self.texture {
             let mut mesh = egui::Mesh::with_texture(tex.id());
-            // Through the camera: the canvas area shows what the camera
-            // frames (done by the GPU, no extra drawing work).
-            let uvs = if through_camera {
-                cam_pose.corners(doc.project.canvas.width, doc.project.canvas.height).map(|(x, y)| Pos2::new(x / cw, y / ch))
-            } else {
-                [Pos2::new(0.0, 0.0), Pos2::new(1.0, 0.0), Pos2::new(1.0, 1.0), Pos2::new(0.0, 1.0)]
+            // Through the camera the picture is moved, scaled and turned the
+            // opposite way and clipped to the canvas (done by the GPU, and
+            // what leaves the canvas shows the background, like the export).
+            let place = |c: Pos2| -> Pos2 {
+                if !through_camera {
+                    return xf.to_screen(c);
+                }
+                let (cx, cy) = (cam_pose.x * cw, cam_pose.y * ch);
+                let (s, co) = (-cam_pose.angle).sin_cos();
+                let (dx, dy) = (c.x - cx, c.y - cy);
+                let o = Pos2::new(cw / 2.0 + cam_pose.zoom * (dx * co - dy * s), ch / 2.0 + cam_pose.zoom * (dx * s + dy * co));
+                xf.to_screen(o)
             };
-            for (pos, uv) in corners.iter().zip(uvs) {
-                mesh.vertices.push(egui::epaint::Vertex { pos: *pos, uv, color: Color32::WHITE });
+            let uvs = [Pos2::new(0.0, 0.0), Pos2::new(1.0, 0.0), Pos2::new(1.0, 1.0), Pos2::new(0.0, 1.0)];
+            let canvas_pts = [Pos2::new(0.0, 0.0), Pos2::new(cw, 0.0), Pos2::new(cw, ch), Pos2::new(0.0, ch)];
+            for (c, uv) in canvas_pts.into_iter().zip(uvs) {
+                mesh.vertices.push(egui::epaint::Vertex { pos: place(c), uv, color: Color32::WHITE });
             }
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(0, 2, 3);
+            let painter = if through_camera {
+                let r = Rect::from_points(&corners);
+                painter.with_clip_rect(r.intersect(painter.clip_rect()))
+            } else {
+                painter.clone()
+            };
             painter.add(mesh);
         }
 
         // The camera's framing at this frame.
-        if cam.enabled && !playing {
+        if cam.enabled && !playing && self.camera_view {
             let pts: Vec<Pos2> = cam_pose.corners(doc.project.canvas.width, doc.project.canvas.height).map(|(x, y)| xf.to_screen(Pos2::new(x, y))).to_vec();
-            painter.add(egui::Shape::closed_line(pts, UiStroke::new(2.0, crate::theme::ACCENT)));
+            let mut closed = pts.clone();
+            closed.push(pts[0]);
+            painter.add(egui::Shape::dashed_line(&closed, UiStroke::new(2.0, crate::theme::ACCENT), 10.0, 6.0));
+            painter.text(pts[0] + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, crate::i18n::tr("Cámara"), egui::FontId::proportional(12.0), crate::theme::ACCENT);
         }
         if tools.show_grid && !playing {
             let step = tools.grid_size.max(4) as f32;

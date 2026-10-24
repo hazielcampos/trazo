@@ -60,6 +60,8 @@ fn with_guide(name: &str, canvas: CanvasSettings, background: Option<TiledImage>
     let mut props = LayerProps::named("Guía");
     props.locked = true;
     props.opacity = 0.45;
+    props.guide = true;
+    props.onion_skin = false;
     p.layers.insert(0, Layer { id: guide, props });
     if let Some(bg) = background {
         let id = p.alloc_id();
@@ -264,7 +266,13 @@ mod tests {
             let top = p.layers.last().unwrap();
             assert_eq!(top.props.name, "Dibujo");
             let guide = p.layers.iter().find(|l| l.props.name == "Guía").unwrap();
-            assert!(guide.props.locked);
+            assert!(guide.props.locked && guide.props.guide);
+            // The guide never reaches the exported picture.
+            let out = crate::composite::render_frame(&p, 0, false);
+            let guide_only = p.layers.iter().all(|l| l.props.name != "Fondo");
+            if guide_only {
+                assert!(out.chunks_exact(4).all(|px| px[3] == 0), "{t:?}: guide exported");
+            }
             // Every frame has its own guide drawing with something on it.
             for f in &p.frames {
                 let g = f.cels.get(&guide.id).expect("guide drawing");

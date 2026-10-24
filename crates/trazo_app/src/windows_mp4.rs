@@ -9,7 +9,7 @@ use trazo_core::export::{audio_block, mp4_bitrate, plan, ExportSettings, FrameCa
 use trazo_core::Project;
 use windows::core::{GUID, HSTRING, PCWSTR};
 use windows::Win32::Media::MediaFoundation::*;
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 
 /// Media Foundation time unit: 100 ns.
 const SECOND: i64 = 10_000_000;
@@ -34,16 +34,24 @@ fn media_type(major: &GUID, sub: &GUID) -> Result<IMFMediaType, String> {
 }
 
 /// Media Foundation started for this thread; shut down when dropped.
-struct Session;
+struct Session {
+    com: bool,
+}
 
 impl Session {
     fn start() -> Result<Self, String> {
         unsafe {
-            // Already initialised on this thread is fine.
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-            MFStartup(MF_VERSION, MFSTARTUP_FULL).map_err(err)?;
+            // S_OK or S_FALSE (already initialised) both need a matching uninit.
+            let com = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
+            if let Err(e) = MFStartup(MF_VERSION, MFSTARTUP_FULL) {
+                if com {
+                    CoUninitialize();
+                }
+                // Windows "N" editions ship without Media Foundation.
+                return Err(tf!("Windows no tiene el codificador de video ({}). Exporta en GIF o PNG, o instala el «Media Feature Pack».", e.code()));
+            }
+            Ok(Session { com })
         }
-        Ok(Session)
     }
 }
 
@@ -51,6 +59,20 @@ impl Drop for Session {
     fn drop(&mut self) {
         unsafe {
             let _ = MFShutdown();
+            if self.com {
+                CoUninitialize();
+            }
+        }
+    }
+}
+
+/// The file being written; removed unless it was finished.
+struct Partial(std::path::PathBuf, bool);
+
+impl Drop for Partial {
+    fn drop(&mut self) {
+        if !self.1 {
+            let _ = std::fs::remove_file(&self.0);
         }
     }
 }
@@ -66,13 +88,17 @@ pub fn export_mp4(p: &Project, s: &ExportSettings, path: &Path, progress: &mut d
     let fps = plan.fps.max(1);
     let with_audio = s.include_audio && plan.has_audio;
     let _session = Session::start()?;
+    // Written next to the target and renamed at the end, so a cancelled or
+    // failed export never leaves a broken file (or replaces a good one).
+    let mut part = Partial(path.with_extension("mp4.part"), false);
 
     let writer = unsafe {
         let mut attrs = None;
         MFCreateAttributes(&mut attrs, 1).map_err(err)?;
         let attrs = attrs.ok_or("Media Foundation: atributos")?;
         attrs.SetUINT32(&MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, 1).map_err(err)?;
-        let url = HSTRING::from(path.as_os_str());
+        attrs.SetGUID(&MF_TRANSCODE_CONTAINERTYPE, &MFTranscodeContainerType_MPEG4).map_err(err)?;
+        let url = HSTRING::from(part.0.as_os_str());
         MFCreateSinkWriterFromURL(PCWSTR(url.as_ptr()), None, &attrs).map_err(err)?
     };
 
@@ -178,6 +204,9 @@ pub fn export_mp4(p: &Project, s: &ExportSettings, path: &Path, progress: &mut d
         }
     }
     unsafe { writer.Finalize().map_err(err)? };
+    drop(writer);
+    std::fs::rename(&part.0, path).map_err(|e| e.to_string())?;
+    part.1 = true;
     progress(1.0);
     Ok(())
 }

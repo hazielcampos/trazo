@@ -26,8 +26,30 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
         if ui.add(IconButton::new(Icon::Plus)).on_hover_text(tr("Nueva capa")).clicked() {
             let idx = doc.layer_index() + 1;
             let name = crate::i18n::default_layer_name(doc.project.layers.len() + 1);
+            // A new layer inside a folder joins that folder.
+            let folder = doc.project.layers.get(idx - 1).and_then(|l| l.props.folder.clone());
+            let mark = doc.history.undo_len();
             doc.layer = ops::add_layer(&mut doc.project, &mut doc.history, idx, name);
+            if folder.is_some() && doc.project.layers.get(idx + 1).and_then(|l| l.props.folder.clone()) == folder {
+                let mut props = doc.project.layers[idx].props.clone();
+                props.folder = folder;
+                ops::set_layer_props(&mut doc.project, &mut doc.history, doc.layer, props);
+            }
+            doc.history.group_since(mark);
             doc.invalidate_all();
+        }
+        if ui.add(IconButton::new(Icon::Open)).on_hover_text(tr("Meter esta capa en una carpeta nueva")).clicked() {
+            let mut k = 1;
+            let mut name = tf!("Carpeta {}", k);
+            while doc.project.layers.iter().any(|l| l.props.folder.as_deref() == Some(name.as_str())) {
+                k += 1;
+                name = tf!("Carpeta {}", k);
+            }
+            let i = doc.layer_index();
+            let mut props = doc.project.layers[i].props.clone();
+            props.folder = Some(name);
+            let id = doc.project.layers[i].id;
+            ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
         }
         if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text(tr("Duplicar capa")).clicked() {
             if let Some(id) = ops::duplicate_layer(&mut doc.project, &mut doc.history, doc.layer) {
@@ -82,7 +104,7 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
             if let Some(f) = &layer.props.folder {
                 let starts = i + 1 == n || doc.project.layers[i + 1].props.folder.as_ref() != Some(f);
                 if starts {
-                    let members: Vec<usize> = (0..n).filter(|&j| doc.project.layers[j].props.folder.as_ref() == Some(f)).collect();
+                    let members: Vec<usize> = (0..=i).rev().take_while(|&j| doc.project.layers[j].props.folder.as_ref() == Some(f)).collect();
                     let all_visible = members.iter().all(|&j| doc.project.layers[j].props.visible);
                     let all_locked = members.iter().all(|&j| doc.project.layers[j].props.locked);
                     let open = !folded.contains(f);
@@ -201,7 +223,10 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
                 doc.invalidate_all();
             }
             LayerAction::Move(from, to) => {
+                let mark = doc.history.undo_len();
                 ops::move_layer(&mut doc.project, &mut doc.history, from, to);
+                settle_folder(doc, to);
+                doc.history.group_since(mark);
                 doc.invalidate_all();
             }
         }
@@ -263,6 +288,7 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
             // Joining a folder: sit right below its top layer so the
             // folder stays in one piece.
             props.folder = f.clone();
+            let mark = doc.history.undo_len();
             ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
             if let Some(f) = f {
                 let top = doc.project.layers.iter().rposition(|l| l.props.folder.as_ref() == Some(&f) && l.id != id);
@@ -273,6 +299,7 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
                     }
                 }
             }
+            doc.history.group_since(mark);
             doc.invalidate_all();
             return;
         }
@@ -285,6 +312,30 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
         }
     }
     finish_props(ui, doc, i, id, props, changed, commit);
+}
+
+/// After a layer moved to `at`: a folder layer that left its folder's run
+/// leaves the folder; a loose layer dropped inside a folder joins it.
+/// Folders always stay in one piece.
+fn settle_folder(doc: &mut crate::app::Document, at: usize) {
+    let layers = &doc.project.layers;
+    let Some(l) = layers.get(at) else { return };
+    let below = at.checked_sub(1).and_then(|i| layers.get(i)).and_then(|l| l.props.folder.clone());
+    let above = layers.get(at + 1).and_then(|l| l.props.folder.clone());
+    let new = match &l.props.folder {
+        // Still next to another member: stays.
+        Some(f) if below.as_ref() == Some(f) || above.as_ref() == Some(f) => return,
+        // Was the only member: nothing to split.
+        Some(f) if !layers.iter().enumerate().any(|(i, o)| i != at && o.props.folder.as_ref() == Some(f)) => return,
+        Some(_) => None,
+        // Between two layers of the same folder: joins it.
+        None if below.is_some() && below == above => below,
+        None => return,
+    };
+    let mut props = l.props.clone();
+    props.folder = new;
+    let id = l.id;
+    ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
 }
 
 /// Folder of the selected layer: none, an existing one, or a new one.
@@ -334,7 +385,8 @@ fn folder_picker(ui: &mut egui::Ui, doc: &mut crate::app::Document, props: &Laye
         if r.inner.lost_focus() {
             ui.data_mut(|d| d.remove::<String>(buf));
         }
-        if r.inner.lost_focus() && !text.trim().is_empty() && text != *f {
+        let taken = names.iter().any(|n| n == text.trim() && n != f);
+        if r.inner.lost_focus() && !text.trim().is_empty() && text != *f && !taken {
             let mark = doc.history.undo_len();
             for j in 0..doc.project.layers.len() {
                 if doc.project.layers[j].props.folder.as_ref() == Some(f) {
@@ -368,6 +420,10 @@ fn drawing_props(ui: &mut egui::Ui, props: &mut LayerProps, changed: &mut bool, 
         *commit = true;
     }
     if crate::widgets::switch_row(ui, tr("Líneas para el relleno"), &mut props.reference) {
+        *changed = true;
+        *commit = true;
+    }
+    if crate::widgets::switch_row(ui, tr("Guía para calcar (no se exporta)"), &mut props.guide) {
         *changed = true;
         *commit = true;
     }

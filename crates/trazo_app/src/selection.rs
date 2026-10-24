@@ -68,6 +68,8 @@ struct MotionRec {
 #[derive(Default)]
 pub struct SelectTool {
     rec: Option<MotionRec>,
+    /// A recording in progress was dropped (frame, layer or tool changed).
+    pub dropped_recording: bool,
     drawing: Option<Drawing>,
     active: Option<Transform>,
     drag: Option<Drag>,
@@ -161,6 +163,8 @@ impl SelectTool {
 
         if released || (!down && (self.drawing.is_some() || self.drag.is_some())) {
             if self.drag.is_some() {
+                // Take the samples that were due, then stop.
+                self.sample_motion(ui);
                 if let Some(r) = self.rec.as_mut().filter(|r| r.started.is_some()) {
                     r.done = true;
                 }
@@ -352,7 +356,9 @@ impl SelectTool {
 
     /// Apply the floating selection to the layer (one undo step).
     pub fn commit(&mut self, doc: &mut Document) {
-        self.rec = None;
+        if self.rec.take().is_some_and(|r| r.started.is_some()) {
+            self.dropped_recording = true;
+        }
         self.drag = None;
         self.drawing = None;
         let Some(t) = self.active.take() else { return };
@@ -427,9 +433,12 @@ impl SelectTool {
             return Some(Err(tr("Grabación muy corta: arrastra la selección mientras graba").into()));
         }
         let Some((layer, block)) = self.tween_source(doc) else { return Some(Err(String::new())) };
+        let owner = self.active.as_ref()?.owner();
+        // Check the drawing exists before taking the floating pixels.
+        doc.project.cel_at_mut(owner, layer)?;
         let t = self.active.take()?;
         self.drag = None;
-        let cel = doc.project.cel_at_mut(t.owner(), layer)?;
+        let cel = doc.project.cel_at_mut(owner, layer)?;
         let (cels, stamp) = t.render_poses(cel, &poses);
         let added = cels.len();
         let mark = doc.history.undo_len();

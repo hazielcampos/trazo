@@ -40,7 +40,7 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                     app.ui.camera.open = true;
                     ui.close();
                 }
-                if ui.add(IconButton::new(Icon::Undo).text(tr("Versiones anteriores…"))).clicked() {
+                if ui.add(IconButton::new(Icon::Clock).text(tr("Versiones anteriores…"))).clicked() {
                     app.ui.versions_dialog = true;
                     ui.close();
                 }

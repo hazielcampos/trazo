@@ -41,6 +41,15 @@ pub fn list(project: &Path) -> Vec<Version> {
     v
 }
 
+/// Replace `dest` with the bytes of `src` without ever leaving it half written.
+pub fn replace_file(src: &Path, dest: &Path) -> std::io::Result<()> {
+    let tmp = dest.with_extension("restore.tmp");
+    std::fs::copy(src, &tmp)?;
+    std::fs::rename(&tmp, dest).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
+}
+
 /// Copy the saved project if the newest copy is old enough (or `force`).
 /// Returns whether a copy was made.
 pub fn snapshot(project: &Path, force: bool) -> std::io::Result<bool> {
@@ -58,15 +67,22 @@ pub fn snapshot(project: &Path, force: bool) -> std::io::Result<bool> {
     let dir = dir_for(project);
     std::fs::create_dir_all(&dir)?;
     let mut secs = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-    // Two copies within the same second (a forced one right after an
-    // automatic one): keep both.
-    while dir.join(format!("{secs}.{}", trazo_core::io::FILE_EXTENSION)).exists() {
-        secs += 1;
-    }
-    let target = dir.join(format!("{secs}.{}", trazo_core::io::FILE_EXTENSION));
+    // Claim a free name (two threads may snapshot at once; two copies in
+    // the same second both stay).
+    let target = loop {
+        let t = dir.join(format!("{secs}.{}", trazo_core::io::FILE_EXTENSION));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&t) {
+            Ok(_) => break t,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => secs += 1,
+            Err(e) => return Err(e),
+        }
+    };
     let tmp = target.with_extension("tmp");
-    std::fs::copy(project, &tmp)?;
-    std::fs::rename(&tmp, &target)?;
+    if let Err(e) = std::fs::copy(project, &tmp).and_then(|_| std::fs::rename(&tmp, &target)) {
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&target);
+        return Err(e);
+    }
     for old in list(project).into_iter().skip(KEEP) {
         let _ = std::fs::remove_file(old.path);
     }

@@ -48,6 +48,9 @@ pub struct LayerProps {
     /// Folder the layer belongs to (layers of a folder sit next to each other).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
+    /// Guide to trace over: visible while drawing, left out of exports.
+    #[serde(default)]
+    pub guide: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -326,6 +329,7 @@ impl LayerProps {
             clip: false,
             video: None,
             folder: None,
+            guide: false,
         }
     }
 

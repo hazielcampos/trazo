@@ -124,7 +124,7 @@ pub fn project_menu(app: &mut TrazoApp, ui: &mut Ui) {
         app.ui.camera.open = true;
         ui.close();
     }
-    if item(ui, Icon::Undo, tr("Versiones anteriores…")) {
+    if item(ui, Icon::Clock, tr("Versiones anteriores…")) {
         app.ui.versions_dialog = true;
         ui.close();
     }

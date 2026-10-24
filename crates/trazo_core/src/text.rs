@@ -54,7 +54,7 @@ pub fn render(font: &[u8], text: &str, size: f32, color: Rgba, bold: bool, align
     let text_w = widths.iter().cloned().fold(0.0, f32::max);
     let width = text_w.ceil() as i32 + pad * 2;
     let height = (line_h * lines.len() as f32).ceil() as i32 + pad * 2;
-    if width <= 0 || height <= 0 || width as i64 * height as i64 > 64_000_000 {
+    if width <= 0 || height <= 0 || width as i64 * height as i64 > 16_000_000 {
         return None;
     }
     let mut cover = vec![0f32; (width * height) as usize];
@@ -78,26 +78,46 @@ pub fn render(font: &[u8], text: &str, size: f32, color: Rgba, bold: bool, align
         }
     }
     if thick > 0.0 {
-        // Thicken: each pixel takes the strongest coverage within `thick`.
+        // Thicken: a round max filter, done as a horizontal pass per row
+        // offset (a disc is a stack of horizontal runs), so it stays fast
+        // for big letters.
         let r = thick.ceil() as i32;
-        let src = cover.clone();
-        for y in 0..height {
-            for x in 0..width {
-                let mut best = 0f32;
-                for dy in -r..=r {
-                    for dx in -r..=r {
-                        let d = ((dx * dx + dy * dy) as f32).sqrt();
-                        if d > thick + 0.5 {
-                            continue;
-                        }
-                        let (sx, sy) = (x + dx, y + dy);
-                        if sx >= 0 && sy >= 0 && sx < width && sy < height {
-                            let w = (thick + 0.5 - d).clamp(0.0, 1.0);
-                            best = best.max(src[(sy * width + sx) as usize] * w);
-                        }
-                    }
+        let (w, h) = (width as usize, height as usize);
+        let src = std::mem::take(&mut cover);
+        cover = vec![0f32; w * h];
+        let mut row_max = vec![0f32; w];
+        for dy in -r..=r {
+            let half = ((thick + 0.5).powi(2) - (dy * dy) as f32).max(0.0).sqrt().floor() as usize;
+            for y in 0..h {
+                let sy = y as i32 + dy;
+                if sy < 0 || sy >= h as i32 {
+                    continue;
                 }
-                cover[(y * width + x) as usize] = best;
+                let line = &src[sy as usize * w..(sy as usize + 1) * w];
+                if line.iter().all(|&c| c == 0.0) {
+                    continue;
+                }
+                // Max over [x - half, x + half] with a sliding window.
+                let mut q: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
+                let mut next = 0usize;
+                for x in 0..w {
+                    let hi = (x + half).min(w - 1);
+                    while next <= hi {
+                        while q.back().is_some_and(|&b| line[b] <= line[next]) {
+                            q.pop_back();
+                        }
+                        q.push_back(next);
+                        next += 1;
+                    }
+                    while q.front().is_some_and(|&f| f + half < x) {
+                        q.pop_front();
+                    }
+                    row_max[x] = q.front().map_or(0.0, |&f| line[f]);
+                }
+                let out = &mut cover[y * w..(y + 1) * w];
+                for (o, m) in out.iter_mut().zip(&row_max) {
+                    *o = o.max(*m);
+                }
             }
         }
     }

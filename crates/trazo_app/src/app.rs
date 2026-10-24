@@ -224,6 +224,10 @@ pub struct UiState {
     pub tween_dialog: Option<panels::dialogs::TweenDialog>,
     /// Earlier versions of the project.
     pub versions_dialog: bool,
+    /// The copies listed while the versions dialog is open (read once).
+    pub versions_list: Option<Vec<crate::versions::Version>>,
+    /// Go back to the text tool once the placed text is applied.
+    pub text_return: bool,
     /// Camera panel and preview.
     pub camera: panels::camera::CameraUi,
     /// Writing text to place on the canvas.
@@ -313,6 +317,8 @@ impl TrazoApp {
                 language_dialog: first_run.then_some(true),
                 tween_dialog: None,
                 versions_dialog: false,
+                versions_list: None,
+                text_return: false,
                 camera: Default::default(),
                 text_dialog: None,
                 last_text: Default::default(),
@@ -439,8 +445,10 @@ impl TrazoApp {
         let y = (dlg.at.1 - img.height as f32 / 2.0).round() as i32;
         let rect = trazo_core::IRect::new(x, y, x + img.width, y + img.height);
         self.canvas.select.place(&mut self.doc, rect, img.pixels);
-        // The selection tool shows the handles to move it.
+        // The selection tool shows the handles to move it; once applied,
+        // the text tool comes back for the next text.
         self.tools.tool = Tool::Select;
+        self.ui.text_return = true;
         self.tools.push_recent();
     }
 
@@ -456,22 +464,29 @@ impl TrazoApp {
             return;
         }
         let path = self.doc.path.clone();
+        // Read the chosen copy (and keep its bytes) before anything else: a
+        // damaged copy changes nothing, and keeping the current state as a
+        // version below may prune the oldest copies.
+        let (mut project, bytes) = match io::load_project(version).map_err(|e| e.to_string()).and_then(|p| std::fs::read(version).map(|b| (p, b)).map_err(|e| e.to_string())) {
+            Ok(v) => v,
+            Err(e) => {
+                self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e)));
+                return;
+            }
+        };
         if let Err(e) = crate::versions::snapshot(&path, true) {
             self.toast(ctx, tf!("No se pudo guardar el proyecto actual: {}", tr_err(&e.to_string())));
             return;
         }
-        // Read it before replacing anything: a damaged copy changes nothing.
-        let project = match io::load_project(version) {
-            Ok(p) => p,
-            Err(e) => {
-                self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e.to_string())));
-                return;
-            }
-        };
-        if let Err(e) = std::fs::copy(version, &path) {
+        let staged = path.with_extension("version.tmp");
+        if let Err(e) = std::fs::write(&staged, &bytes).and_then(|_| crate::versions::replace_file(&staged, &path)) {
+            let _ = std::fs::remove_file(&staged);
             self.toast(ctx, tf!("No se pudo guardar: {}", tr_err(&e.to_string())));
             return;
         }
+        let _ = std::fs::remove_file(&staged);
+        // The project keeps its current name.
+        project.name = self.doc.project.name.clone();
         self.doc = Document::new(project, path);
         self.after_document_change();
         self.toast(ctx, tr("Versión restaurada; la que tenías abierta quedó guardada como versión"));
@@ -669,7 +684,7 @@ impl TrazoApp {
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
         // Nothing reaches the drawing while the language is being chosen.
-        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() || self.ui.text_dialog.is_some() {
+        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() || self.ui.text_dialog.is_some() || self.ui.versions_dialog || self.ui.camera.open {
             return;
         }
         use egui::{Key, KeyboardShortcut, Modifiers};
@@ -1005,6 +1020,15 @@ impl eframe::App for TrazoApp {
                 }
                 if let Some(msg) = self.canvas.take_message() {
                     self.toast(&ctx, msg);
+                }
+                if self.ui.text_return && !self.canvas.select.is_active() {
+                    self.ui.text_return = false;
+                    if self.tools.tool == Tool::Select {
+                        self.tools.tool = Tool::Text;
+                    }
+                }
+                if std::mem::take(&mut self.canvas.select.dropped_recording) {
+                    self.toast(&ctx, tr("Grabación cancelada: cambiaste de fotograma, capa o herramienta"));
                 }
                 if let Some(done) = self.canvas.select.finish_recording(&mut self.doc) {
                     match done {

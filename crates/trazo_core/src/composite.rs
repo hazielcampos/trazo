@@ -114,6 +114,10 @@ fn composite_frame<'a>(p: &'a Project, cel_of: &dyn Fn(LayerId) -> Option<&'a Ti
     let mut base: Option<&TiledImage> = None;
     let mut base_visible = false;
     for layer in &p.layers {
+        // Guides help while drawing but aren't part of the result.
+        if layer.props.guide && video.is_some_and(|pass| pass.hide_reference) {
+            continue;
+        }
         if let Some(v) = &layer.props.video {
             if !layer.props.clip {
                 base = None;
