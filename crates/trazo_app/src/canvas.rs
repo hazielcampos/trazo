@@ -585,9 +585,32 @@ impl CanvasView {
         if !self.editable_layer(doc) {
             return;
         }
+        let lid = doc.layer;
+        let shared = doc.project.layer(lid).is_some_and(|l| l.props.shared);
+        if !tools.fill_every_drawing || shared {
+            if Self::fill_at(doc, tools, doc.frame, x, y) {
+                tools.push_recent();
+            }
+            return;
+        }
+        // The same spot on every drawing of the layer, as one undo step.
+        let starts: Vec<usize> = trazo_core::timeline::blocks(&doc.project, lid).iter().map(|b| b.start).collect();
+        let mark = doc.history.undo_len();
+        let filled = starts.into_iter().filter(|&f| Self::fill_at(doc, tools, f, x, y)).count();
+        doc.history.group_since(mark);
+        if filled > 0 {
+            tools.push_recent();
+            self.message = Some(tf!("Relleno aplicado en {} dibujos", filled));
+        }
+    }
+
+    /// Flood fill at (x, y) on the current layer's drawing shown at `frame`.
+    /// Returns whether anything changed.
+    fn fill_at(doc: &mut Document, tools: &ToolState, frame: usize, x: i32, y: i32) -> bool {
         let (w, h) = (doc.project.canvas.width, doc.project.canvas.height);
         let lid = doc.layer;
-        let owner = doc.project.cel_owner(doc.frame_id(), lid);
+        let Some(fid) = doc.project.frames.get(frame).map(|f| f.id) else { return false };
+        let owner = doc.project.cel_owner(fid, lid);
         let has_reference = doc.project.layers.iter().any(|l| l.props.reference);
         let reference = if has_reference {
             // Line-art layers marked "reference" define the edges.
@@ -597,22 +620,25 @@ impl CanvasView {
                 l.props.visible = true;
                 l.props.opacity = 1.0;
             }
-            flatten_frame(&refs, doc.frame)
+            flatten_frame(&refs, frame)
         } else if tools.fill_all_layers {
-            flatten_frame(&doc.project, doc.frame)
+            flatten_frame(&doc.project, frame)
         } else {
-            doc.project.visible_cel(doc.frame, lid).cloned().unwrap_or_else(|| TiledImage::new(w, h))
+            doc.project.visible_cel(frame, lid).cloned().unwrap_or_else(|| TiledImage::new(w, h))
         };
         let alpha_lock = doc.project.layer(lid).is_some_and(|l| l.props.alpha_lock);
         let color = tools.color_rgba();
         let opts = trazo_core::fill::FillOptions { alpha_lock, ..tools.fill };
-        let Some(cel) = doc.project.cel_at_mut(owner, lid) else { return };
+        let Some(cel) = doc.project.cel_at_mut(owner, lid) else { return false };
         let mut edit = PixelEditBuilder::new();
         let r = flood_fill(cel, &reference, x, y, color, opts, &mut edit);
-        if let Some(e) = edit.finish(cel, owner, lid) {
-            doc.history.push_applied(Edit::Pixels(e));
-            doc.invalidate_frame(owner, Some(r));
-            tools.push_recent();
+        match edit.finish(cel, owner, lid) {
+            Some(e) => {
+                doc.history.push_applied(Edit::Pixels(e));
+                doc.invalidate_frame(owner, Some(r));
+                true
+            }
+            None => false,
         }
     }
 

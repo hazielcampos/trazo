@@ -95,6 +95,8 @@ pub struct ToolState {
     pub simulate_pressure: bool,
     pub fill: FillOptions,
     pub fill_all_layers: bool,
+    /// Fill the same spot on every drawing of the layer.
+    pub fill_every_drawing: bool,
     pub shape: ShapeKind,
     /// Square / circle / 15° lines (also with Shift held).
     pub shape_constrain: bool,
@@ -189,6 +191,7 @@ impl ToolState {
             simulate_pressure: false,
             fill: FillOptions::default(),
             fill_all_layers: true,
+            fill_every_drawing: false,
             shape: ShapeKind::Line,
             shape_constrain: false,
             brush_version: 0,

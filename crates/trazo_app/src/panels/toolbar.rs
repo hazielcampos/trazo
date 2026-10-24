@@ -128,6 +128,8 @@ pub fn color_panel(app: &mut TrazoApp, ui: &mut egui::Ui) {
         ui.label(tr("Relleno y varita mágica"));
         ui.checkbox(&mut app.tools.fill_all_layers, tr("Detectar bordes de todas las capas"))
             .on_hover_text(tr("Si alguna capa está marcada como «Líneas para el relleno», se usa esa"));
+        ui.checkbox(&mut app.tools.fill_every_drawing, tr("Rellenar en todos los dibujos de la capa"))
+            .on_hover_text(tr("Un toque rellena el mismo punto en cada dibujo de esta capa (útil para colorear fondos o personajes quietos)"));
         let mut tol = app.tools.fill.tolerance as i32;
         if ui.add(egui::Slider::new(&mut tol, 0..=255).text(tr("Tolerancia"))).changed() {
             app.tools.fill.tolerance = tol as u8;

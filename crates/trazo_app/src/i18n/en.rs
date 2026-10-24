@@ -507,6 +507,10 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    // ---- fill on every drawing ----------------------------------------------
+    ("Relleno aplicado en {} dibujos", "Filled {} drawings"),
+    ("Rellenar en todos los dibujos de la capa", "Fill every drawing on the layer"),
+    ("Un toque rellena el mismo punto en cada dibujo de esta capa (útil para colorear fondos o personajes quietos)", "One tap fills the same spot on each drawing of this layer (handy for coloring backgrounds or still characters)"),
     // ---- versions -----------------------------------------------------------
     ("hace un momento", "just now"),
     ("hace {} min", "{} min ago"),
