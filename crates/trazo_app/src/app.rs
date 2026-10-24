@@ -183,6 +183,9 @@ pub struct Playback {
     pub range: Option<(usize, usize)>,
     /// Frames follow the audio device's position (sound and picture in sync).
     audio_clock: bool,
+    /// The audio clock reached the range at least once: when it later reads
+    /// before the range, it has looped and is still sounding the end.
+    audio_in_range: bool,
     start_time: f64,
     /// Ticks into the range where playback started.
     start_offset: u64,
@@ -191,7 +194,7 @@ pub struct Playback {
 
 impl Playback {
     fn new() -> Self {
-        Self { playing: false, looping: true, ping_pong: false, range: None, audio_clock: false, start_time: 0.0, start_offset: 0, frame: 0 }
+        Self { playing: false, looping: true, ping_pong: false, range: None, audio_clock: false, audio_in_range: false, start_time: 0.0, start_offset: 0, frame: 0 }
     }
 
     /// The playable range, clamped to the current number of frames.
@@ -486,8 +489,12 @@ impl TrazoApp {
         self.playback.playing = true;
         // Ping-pong plays backwards, which audio can't follow: use the plain clock.
         self.playback.audio_clock = false;
+        self.playback.audio_in_range = false;
         if let Some(engine) = &self.audio {
-            if !self.playback.ping_pong {
+            // Without sound there is nothing to stay in sync with: the plain
+            // clock shows every frame (the audio clock lags by the device
+            // latency, which used to skip the last frames of each loop).
+            if !self.playback.ping_pong && !p.audio.tracks.is_empty() {
                 // Loop inside the audio thread so the sound never overshoots the range.
                 let (a, b) = self.playback.bounds(p.frames.len());
                 let fps = p.canvas.fps;
@@ -528,7 +535,14 @@ impl TrazoApp {
             if let Some(engine) = &self.audio {
                 let fps_u = p.canvas.fps;
                 // Small epsilon: fps that don't divide 48 kHz would otherwise land a frame early.
-                let tick = samples_to_ticks(engine.position(), fps_u) + 1e-6;
+                let mut tick = samples_to_ticks(engine.position(), fps_u) + 1e-6;
+                if tick >= first as f64 {
+                    self.playback.audio_in_range = true;
+                } else if self.playback.looping && self.playback.audio_in_range {
+                    // The mixer already wrapped to the loop start, but what we
+                    // hear (it lags by the output latency) is still the end.
+                    tick += span as f64;
+                }
                 if !engine.is_playing() {
                     // The device stopped (unplugged headphones…): keep animating on the plain clock.
                     self.playback.audio_clock = false;
