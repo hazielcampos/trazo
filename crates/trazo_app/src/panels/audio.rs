@@ -1237,7 +1237,7 @@ fn finish_drag(app: &mut TrazoApp) {
 
 /// Waveform from the precomputed peaks, one vertical line per pixel,
 /// scaled by the clip's volume and fades.
-fn draw_wave(painter: &egui::Painter, visible: Rect, cr: Rect, clip: &AudioClip, asset: &AudioAsset, pps: f32, color: Color32) {
+pub(crate) fn draw_wave(painter: &egui::Painter, visible: Rect, cr: Rect, clip: &AudioClip, asset: &AudioAsset, pps: f32, color: Color32) {
     if visible.width() <= 0.0 {
         return;
     }
@@ -1263,4 +1263,153 @@ fn draw_wave(painter: &egui::Painter, visible: Rect, cr: Rect, clip: &AudioClip,
         }
         x += 1.0;
     }
+}
+
+// ---- used by the timeline (sound tracks live there) ---------------------------------------
+
+/// Start a voice take: countdown, pre-roll, then capture.
+pub(crate) fn begin_recording(app: &mut TrazoApp, ctx: &egui::Context) {
+    start_recording(app, ctx);
+}
+
+pub(crate) fn finish_recording(app: &mut TrazoApp, ctx: &egui::Context) {
+    stop_recording(app, ctx);
+}
+
+/// Microphone level (0–1) while recording.
+pub(crate) fn input_level(app: &TrazoApp) -> f32 {
+    app.audio.as_ref().map(|e| e.input_level()).unwrap_or(0.0)
+}
+
+pub(crate) fn recorded_seconds(app: &TrazoApp) -> f32 {
+    app.audio.as_ref().map(|e| e.recorded_seconds()).unwrap_or(0.0)
+}
+
+/// Record a whole drag of clips as one undo step.
+pub(crate) fn push_tracks_edit(app: &mut TrazoApp, before: Vec<AudioTrack>) {
+    let after = app.doc.project.audio.tracks.clone();
+    if after != before {
+        app.doc.history.push_applied(Edit::Audio { before, after });
+    }
+}
+
+pub(crate) fn clip_split_at_playhead(app: &mut TrazoApp, id: ClipId) -> bool {
+    let Some((ti, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return false };
+    let at = current_sample(app);
+    if at <= clip.start || at >= clip.end() {
+        return false;
+    }
+    let new_id = app.doc.project.alloc_id();
+    edit_tracks(app, |t, _| {
+        if let Some(pos) = t[ti].clips.iter().position(|c| c.id == id) {
+            if let Some((a, b)) = t[ti].clips[pos].split(at, new_id) {
+                t[ti].clips[pos] = a;
+                t[ti].clips.insert(pos + 1, b);
+            }
+        }
+    });
+    true
+}
+
+pub(crate) fn clip_set_gain(app: &mut TrazoApp, id: ClipId, gain: f32) {
+    let Some((ti, _)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    edit_tracks(app, |t, _| {
+        if let Some(c) = t[ti].clip_mut(id) {
+            c.gain = gain.clamp(0.0, 2.0);
+        }
+    });
+}
+
+/// Fades in seconds (0 = none).
+pub(crate) fn clip_set_fades(app: &mut TrazoApp, id: ClipId, fade_in: Option<f32>, fade_out: Option<f32>) {
+    let Some((ti, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    let frames = app.doc.project.audio.assets.get(&clip.asset).map(|a| a.frames()).unwrap_or(clip.offset + clip.len);
+    edit_tracks(app, |t, _| {
+        if let Some(c) = t[ti].clip_mut(id) {
+            if let Some(s) = fade_in {
+                c.fade_in = (s * SAMPLE_RATE as f32) as u64;
+            }
+            if let Some(s) = fade_out {
+                c.fade_out = (s * SAMPLE_RATE as f32) as u64;
+            }
+            c.clamp_to(frames);
+        }
+    });
+}
+
+pub(crate) fn clip_toggle_mute(app: &mut TrazoApp, id: ClipId) {
+    let Some((ti, _)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    edit_tracks(app, |t, _| {
+        if let Some(c) = t[ti].clip_mut(id) {
+            c.muted = !c.muted;
+        }
+    });
+}
+
+pub(crate) fn clip_delete(app: &mut TrazoApp, id: ClipId) {
+    let Some((ti, _)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    edit_tracks(app, |t, _| {
+        t[ti].clips.retain(|c| c.id != id);
+        // An empty track goes away too.
+        if t[ti].clips.is_empty() {
+            t.remove(ti);
+        }
+    });
+    app.audio_ui.selected = None;
+}
+
+pub(crate) fn clip_duplicate(app: &mut TrazoApp, id: ClipId) {
+    let Some((ti, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    let new_id = app.doc.project.alloc_id();
+    edit_tracks(app, |t, _| t[ti].clips.push(AudioClip { id: new_id, start: clip.end(), ..clip.clone() }));
+    app.audio_ui.selected = Some(new_id);
+}
+
+pub(crate) fn clip_normalize(app: &mut TrazoApp, ctx: &egui::Context, id: ClipId) {
+    let Some((ti, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    let Some(asset) = app.doc.project.audio.assets.get(&clip.asset).cloned() else { return };
+    match normalized(&asset.samples, 0.95) {
+        Some(samples) => {
+            let new_asset = app.doc.project.alloc_id();
+            app.doc.project.audio.assets.insert(new_asset, Arc::new(AudioAsset::new(asset.name.clone(), samples)));
+            edit_tracks(app, |t, _| {
+                if let Some(c) = t[ti].clip_mut(id) {
+                    c.asset = new_asset;
+                }
+            });
+        }
+        None => app.toast(ctx, tr("El clip está en silencio")),
+    }
+}
+
+pub(crate) fn clip_split_silences(app: &mut TrazoApp, ctx: &egui::Context, id: ClipId) {
+    let Some((ti, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else { return };
+    let Some(asset) = app.doc.project.audio.assets.get(&clip.asset).cloned() else { return };
+    let cuts: Vec<i64> = sound_starts(&asset.peaks, 0.02, SAMPLE_RATE as u64 / 4)
+        .into_iter()
+        .filter(|&f| f > clip.offset && f < clip.offset + clip.len)
+        .map(|f| clip.start + (f - clip.offset) as i64)
+        .collect();
+    if cuts.is_empty() {
+        app.toast(ctx, tr("No se encontraron silencios"));
+        return;
+    }
+    let ids: Vec<u64> = cuts.iter().map(|_| app.doc.project.alloc_id()).collect();
+    edit_tracks(app, |t, _| {
+        let mut current = id;
+        for (at, nid) in cuts.iter().zip(&ids) {
+            if let Some(pos) = t[ti].clips.iter().position(|c| c.id == current) {
+                if let Some((a, b)) = t[ti].clips[pos].split(*at, *nid) {
+                    t[ti].clips[pos] = a;
+                    t[ti].clips.insert(pos + 1, b);
+                    current = *nid;
+                }
+            }
+        }
+    });
+}
+
+/// Where new takes and imports go: a fresh track unless one is chosen.
+pub(crate) fn set_target_track(app: &mut TrazoApp, track: Option<TrackId>) {
+    app.audio_ui.target_track = track;
 }

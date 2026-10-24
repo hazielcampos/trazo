@@ -803,11 +803,29 @@ struct TrackView {
     y: f32,
     follow: usize,
     stretch: Option<(trazo_core::LayerId, usize, usize)>,
+    /// Width of the lanes last time (a new layout follows the playhead again).
+    w: f32,
+    /// Last sound clip brought into view, and for how many rows.
+    sel: Option<u64>,
+    sel_rows: f32,
 }
 
 enum Row {
     Layer(usize),
-    Audio,
+    /// A sound track (index in the project's audio tracks).
+    Audio(usize),
+    /// The last row: add sound or record a voice.
+    AddSound,
+}
+
+/// A clip being moved or trimmed in the tracks.
+#[derive(Clone)]
+struct ClipDrag {
+    clip: trazo_core::audio::ClipId,
+    track: usize,
+    mode: u8, // 0 move, 1 trim start, 2 trim end
+    orig: trazo_core::audio::AudioClip,
+    before: Vec<trazo_core::audio::AudioTrack>,
 }
 
 /// One row per layer (and one for the sound), drawings as colored cells.
@@ -835,7 +853,7 @@ impl TrackStyle {
 
 /// Rows of the timeline for this project (layers, then sound).
 pub(crate) fn track_rows(app: &TrazoApp) -> usize {
-    app.doc.project.layers.len() + 1
+    app.doc.project.layers.len() + app.doc.project.audio.tracks.len() + 1
 }
 
 pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: TrackStyle) {
@@ -844,8 +862,9 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
     let mut view: TrackView = ctx.data(|d| d.get_temp(vid)).unwrap_or(TrackView { follow: usize::MAX, ..Default::default() });
     let n_layers = app.doc.project.layers.len();
     let mut rows: Vec<Row> = (0..n_layers).rev().map(Row::Layer).collect();
-    // Always a sound row: with nothing yet, it is where you add some.
-    rows.push(Row::Audio);
+    // Sound tracks, then a row to add more (or the first).
+    rows.extend((0..app.doc.project.audio.tracks.len()).map(Row::Audio));
+    rows.push(Row::AddSound);
     ui.spacing_mut().item_spacing.y = 0.0;
     if st.hint {
         ui.add_space(2.0);
@@ -864,7 +883,30 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
     let fps = app.doc.project.canvas.fps.max(1) as f32;
     let max_x = ((n_frames as f32 + 2.0) * st.ppf - lanes.width()).max(0.0);
     let max_y = ((rows.len() as f32 - visible_rows) * st.row_h).max(0.0);
+    // A newly selected sound clip (just imported or recorded) comes into view.
+    if app.audio_ui.selected != view.sel || (app.audio_ui.selected.is_some() && view.sel_rows != visible_rows) {
+        view.sel = app.audio_ui.selected;
+        view.sel_rows = visible_rows;
+        if let Some(id) = view.sel {
+            if let Some((ti, c)) = app.doc.project.audio.find_clip(id) {
+                if let Some(ri) = rows.iter().position(|r| matches!(r, Row::Audio(t) if *t == ti)) {
+                    let y = ri as f32 * st.row_h;
+                    if y < view.y || y + st.row_h > view.y + visible_rows * st.row_h {
+                        view.y = (y - (visible_rows - 1.0).max(0.0) * st.row_h * 0.5).clamp(0.0, max_y);
+                    }
+                }
+                let x = trazo_core::audio::samples_to_ticks(c.start, fps as u32) as f32 * st.ppf;
+                if x > view.x + lanes.width() || x + 40.0 < view.x {
+                    view.x = (x - 20.0).clamp(0.0, max_x);
+                }
+            }
+        }
+    }
     // Keep the playhead in view when it moves (playing, or picked elsewhere).
+    if (view.w - lanes.width()).abs() > 1.0 {
+        view.w = lanes.width();
+        view.follow = usize::MAX;
+    }
     if view.follow != shown {
         let px = shown as f32 * st.ppf;
         if px < view.x + st.ppf || px > view.x + lanes.width() - 2.0 * st.ppf || view.follow == usize::MAX {
@@ -904,6 +946,9 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
     let mut menu = None;
     let mut eye_toggle: Option<usize> = None;
     let mut lock_toggle: Option<usize> = None;
+    let mut keep_clip = false;
+    let mut sound_menu: Option<Pos2> = None;
+    let drag_id = vid.with("clip_drag");
     if bg.clicked() || long_press {
         if let Some(pt) = pointer {
             let f = (((pt.x - lanes.left() + view.x) / st.ppf).floor().max(0.0) as usize).min(n_frames.saturating_sub(1));
@@ -930,7 +975,20 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
                             }
                         }
                     }
-                    Some(Row::Audio) => app.audio_ui.show = true,
+                    Some(Row::Audio(ti)) => {
+                        // A clip under the finger is selected; the playhead goes there too.
+                        let tick = (pt.x - lanes.left() + view.x - 2.0) / st.ppf;
+                        let at = trazo_core::audio::ticks_to_samples(tick as f64, fps as u32);
+                        let hit = app.doc.project.audio.tracks.get(*ti).and_then(|t| t.clips.iter().rev().find(|c| at >= c.start && at < c.end()).map(|c| c.id));
+                        app.audio_ui.selected = hit;
+                        if !long_press {
+                            pick = Some((None, f));
+                            keep_clip = hit.is_some();
+                        }
+                    }
+                    Some(Row::AddSound) => {
+                        sound_menu = Some(pt);
+                    }
                     None => {}
                 }
             }
@@ -1001,27 +1059,93 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
                     }
                 }
             }
-            Row::Audio => {
+            Row::Audio(ti) => {
                 let (dot, cell) = theme::AUDIO_TRACK;
-                paint(&rp, Rect::from_center_size(Pos2::new(full.left() + 19.0, full.center().y), Vec2::splat(15.0)), Icon::Music, TEXT2);
-                rp.text(Pos2::new(full.left() + 34.0, full.center().y), Align2::LEFT_CENTER, tr("Audio"), theme::font(13.0, W::Semi), Color32::from_rgb(226, 226, 223));
-                if app.doc.project.audio.tracks.iter().all(|t| t.clips.is_empty()) {
-                    let r = Rect::from_min_max(Pos2::new(lanes.left() + 2.0, top + 4.0), Pos2::new(lanes.right() - 6.0, top + st.row_h - 4.0));
-                    lrp.rect_filled(r, 9.0, cell.gamma_multiply(0.5));
-                    dashed_rect(&lrp, r, Stroke::new(1.5, dot.gamma_multiply(0.6)));
-                    paint(&lrp, Rect::from_center_size(Pos2::new(r.left() + 20.0, r.center().y), Vec2::splat(16.0)), Icon::Plus, dot);
-                    lrp.text(Pos2::new(r.left() + 36.0, r.center().y), Align2::LEFT_CENTER, tr("Añadir sonido o grabar tu voz"), theme::font(12.0, W::Semi), dot);
+                let Some(track) = app.doc.project.audio.tracks.get(*ti) else { continue };
+                let has_sel = app.audio_ui.selected.is_some_and(|id| track.clip(id).is_some());
+                if has_sel {
+                    rp.rect_filled(full, 0.0, Color32::from_rgb(29, 29, 32));
                 }
-                for t in &app.doc.project.audio.tracks {
-                    for c in &t.clips {
-                        let s = trazo_core::audio::samples_to_ticks(c.start, fps as u32) as f32;
-                        let e = trazo_core::audio::samples_to_ticks(c.end(), fps as u32) as f32;
-                        let r = Rect::from_min_max(Pos2::new(x_of(s), top + 4.0), Pos2::new(x_of(e) - 4.0, top + st.row_h - 4.0));
-                        lrp.rect_filled(r, 9.0, cell);
-                        lrp.hline(r.left() + 6.0..=r.right() - 6.0, r.center().y, Stroke::new(1.0, dot.gamma_multiply(0.6)));
+                paint(&rp, Rect::from_center_size(Pos2::new(full.left() + 19.0, full.center().y), Vec2::splat(15.0)), Icon::Music, TEXT2);
+                let g = crate::panels::home::one_line_pub(ui, &track.name, theme::font(13.0, W::Semi), Color32::from_rgb(226, 226, 223), st.label_w - 44.0);
+                rp.galley(Pos2::new(full.left() + 34.0, full.center().y - g.size().y / 2.0), g, TEXT);
+                let pps = st.ppf * fps;
+                for c in &track.clips {
+                    let s = trazo_core::audio::samples_to_ticks(c.start, fps as u32) as f32;
+                    let e = trazo_core::audio::samples_to_ticks(c.end(), fps as u32) as f32;
+                    let r = Rect::from_min_max(Pos2::new(x_of(s), top + 4.0), Pos2::new(x_of(e) - 2.0, top + st.row_h - 4.0));
+                    if r.right() < lanes.left() || r.left() > lanes.right() {
+                        continue;
+                    }
+                    let sel = app.audio_ui.selected == Some(c.id);
+                    let fill = if c.muted { cell.gamma_multiply(0.45) } else if sel { lerp(cell, dot, 0.35) } else { cell };
+                    lrp.rect_filled(r, if st.pc { 6.0 } else { 9.0 }, fill);
+                    if let Some(asset) = app.doc.project.audio.assets.get(&c.asset) {
+                        let visible = r.intersect(lrp.clip_rect());
+                        let wave = if c.muted { dot.gamma_multiply(0.35) } else if sel { TEXT } else { dot };
+                        crate::panels::audio::draw_wave(&lrp, visible, r, c, asset, pps, wave);
+                        if r.width() > 60.0 && st.row_h >= 40.0 {
+                            let name = crate::panels::home::one_line_pub(ui, &asset.name, theme::font(10.0, W::Semi), lerp(dot, TEXT, 0.5), r.width() - 12.0);
+                            lrp.galley(Pos2::new(r.left().max(lanes.left()) + 6.0, r.top() + 2.0), name, TEXT);
+                        }
+                    }
+                    if sel {
+                        lrp.rect_stroke(r, if st.pc { 6.0 } else { 9.0 }, Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
+                        // Trim handles.
+                        for x in [r.left() + 3.0, r.right() - 3.0] {
+                            lrp.rect_filled(Rect::from_center_size(Pos2::new(x, r.center().y), Vec2::new(4.0, (r.height() - 14.0).max(8.0))), 2.0, TEXT);
+                        }
+                        // Drag: move, or trim from the edges.
+                        let resp = ui.interact(r.intersect(lanes), vid.with(("clip", c.id)), Sense::drag());
+                        if resp.drag_started() {
+                            if let Some(pt) = resp.interact_pointer_pos() {
+                                let edge = (14.0f32).min(r.width() / 3.0);
+                                let mode = if pt.x < r.left() + edge { 1 } else if pt.x > r.right() - edge { 2 } else { 0 };
+                                let d = ClipDrag { clip: c.id, track: *ti, mode, orig: c.clone(), before: app.doc.project.audio.tracks.clone() };
+                                ctx.data_mut(|m| m.insert_temp(drag_id, d));
+                            }
+                        }
                     }
                 }
             }
+            Row::AddSound => {
+                let (dot, cell) = theme::AUDIO_TRACK;
+                let r = Rect::from_min_max(Pos2::new(area.left() + 8.0, top + 6.0), Pos2::new((lanes.left() + 260.0).min(area.right() - 8.0), top + st.row_h - 6.0));
+                rp.rect_filled(r, 9.0, cell.gamma_multiply(0.45));
+                dashed_rect(&rp, r, Stroke::new(1.5, dot.gamma_multiply(0.6)));
+                paint(&rp, Rect::from_center_size(Pos2::new(r.left() + 18.0, r.center().y), Vec2::splat(16.0)), Icon::Plus, dot);
+                rp.text(Pos2::new(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, tr("Añadir sonido o grabar tu voz"), theme::font(12.0, W::Semi), dot);
+            }
+        }
+    }
+    // A clip being moved or trimmed.
+    if let Some(d) = ctx.data(|m| m.get_temp::<ClipDrag>(drag_id)) {
+        let (down, delta_x) = ui.input(|i| (i.pointer.any_down(), i.pointer.press_origin().zip(i.pointer.latest_pos()).map(|(a, b)| b.x - a.x)));
+        if let Some(dx) = delta_x.filter(|_| down) {
+            let ds = (dx / (st.ppf * fps) * trazo_core::audio::SAMPLE_RATE as f32) as i64;
+            let frames = app.doc.project.audio.assets.get(&d.orig.asset).map(|a| a.frames()).unwrap_or(d.orig.offset + d.orig.len);
+            let min_len = (trazo_core::audio::SAMPLE_RATE / 20) as i64;
+            if let Some(c) = app.doc.project.audio.tracks.get_mut(d.track).and_then(|t| t.clip_mut(d.clip)) {
+                let o = &d.orig;
+                match d.mode {
+                    0 => c.start = o.start + ds,
+                    1 => {
+                        let ds = ds.clamp(-(o.offset as i64), o.len as i64 - min_len);
+                        c.start = o.start + ds;
+                        c.offset = (o.offset as i64 + ds) as u64;
+                        c.len = (o.len as i64 - ds) as u64;
+                    }
+                    _ => {
+                        let max = frames as i64 - o.offset as i64;
+                        c.len = (o.len as i64 + ds).clamp(min_len, max.max(min_len)) as u64;
+                    }
+                }
+                app.doc.audio_version += 1;
+            }
+            ctx.request_repaint();
+        } else {
+            ctx.data_mut(|m| m.remove::<ClipDrag>(drag_id));
+            crate::panels::audio::push_tracks_edit(app, d.before);
         }
     }
     // Stretch handle of the selected drawing.
@@ -1065,6 +1189,37 @@ pub(crate) fn tracks_styled(app: &mut TrazoApp, ui: &mut Ui, reserve: f32, st: T
             app.doc.layer = l;
         }
         app.doc.set_frame(f);
+        if !keep_clip {
+            app.audio_ui.selected = None;
+        }
+    }
+    // "+ Añadir sonido…": import a file or record a voice.
+    let menu_id = vid.with("sound_menu");
+    if let Some(pt) = sound_menu {
+        ctx.data_mut(|m| m.insert_temp(menu_id, pt));
+    }
+    if let Some(at) = ctx.data(|m| m.get_temp::<Pos2>(menu_id)) {
+        let mut close = false;
+        let screen = ctx.content_rect();
+        let resp = egui::Area::new(menu_id).order(Order::Tooltip).pivot(Align2::LEFT_BOTTOM).fixed_pos(Pos2::new(at.x.min(screen.right() - 280.0), at.y - 8.0)).constrain(true).show(&ctx, |ui| {
+            Frame::new().fill(ELEVATED).corner_radius(16).inner_margin(Margin::same(6)).stroke(Stroke::new(1.0, Color32::from_white_alpha(15))).shadow(theme::island_shadow()).show(ui, |ui| {
+                ui.set_width(260.0);
+                if menu_row(ui, Icon::Import, tr("Importar sonido o música"), Some(tr("MP3, WAV, M4A… va al fotograma actual")), TEXT) {
+                    crate::panels::audio::set_target_track(app, None);
+                    crate::files::request(app, &ctx, crate::files::PickPurpose::Audio);
+                    close = true;
+                }
+                if menu_row(ui, Icon::Mic, tr("Grabar tu voz"), Some(tr("Cuenta atrás y suena la animación")), TEXT) {
+                    crate::panels::audio::set_target_track(app, None);
+                    crate::panels::audio::begin_recording(app, &ctx);
+                    close = true;
+                }
+            });
+        });
+        let clicked_out = ctx.input(|i| i.pointer.any_pressed()) && !resp.response.contains_pointer() && sound_menu.is_none();
+        if close || clicked_out {
+            ctx.data_mut(|m| m.remove::<Pos2>(menu_id));
+        }
     }
     if let Some(li) = lock_toggle {
         if let Some(l) = app.doc.project.layers.get_mut(li) {
@@ -1095,6 +1250,9 @@ fn lerp(a: Color32, b: Color32, t: f32) -> Color32 {
 
 /// What to do with the selected drawing: the drawing menu's main actions.
 fn action_bar(app: &mut TrazoApp, ui: &mut Ui) {
+    if record_bar(app, ui) || clip_bar(app, ui) {
+        return;
+    }
     let ctx = ui.ctx().clone();
     let layer = app.doc.layer;
     let block = crate::panels::timeline::selected_block(app);
@@ -1636,7 +1794,9 @@ const T_TOOLS: [Tool; 7] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedrop
 pub fn tablet_panels(app: &mut TrazoApp, ui: &mut Ui) {
     let room = Frame::new().fill(theme::CANVAS_BG);
     let n_rows = track_rows(app);
-    let shown_rows = if app.ui.dock_open { n_rows.min(6) } else { n_rows.min(2) };
+    // Expanded, the timeline still leaves the canvas at least half the screen.
+    let fit = ((ui.ctx().content_rect().height() * 0.5 - 200.0) / 48.0).floor().max(2.0) as usize;
+    let shown_rows = if app.ui.dock_open { n_rows.min(6).min(fit) } else { n_rows.min(2) };
     let more_row = if n_rows > 2 { 36.0 } else { 8.0 };
     egui::Panel::bottom("tab_timeline").resizable(false).show_separator_line(false)
         .frame(Frame::new().fill(theme::CANVAS_BG).inner_margin(Margin { left: 20, right: 20, top: 12, bottom: 0 }))
@@ -1655,6 +1815,13 @@ pub fn tablet_panels(app: &mut TrazoApp, ui: &mut Ui) {
                 tablet_transport(app, ui);
                 let st = TrackStyle { max_rows: shown_rows.max(1), ..TrackStyle::TABLET };
                 tracks_styled(app, ui, 0.0, st);
+                if app.audio_ui.is_recording() || app.audio_ui.selected.is_some() {
+                    ui.add_space(6.0);
+                    if !record_bar(app, ui) {
+                        clip_bar(app, ui);
+                    }
+                    ui.add_space(6.0);
+                }
                 if n_rows > 2 {
                     let (r, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), more_row), Sense::click());
                     let label = if app.ui.dock_open { tr("Menos pistas").to_string() } else { tf!("{} pistas más", n_rows - 2) };
@@ -1715,7 +1882,9 @@ fn tablet_transport(app: &mut TrazoApp, ui: &mut Ui) {
                 crate::panels::timeline::add_frame(app);
             }
             if widgets::icon_button(ui, Icon::Mic, tr("Grabar voz")).clicked() {
-                app.audio_ui.show = true;
+                app.ui.dock_open = true;
+                crate::panels::audio::set_target_track(app, None);
+                crate::panels::audio::begin_recording(app, ui.ctx());
             }
             if widgets::toggle_icon(ui, Icon::Loop, app.playback.looping, tr("Bucle")).clicked() {
                 app.playback.looping = !app.playback.looping;
@@ -1987,8 +2156,17 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
             ui.spacing_mut().item_spacing.y = 0.0;
             pc_transport(app, ui);
             let st = TrackStyle { label_w: 200.0, row_h: 30.0, ppf: app.ui.tracks.ppf.clamp(12.0, 64.0), ruler_h: 26.0, max_rows: 12, hint: false, eye: true, pc: true };
-            let rows = ((ui.available_height() - st.ruler_h) / st.row_h).floor().max(1.0) as usize;
+            let bar = if app.audio_ui.is_recording() || app.audio_ui.selected.is_some() { 64.0 } else { 0.0 };
+            let rows = ((ui.available_height() - st.ruler_h - bar) / st.row_h).floor().max(1.0) as usize;
             tracks_styled(app, ui, 0.0, TrackStyle { max_rows: rows, ..st });
+            if bar > 0.0 {
+                ui.add_space(4.0);
+                ui.allocate_ui(Vec2::new(ui.available_width().min(760.0), 56.0), |ui| {
+                    if !record_bar(app, ui) {
+                        clip_bar(app, ui);
+                    }
+                });
+            }
         });
     // Tools.
     egui::Panel::left("pc_tools").exact_size(52.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(4, 8))).show(ui, |ui| {
@@ -2294,8 +2472,9 @@ fn pc_transport(app: &mut TrazoApp, ui: &mut Ui) {
             ui.add_space(8.0);
             let (sr, _) = ui.allocate_exact_size(Vec2::new(9.0, 24.0), Sense::hover());
             ui.painter().vline(sr.center().x, sr.y_range(), Stroke::new(1.0, SEPARATOR));
-            if widgets::icon_button(ui, Icon::Mic, tr("Grabar voz y sonido")).clicked() {
-                app.audio_ui.show = true;
+            if widgets::icon_button(ui, Icon::Mic, tr("Grabar voz")).clicked() {
+                crate::panels::audio::set_target_track(app, None);
+                crate::panels::audio::begin_recording(app, ui.ctx());
             }
             if widgets::toggle_icon(ui, Icon::Loop, app.playback.looping, tr("Repetir en bucle")).clicked() {
                 app.playback.looping = !app.playback.looping;
@@ -2348,6 +2527,9 @@ pub fn pc_view(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
 
 /// Landscape action bar: icon and label on one line, 52 tall.
 fn action_bar_inline(app: &mut TrazoApp, ui: &mut Ui) {
+    if record_bar(app, ui) || clip_bar(app, ui) {
+        return;
+    }
     let ctx = ui.ctx().clone();
     let layer = app.doc.layer;
     let Some(b) = crate::panels::timeline::selected_block(app) else {
@@ -2431,4 +2613,147 @@ fn action_bar_inline(app: &mut TrazoApp, ui: &mut Ui) {
     if let Some(a) = act {
         do_action(app, &ctx, layer, b, a);
     }
+}
+
+// ---- sound: clip actions and recording, in the timeline itself ------------------------------
+
+/// While recording (or about to): countdown, time, level and stop.
+pub(crate) fn record_bar(app: &mut TrazoApp, ui: &mut Ui) -> bool {
+    use crate::panels::audio::RecordState;
+    if !app.audio_ui.is_recording() {
+        return false;
+    }
+    let ctx = ui.ctx().clone();
+    let (bar, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 56.0), Sense::hover());
+    let bar = bar.shrink2(Vec2::new(10.0, 0.0));
+    ui.painter().rect_filled(bar, 18.0, Color32::from_rgb(31, 31, 34));
+    let now = ctx.input(|i| i.time);
+    let (label, show_level, recording) = match app.audio_ui.record {
+        RecordState::WaitingPermission { .. } => (tr("Acepta el permiso del micrófono…").to_string(), false, false),
+        RecordState::Countdown { until, .. } => (tf!("Grabando en {}…", format!("{:.0}", (until - now).ceil().max(1.0))), true, false),
+        RecordState::Recording { capturing, .. } => {
+            if capturing {
+                (tf!("Grabando · {} s", crate::i18n::num(crate::panels::audio::recorded_seconds(app), 1)), true, true)
+            } else {
+                (tr("Preparando…").to_string(), true, false)
+            }
+        }
+        RecordState::Idle => return false,
+    };
+    let p = ui.painter();
+    let dot = Pos2::new(bar.left() + 22.0, bar.center().y);
+    let pulse = if recording { 0.6 + 0.4 * ((now * 4.0).sin() as f32 * 0.5 + 0.5) } else { 0.5 };
+    p.circle_filled(dot, 7.0, theme::RECORDING.gamma_multiply(pulse));
+    p.text(Pos2::new(bar.left() + 38.0, bar.center().y), Align2::LEFT_CENTER, label, theme::font(14.0, W::Semi), TEXT);
+    // Stop (or cancel) on the right.
+    let stop = Rect::from_center_size(Pos2::new(bar.right() - 52.0, bar.center().y), Vec2::new(88.0, 40.0));
+    let sresp = ui.interact(stop, ui.id().with("rec_stop"), Sense::click());
+    ui.painter().rect_filled(stop, 20.0, if recording { theme::PRIMARY } else { ELEVATED });
+    ui.painter().text(stop.center(), Align2::CENTER_CENTER, if recording { tr("Detener") } else { tr("Cancelar") }, theme::font(14.0, W::Bold), if recording { theme::ON_ACCENT } else { TEXT });
+    if show_level {
+        let lv = crate::panels::audio::input_level(app).clamp(0.0, 1.0).sqrt();
+        let meter = Rect::from_min_max(Pos2::new(stop.left() - 100.0, bar.center().y - 3.0), Pos2::new(stop.left() - 14.0, bar.center().y + 3.0));
+        ui.painter().rect_filled(meter, 3.0, SEPARATOR);
+        ui.painter().rect_filled(Rect::from_min_size(meter.min, Vec2::new(meter.width() * lv, meter.height())), 3.0, if lv > 0.95 { theme::DANGER } else { theme::SAVED });
+    }
+    if sresp.clicked() {
+        if recording {
+            crate::panels::audio::finish_recording(app, &ctx);
+        } else {
+            crate::panels::audio::cancel_recording(app);
+        }
+    }
+    ctx.request_repaint();
+    true
+}
+
+/// The selected sound clip: volume, split, mute, delete and more.
+pub(crate) fn clip_bar(app: &mut TrazoApp, ui: &mut Ui) -> bool {
+    let Some(id) = app.audio_ui.selected else { return false };
+    let Some((_, clip)) = app.doc.project.audio.find_clip(id).map(|(t, c)| (t, c.clone())) else {
+        app.audio_ui.selected = None;
+        return false;
+    };
+    let ctx = ui.ctx().clone();
+    let (bar, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 56.0), Sense::hover());
+    let bar = bar.shrink2(Vec2::new(10.0, 0.0));
+    ui.painter().rect_filled(bar, 18.0, Color32::from_rgb(31, 31, 34));
+    let inner = bar.shrink2(Vec2::new(6.0, 0.0));
+    let unit = inner.width() / 5.0;
+    let slot = |i: f32, w: f32| Rect::from_min_size(Pos2::new(inner.left() + i * unit, inner.top() + 6.0), Vec2::new(w * unit, 44.0));
+    let item = |ui: &mut Ui, r: Rect, icon: Icon, label: &str, on: bool, id: &str| -> egui::Response {
+        let resp = ui.interact(r, ui.id().with(("clip_bar", id)), if on { Sense::click() } else { Sense::hover() });
+        if on && (resp.hovered() || resp.is_pointer_button_down_on()) {
+            ui.painter().rect_filled(r, 12.0, SEPARATOR);
+        }
+        let col = if on { TEXT } else { TEXT3 };
+        paint(ui.painter(), Rect::from_center_size(Pos2::new(r.center().x, r.top() + 15.0), Vec2::splat(19.0)), icon, col);
+        ui.painter().text(Pos2::new(r.center().x, r.top() + 35.0), Align2::CENTER_CENTER, label, theme::font(11.0, W::Medium), col);
+        resp
+    };
+    // Volume stepper.
+    let sr = slot(0.0, 1.6).shrink2(Vec2::new(2.0, 2.0));
+    let p = ui.painter();
+    p.rect_filled(sr, 20.0, Color32::from_rgb(42, 42, 46));
+    let minus = Rect::from_min_size(sr.min, Vec2::new(36.0, sr.height()));
+    let plus = Rect::from_min_size(Pos2::new(sr.right() - 36.0, sr.top()), Vec2::new(36.0, sr.height()));
+    p.text(minus.center(), Align2::CENTER_CENTER, "−", theme::font(18.0, W::Regular), TEXT);
+    p.text(plus.center(), Align2::CENTER_CENTER, "+", theme::font(18.0, W::Regular), TEXT);
+    p.text(Pos2::new(sr.center().x, sr.center().y - 7.0), Align2::CENTER_CENTER, format!("{:.0} %", clip.gain * 100.0), theme::font(13.0, W::Semi), TEXT);
+    p.text(Pos2::new(sr.center().x, sr.center().y + 9.0), Align2::CENTER_CENTER, tr("Volumen"), theme::font(10.0, W::Regular), TEXT2);
+    let step = |g: f32, up: bool| -> f32 { (((g * 10.0).round() + if up { 1.0 } else { -1.0 }) / 10.0).clamp(0.0, 2.0) };
+    if ui.interact(minus, ui.id().with("clip_vm"), Sense::click()).on_hover_text(tr("Más bajo")).clicked() {
+        crate::panels::audio::clip_set_gain(app, id, step(clip.gain, false));
+    }
+    if ui.interact(plus, ui.id().with("clip_vp"), Sense::click()).on_hover_text(tr("Más alto")).clicked() {
+        crate::panels::audio::clip_set_gain(app, id, step(clip.gain, true));
+    }
+    let at = {
+        let p = &app.doc.project;
+        trazo_core::audio::ticks_to_samples(p.tick_of_frame(app.doc.frame) as f64, p.canvas.fps)
+    };
+    let can_split = at > clip.start && at < clip.end();
+    if item(ui, slot(1.6, 0.85), Icon::Cut, tr("Cortar"), can_split, "split").on_hover_text(tr("Cortar en el fotograma actual")).clicked() {
+        crate::panels::audio::clip_split_at_playhead(app, id);
+    }
+    let mute_icon = if clip.muted { Icon::SpeakerOff } else { Icon::Speaker };
+    if item(ui, slot(2.45, 0.85), mute_icon, if clip.muted { tr("Activar") } else { tr("Silenciar") }, true, "mute").clicked() {
+        crate::panels::audio::clip_toggle_mute(app, id);
+    }
+    if item(ui, slot(3.3, 0.85), Icon::Trash, tr("Borrar"), true, "del").clicked() {
+        crate::panels::audio::clip_delete(app, id);
+    }
+    let more = item(ui, slot(4.15, 0.85), Icon::More, tr("Más"), true, "more");
+    egui::Popup::menu(&more).align(egui::RectAlign::TOP_END).show(|ui| {
+        ui.set_min_width(260.0);
+        if menu_row(ui, Icon::Duplicate, tr("Duplicar a continuación"), None, TEXT) {
+            crate::panels::audio::clip_duplicate(app, id);
+            ui.close();
+        }
+        let fin = clip.fade_in as f32 / trazo_core::audio::SAMPLE_RATE as f32;
+        let fout = clip.fade_out as f32 / trazo_core::audio::SAMPLE_RATE as f32;
+        let next = |s: f32| if s < 0.25 { 0.5 } else if s < 0.75 { 1.0 } else if s < 1.5 { 2.0 } else { 0.0 };
+        let fade_label = |s: f32| if s <= 0.0 { tr("no").to_string() } else { format!("{} s", crate::i18n::num(s, 1)) };
+        if menu_row(ui, Icon::Up, tr("Entrada suave"), Some(&fade_label(fin)), TEXT) {
+            crate::panels::audio::clip_set_fades(app, id, Some(next(fin)), None);
+        }
+        if menu_row(ui, Icon::Down, tr("Salida suave"), Some(&fade_label(fout)), TEXT) {
+            crate::panels::audio::clip_set_fades(app, id, None, Some(next(fout)));
+        }
+        if menu_row(ui, Icon::Speaker, tr("Normalizar volumen"), Some(tr("Lo más alto posible sin distorsión")), TEXT) {
+            crate::panels::audio::clip_normalize(app, &ctx, id);
+            ui.close();
+        }
+        if menu_row(ui, Icon::Cut, tr("Separar en frases"), Some(tr("Corta donde hay silencios")), TEXT) {
+            crate::panels::audio::clip_split_silences(app, &ctx, id);
+            ui.close();
+        }
+        if menu_row(ui, Icon::Mic, tr("Grabar otra toma aquí"), Some(tr("En esta misma pista")), TEXT) {
+            let track = app.doc.project.audio.find_clip(id).map(|(t, _)| app.doc.project.audio.tracks[t].id);
+            crate::panels::audio::set_target_track(app, track);
+            crate::panels::audio::begin_recording(app, &ctx);
+            ui.close();
+        }
+    });
+    true
 }

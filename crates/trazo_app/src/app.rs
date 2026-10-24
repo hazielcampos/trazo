@@ -946,6 +946,11 @@ impl TrazoApp {
             }
         }
         panels::audio::update_recording(self, ctx);
+        // Sound is edited in the timeline: asking for "the audio panel"
+        // opens the tracks instead (except the old desktop layout).
+        if std::mem::take(&mut self.audio_ui.show) {
+            self.ui.dock_open = true;
+        }
     }
 
     /// Paste copied pixels on the current layer/frame as a movable selection.
@@ -1012,6 +1017,12 @@ impl eframe::App for TrazoApp {
                 Ok("exportar") => self.export_ui.open = true,
                 Ok("gestos") => self.ui.gestures_card = Some(false),
                 _ => {}
+            }
+            if let Some(a) = std::env::var_os("TRAZO_AUDIO") {
+                let files = vec![std::path::PathBuf::from(a)];
+                self.doc.set_frame(2);
+                panels::audio::import_audio_files(self, &ctx, files);
+                self.doc.set_frame(7);
             }
         }
         self.poll_save(&ctx);
