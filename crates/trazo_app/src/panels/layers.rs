@@ -73,8 +73,48 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
     // Top layer first, like every paint app.
     let n = doc.project.layers.len();
     let mut action: Option<LayerAction> = None;
+    let folded_id = egui::Id::unique("folded_folders");
+    let mut folded: std::collections::BTreeSet<String> = ui.data(|d| d.get_temp(folded_id)).unwrap_or_default();
     egui::ScrollArea::vertical().max_height((ui.available_height() * 0.4).max(110.0)).show(ui, |ui| {
         for i in (0..n).rev() {
+            let layer = &doc.project.layers[i];
+            // A folder row before the first (topmost) layer of each folder.
+            if let Some(f) = &layer.props.folder {
+                let starts = i + 1 == n || doc.project.layers[i + 1].props.folder.as_ref() != Some(f);
+                if starts {
+                    let members: Vec<usize> = (0..n).filter(|&j| doc.project.layers[j].props.folder.as_ref() == Some(f)).collect();
+                    let all_visible = members.iter().all(|&j| doc.project.layers[j].props.visible);
+                    let all_locked = members.iter().all(|&j| doc.project.layers[j].props.locked);
+                    let open = !folded.contains(f);
+                    ui.horizontal(|ui| {
+                        let arrow = if open { Icon::Down } else { Icon::ArrowRight };
+                        if ui.add(IconButton::new(arrow)).on_hover_text(tr("Abrir o cerrar la carpeta")).clicked() {
+                            if open {
+                                folded.insert(f.clone());
+                            } else {
+                                folded.remove(f);
+                            }
+                        }
+                        let (r, _) = ui.allocate_exact_size(Vec2::splat(20.0), egui::Sense::hover());
+                        crate::icons::paint(ui.painter(), r, Icon::Open, ui.visuals().text_color());
+                        ui.label(RichText::new(f).strong());
+                        ui.label(RichText::new(format!("({})", members.len())).weak());
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let lock = if all_locked { Icon::Lock } else { Icon::Unlock };
+                            if ui.add(IconButton::new(lock)).on_hover_text(tr("Bloquear o desbloquear toda la carpeta")).clicked() {
+                                action = Some(LayerAction::FolderLock(f.clone(), !all_locked));
+                            }
+                            let eye = if all_visible { Icon::Eye } else { Icon::EyeOff };
+                            if ui.add(IconButton::new(eye)).on_hover_text(tr("Mostrar u ocultar toda la carpeta")).clicked() {
+                                action = Some(LayerAction::FolderVisible(f.clone(), !all_visible));
+                            }
+                        });
+                    });
+                }
+                if folded.contains(f) {
+                    continue;
+                }
+            }
             let layer = &doc.project.layers[i];
             let selected = layer.id == doc.layer;
             let frame = egui::Frame::group(ui.style()).fill(if selected {
@@ -82,6 +122,8 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
             } else {
                 ui.visuals().faint_bg_color
             });
+            let indent = if layer.props.folder.is_some() { 18.0 } else { 0.0 };
+            let frame = frame.outer_margin(egui::Margin { left: indent as i8, ..Default::default() });
             frame.show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
@@ -121,8 +163,28 @@ fn show_inner(app: &mut TrazoApp, ui: &mut egui::Ui, import_pending: &mut Option
         }
     });
 
+    ui.data_mut(|d| d.insert_temp(folded_id, folded));
     if let Some(a) = action {
-        match a {
+        match a.clone() {
+            LayerAction::FolderVisible(f, on) | LayerAction::FolderLock(f, on) => {
+                let mark = doc.history.undo_len();
+                for j in 0..doc.project.layers.len() {
+                    let l = &doc.project.layers[j];
+                    if l.props.folder.as_ref() != Some(&f) {
+                        continue;
+                    }
+                    let mut props = l.props.clone();
+                    if matches!(a, LayerAction::FolderVisible(..)) {
+                        props.visible = on;
+                    } else {
+                        props.locked = on;
+                    }
+                    let id = l.id;
+                    ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
+                }
+                doc.history.group_since(mark);
+                doc.invalidate_all();
+            }
             LayerAction::Select(i) => {
                 commit_pending(ui, doc);
                 doc.layer = doc.project.layers[i].id;
@@ -197,6 +259,23 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
             doc.invalidate_all();
         }
     } else {
+        if let Some(f) = folder_picker(ui, doc, &props) {
+            // Joining a folder: sit right below its top layer so the
+            // folder stays in one piece.
+            props.folder = f.clone();
+            ops::set_layer_props(&mut doc.project, &mut doc.history, id, props);
+            if let Some(f) = f {
+                let top = doc.project.layers.iter().rposition(|l| l.props.folder.as_ref() == Some(&f) && l.id != id);
+                if let (Some(top), Some(from)) = (top, doc.project.layer_index(id)) {
+                    let to = if from > top { top + 1 } else { top };
+                    if from != to {
+                        ops::move_layer(&mut doc.project, &mut doc.history, from, to);
+                    }
+                }
+            }
+            doc.invalidate_all();
+            return;
+        }
         drawing_props(ui, &mut props, &mut changed, &mut commit);
         let mut shared = props.shared;
         if crate::widgets::switch_row(ui, tr("Fondo fijo en todos los fotogramas"), &mut shared) {
@@ -206,6 +285,72 @@ fn layer_properties(ui: &mut egui::Ui, doc: &mut crate::app::Document) {
         }
     }
     finish_props(ui, doc, i, id, props, changed, commit);
+}
+
+/// Folder of the selected layer: none, an existing one, or a new one.
+/// Returns the new choice when it changes. A folder's name can be edited
+/// here too (it renames it for all its layers).
+fn folder_picker(ui: &mut egui::Ui, doc: &mut crate::app::Document, props: &LayerProps) -> Option<Option<String>> {
+    let mut names: Vec<String> = Vec::new();
+    for l in &doc.project.layers {
+        if let Some(f) = &l.props.folder {
+            if !names.contains(f) {
+                names.push(f.clone());
+            }
+        }
+    }
+    let mut choice = None;
+    ui.horizontal(|ui| {
+        ui.label(tr("Carpeta"));
+        let current = props.folder.clone().unwrap_or_else(|| tr("Ninguna").to_string());
+        egui::ComboBox::from_id_salt("layer_folder").selected_text(current).show_ui(ui, |ui| {
+            if ui.selectable_label(props.folder.is_none(), tr("Ninguna")).clicked() && props.folder.is_some() {
+                choice = Some(None);
+            }
+            for n in &names {
+                if ui.selectable_label(props.folder.as_ref() == Some(n), n).clicked() && props.folder.as_ref() != Some(n) {
+                    choice = Some(Some(n.clone()));
+                }
+            }
+            if ui.selectable_label(false, tr("Nueva carpeta")).clicked() {
+                let mut k = names.len() + 1;
+                let mut name = tf!("Carpeta {}", k);
+                while names.contains(&name) {
+                    k += 1;
+                    name = tf!("Carpeta {}", k);
+                }
+                choice = Some(Some(name));
+            }
+        });
+    });
+    if let (None, Some(f)) = (&choice, &props.folder) {
+        // Rename the folder (all its layers), one undo step.
+        let buf = egui::Id::unique(("folder_rename", f.as_str()));
+        let mut text = ui.data(|d| d.get_temp::<String>(buf)).unwrap_or_else(|| f.clone());
+        let r = ui.horizontal(|ui| {
+            ui.label(tr("Nombre de la carpeta"));
+            ui.text_edit_singleline(&mut text)
+        });
+        if r.inner.lost_focus() {
+            ui.data_mut(|d| d.remove::<String>(buf));
+        }
+        if r.inner.lost_focus() && !text.trim().is_empty() && text != *f {
+            let mark = doc.history.undo_len();
+            for j in 0..doc.project.layers.len() {
+                if doc.project.layers[j].props.folder.as_ref() == Some(f) {
+                    let mut p = doc.project.layers[j].props.clone();
+                    p.folder = Some(text.trim().to_string());
+                    let id = doc.project.layers[j].id;
+                    ops::set_layer_props(&mut doc.project, &mut doc.history, id, p);
+                }
+            }
+            doc.history.group_since(mark);
+        } else if r.inner.changed() {
+            // Keep what is being typed until focus leaves.
+            ui.data_mut(|d| d.insert_temp(buf, text));
+        }
+    }
+    choice
 }
 
 /// Options that only make sense for drawing layers.
@@ -381,10 +526,12 @@ fn commit_pending(ui: &egui::Ui, doc: &mut crate::app::Document) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum LayerAction {
     Select(usize),
     ToggleVisible(usize),
     ToggleLock(usize),
     Move(usize, usize),
+    FolderVisible(String, bool),
+    FolderLock(String, bool),
 }

@@ -45,6 +45,9 @@ pub struct LayerProps {
     /// Video layer: shows imported video pictures instead of drawings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub video: Option<crate::video::VideoLayer>,
+    /// Folder the layer belongs to (layers of a folder sit next to each other).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,6 +325,7 @@ impl LayerProps {
             reference: false,
             clip: false,
             video: None,
+            folder: None,
         }
     }
 
