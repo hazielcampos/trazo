@@ -241,10 +241,15 @@ pub fn save_project(p: &Project, path: &Path) -> Result<()> {
     let result = write_archive(p, &tmp, path);
     if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
+        forget_cels(path);
     }
     result?;
     // Replace the old file only once the new one is complete.
-    std::fs::rename(&tmp, path)?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        forget_cels(path);
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     Ok(())
 }
 
@@ -340,7 +345,35 @@ fn read_video(zip: &mut zip::ZipArchive<File>, uid: u64) -> Result<crate::video:
     Ok(crate::video::VideoMedia { uid, name: meta.name, width: meta.width, height: meta.height, fps: meta.fps, frames, thumbs, thumb_w: meta.thumb_w, thumb_h: meta.thumb_h })
 }
 
+/// What each drawing looked like when it was last written to a project file:
+/// file → (fingerprint, x, y). Lets a save copy unchanged drawings instead of
+/// encoding them again (autosave of a big project takes a fraction).
+type SavedCels = std::collections::HashMap<String, (u64, i32, i32)>;
+
+static SAVED: std::sync::Mutex<Option<std::collections::HashMap<std::path::PathBuf, SavedCels>>> = std::sync::Mutex::new(None);
+
+fn saved_cels(path: &Path) -> SavedCels {
+    SAVED.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|m| m.get(path).cloned()).unwrap_or_default()
+}
+
+fn forget_cels(path: &Path) {
+    if let Some(m) = SAVED.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        m.remove(path);
+    }
+}
+
+fn remember_cels(path: &Path, cels: SavedCels) {
+    let mut g = SAVED.lock().unwrap_or_else(|e| e.into_inner());
+    let m = g.get_or_insert_with(Default::default);
+    if m.len() > 16 && !m.contains_key(path) {
+        m.clear();
+    }
+    m.insert(path.to_path_buf(), cels);
+}
+
 fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<()> {
+    let known = saved_cels(previous);
+    let mut written = SavedCels::new();
     {
         let mut old = File::open(previous).ok().and_then(|f| zip::ZipArchive::new(f).ok());
         let file = File::create(tmp)?;
@@ -353,15 +386,28 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<()> {
             let mut cels = Vec::new();
             let mut empty = Vec::new();
             for (&lid, img) in &f.cels {
+                let file = format!("cels/{}_{}.png", f.id, lid);
+                let fp = img.fingerprint();
+                // Unchanged since the last save: copy the stored PNG.
+                if let (Some(&(was, x, y)), Some(old)) = (known.get(&file), old.as_mut()) {
+                    if was == fp {
+                        if let Ok(entry) = old.by_name(&file) {
+                            zip.raw_copy_file(entry)?;
+                            written.insert(file.clone(), (fp, x, y));
+                            cels.push(CelManifest { layer: lid, x, y, file });
+                            continue;
+                        }
+                    }
+                }
                 let Some(b) = img.content_bounds() else {
                     empty.push(lid);
                     continue;
                 };
                 let mut data = img.read_region(&b);
                 unpremultiply(&mut data);
-                let file = format!("cels/{}_{}.png", f.id, lid);
                 zip.start_file(&file, stored)?;
                 zip.write_all(&encode_png(b.width() as u32, b.height() as u32, &data)?)?;
+                written.insert(file.clone(), (fp, b.x0, b.y0));
                 cels.push(CelManifest { layer: lid, x: b.x0, y: b.y0, file });
             }
             frames.push(FrameManifest { id: f.id, hold: f.hold, cels, cont: f.cont.iter().copied().collect(), empty });
@@ -418,6 +464,8 @@ fn write_archive(p: &Project, tmp: &Path, previous: &Path) -> Result<()> {
         let file = zip.finish()?;
         file.sync_all()?;
     }
+    // Takes effect for the final name (the temp file is renamed onto it).
+    remember_cels(previous, written);
     Ok(())
 }
 
@@ -453,6 +501,7 @@ pub fn load_project(path: &Path) -> Result<Project> {
         Ok(img)
     };
     let mut frames = Vec::with_capacity(manifest.frames.len());
+    let mut known = SavedCels::new();
     for fm in &manifest.frames {
         let mut frame = Frame { id: fm.id, hold: fm.hold.max(1), cels: Default::default(), cont: fm.cont.iter().copied().collect() };
         for c in &fm.cels {
@@ -460,6 +509,10 @@ pub fn load_project(path: &Path) -> Result<Project> {
             // drawings open at once (fixed backgrounds below stay open).
             let img = read_cel(c)?;
             img.pack_all();
+            // Its PNG is already in the file: the next save can copy it.
+            if c.file == format!("cels/{}_{}.png", fm.id, c.layer) {
+                known.insert(c.file.clone(), (img.fingerprint(), c.x, c.y));
+            }
             frame.cels.insert(c.layer, img);
         }
         for &lid in &fm.empty {
@@ -520,12 +573,55 @@ pub fn load_project(path: &Path) -> Result<Project> {
     let mut p = Project::from_parts(manifest.name, manifest.canvas, layers, frames, shared, audio, manifest.next_id);
     // Old projects timed every layer together: give each layer its own row.
     crate::timeline::normalize_holds(&mut p);
+    remember_cels(path, known);
     Ok(p)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Saving again copies the drawings that didn't change and re-encodes
+    /// the one that did; the file reads back exactly.
+    #[test]
+    fn incremental_save_keeps_every_drawing_right() {
+        let dir = std::env::temp_dir().join(format!("trazo_incr_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("p.anim");
+        let mut p = Project::new("Inc", CanvasSettings { width: 200, height: 120, ..Default::default() });
+        let lid = p.layers[0].id;
+        for i in 0..6 {
+            if i > 0 {
+                let id = p.alloc_id();
+                p.frames.push(Frame::new(id));
+            }
+            p.frames[i].cel_mut(lid, 200, 120).set_pixel(10 + i as i32 * 20, 50, [200, 0, 0, 255]);
+        }
+        save_project(&p, &path).unwrap();
+        let first = std::fs::read(&path).unwrap();
+        // Change one drawing only (erase a pixel and draw elsewhere, so the
+        // freed tile memory may well be reused: ids, not addresses, decide).
+        p.frames[3].cel_mut(lid, 200, 120).set_pixel(70, 50, [0, 0, 0, 0]);
+        p.frames[3].cel_mut(lid, 200, 120).set_pixel(150, 100, [0, 200, 0, 255]);
+        save_project(&p, &path).unwrap();
+        let q = load_project(&path).unwrap();
+        for i in 0..6 {
+            let c = q.frames[i].cel(lid).unwrap();
+            if i == 3 {
+                assert_eq!(c.pixel(70, 50)[3], 0, "the change was saved");
+                assert_eq!(c.pixel(150, 100), [0, 200, 0, 255]);
+            } else {
+                assert_eq!(c.pixel(10 + i as i32 * 20, 50), [200, 0, 0, 255], "frame {i} kept");
+            }
+        }
+        // A save right after loading copies everything and stays identical in content.
+        save_project(&q, &path).unwrap();
+        let r = load_project(&path).unwrap();
+        assert_eq!(r.frames[3].cel(lid).unwrap().pixel(150, 100), [0, 200, 0, 255]);
+        assert_eq!(r.frames[5].cel(lid).unwrap().pixel(110, 50), [200, 0, 0, 255]);
+        assert!(!first.is_empty());
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn save_load_roundtrip() {

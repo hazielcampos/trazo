@@ -323,4 +323,8 @@ fn main() {
     bench_render(&q, "loaded (packed), background, no onion", &RenderOptions { background: true, ..Default::default() });
     let u = trazo_core::memory::usage(&q, None);
     println!("pixel memory after playing (cold reads): {:.1} MB", u.megabytes());
+    // An autosave right after opening: unchanged drawings are copied.
+    let t = Instant::now();
+    save_project(&q, &out).expect("save again");
+    println!("save again (incremental, nothing changed): {:.2} s", t.elapsed().as_secs_f64());
 }

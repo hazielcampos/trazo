@@ -28,7 +28,15 @@ enum TileData {
 
 /// One 64×64 block of premultiplied RGBA8 pixels, open or packed.
 pub struct Tile {
+    /// Unique per content: a new tile, a copy or any change gets a new one
+    /// (unlike addresses, ids are never reused, so "same id" means "same pixels").
+    id: u64,
     data: RwLock<TileData>,
+}
+
+fn next_tile_id() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// The pixels of a tile, borrowed (open tile) or decoded (packed tile).
@@ -62,7 +70,12 @@ fn unpack(packed: &[u8]) -> Box<[u8; TILE_BYTES]> {
 
 impl Tile {
     pub fn new() -> Self {
-        Self { data: RwLock::new(TileData::Raw(Box::new([0u8; TILE_BYTES]))) }
+        Self { id: next_tile_id(), data: RwLock::new(TileData::Raw(Box::new([0u8; TILE_BYTES]))) }
+    }
+
+    /// Changes whenever the pixels may have changed.
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     fn read(&self) -> RwLockReadGuard<'_, TileData> {
@@ -103,6 +116,7 @@ impl Tile {
 
     /// Writable pixels (the tile is opened if packed).
     pub fn px_mut(&mut self) -> &mut [u8; TILE_BYTES] {
+        self.id = next_tile_id();
         let d = self.data.get_mut().unwrap_or_else(|e| e.into_inner());
         if let TileData::Packed(p) = d {
             *d = TileData::Raw(unpack(p));
@@ -159,7 +173,7 @@ impl Clone for Tile {
             TileData::Raw(b) => TileData::Raw(b.clone()),
             TileData::Packed(p) => TileData::Packed(p.clone()),
         };
-        Self { data: RwLock::new(data) }
+        Self { id: next_tile_id(), data: RwLock::new(data) }
     }
 }
 
@@ -225,14 +239,15 @@ impl TiledImage {
         self.tiles.iter().filter(|t| t.is_some()).count()
     }
 
-    /// Cheap value that changes whenever the pixels change (tiles are
-    /// copy-on-write, so an edited tile is a new allocation).
+    /// Cheap value that changes whenever the pixels change (every tile
+    /// carries an id that changes with its content).
     pub fn fingerprint(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
+        (self.width, self.height).hash(&mut h);
         for (i, t) in self.tiles.iter().enumerate() {
             if let Some(t) = t {
-                (i, Arc::as_ptr(t) as usize).hash(&mut h);
+                (i, t.id()).hash(&mut h);
             }
         }
         h.finish()
