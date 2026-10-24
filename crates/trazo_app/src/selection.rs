@@ -1,5 +1,6 @@
 //! Selection tools (rectangle, lasso) and the free-transform handles.
 
+use crate::i18n::tr;
 use trazo_core::fill::{flood_region, paint_mask, FillOptions};
 use trazo_core::history::{Edit, PixelEditBuilder};
 use trazo_core::transform::{Mask, Transform, Xform};
@@ -103,7 +104,7 @@ impl SelectTool {
             }
             self.commit(doc);
             if !editable {
-                return Some("La capa está bloqueada u oculta".into());
+                return Some(tr("La capa está bloqueada u oculta").into());
             }
             if params.kind == SelectKind::Wand {
                 return self.wand(doc, c.x.floor() as i32, c.y.floor() as i32, params);
@@ -216,7 +217,7 @@ impl SelectTool {
                 self.active = Some(t);
                 None
             }
-            None => Some("No hay nada dibujado en la selección".into()),
+            None => Some(tr("No hay nada dibujado en la selección").into()),
         }
     }
 
@@ -433,11 +434,11 @@ impl SelectTool {
     pub fn select_all(&mut self, doc: &mut Document) -> Option<String> {
         self.commit(doc);
         if !doc.project.layer(doc.layer).is_some_and(|l| l.props.paintable()) {
-            return Some("La capa está bloqueada, oculta o es de video".into());
+            return Some(tr("La capa está bloqueada, oculta o es de video").into());
         }
         let bounds = IRect::from_size(doc.project.canvas.width, doc.project.canvas.height);
         let content = doc.project.visible_cel(doc.frame, doc.layer).and_then(|c| c.content_bounds());
-        let Some(r) = content else { return Some("La capa está vacía en este fotograma".into()) };
+        let Some(r) = content else { return Some(tr("La capa está vacía en este fotograma").into()) };
         let mask = Mask::from_rect(r, bounds)?;
         self.lift(doc, mask)
     }

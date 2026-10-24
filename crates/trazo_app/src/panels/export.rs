@@ -2,6 +2,7 @@
 //! preview, background export with progress / time left / cancel, then save
 //! to the gallery (Android) or a file (desktop) and share.
 
+use crate::i18n::tr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc};
@@ -147,8 +148,8 @@ const PRESETS: [Preset; 5] = [
 
 fn human_bytes(b: u64) -> String {
     match b {
-        b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / (1u64 << 30) as f64),
-        b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1u64 << 20) as f64),
+        b if b >= 1 << 30 => format!("{} GB", crate::i18n::num((b as f64 / (1u64 << 30) as f64) as f32, 1)),
+        b if b >= 1 << 20 => format!("{} MB", crate::i18n::num((b as f64 / (1u64 << 20) as f64) as f32, 1)),
         b => format!("{} KB", (b / 1024).max(1)),
     }
 }
@@ -202,7 +203,7 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
         phone_screen(app, ctx, settings, preview, range, &mut start, &mut cancel, &mut share, &mut open);
     } else {
     crate::widgets::backdrop(ctx);
-    egui::Window::new("Exportar")
+    egui::Window::new(tr("Exportar"))
         .order(egui::Order::Foreground)
         .open(&mut open)
         .collapsible(false)
@@ -216,10 +217,10 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
             let busy = app.export_ui.job.is_some();
             ui.add_enabled_ui(!busy, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Atajos").strong());
+                    ui.label(RichText::new(tr("Atajos")).strong());
                     for p in &PRESETS {
                         let enabled = mp4_available() || !matches!(p.label, "TikTok / Reels" | "Instagram" | "Cuadrado" | "YouTube");
-                        if ui.add_enabled(enabled, egui::Button::new(p.label)).on_hover_text(p.hint).clicked() {
+                        if ui.add_enabled(enabled, egui::Button::new(tr(p.label))).on_hover_text(tr(p.hint)).clicked() {
                             (p.apply)(&mut app.export_ui.settings);
                         }
                     }
@@ -228,10 +229,10 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                 ui.columns(2, |cols| {
                     let ui = &mut cols[0];
                     let s = &mut app.export_ui.settings;
-                    ui.label(RichText::new("Formato").strong());
+                    ui.label(RichText::new(tr("Formato")).strong());
                     for f in FORMATS {
                         let available = f != ExportFormat::Mp4 || mp4_available();
-                        let label = if available { f.label().to_string() } else { format!("{} (en Android)", f.label()) };
+                        let label = if available { tr(f.label()).to_string() } else { tf!("{} (en Android)", tr(f.label())) };
                         ui.add_enabled_ui(available, |ui| {
                             ui.radio_value(&mut s.format, f, label);
                         });
@@ -247,64 +248,64 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                 ui.separator();
                 if s.format.has_video() {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Forma");
+                        ui.label(tr("Forma"));
                         for a in Aspect::ALL {
-                            ui.selectable_value(&mut s.aspect, a, a.label());
+                            ui.selectable_value(&mut s.aspect, a, tr(a.label()));
                         }
                     });
                     if s.aspect != Aspect::Canvas {
                         ui.horizontal_wrapped(|ui| {
-                            ui.radio_value(&mut s.fit, Fit::Pad, "Todo visible, con bandas");
-                            ui.radio_value(&mut s.fit, Fit::Crop, "Llenar recortando");
+                            ui.radio_value(&mut s.fit, Fit::Pad, tr("Todo visible, con bandas"));
+                            ui.radio_value(&mut s.fit, Fit::Crop, tr("Llenar recortando"));
                             if s.fit == Fit::Pad {
                                 let c = s.pad_color.to_rgba8();
                                 let mut c32 = Color32::from_rgb(c[0], c[1], c[2]);
-                                if egui::color_picker::color_edit_button_srgba(ui, &mut c32, egui::color_picker::Alpha::Opaque).on_hover_text("Color de las bandas").changed() {
+                                if egui::color_picker::color_edit_button_srgba(ui, &mut c32, egui::color_picker::Alpha::Opaque).on_hover_text(tr("Color de las bandas")).changed() {
                                     s.pad_color = Rgba::from_rgba8([c32.r(), c32.g(), c32.b(), 255]);
                                 }
                             }
                         });
                     }
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Tamaño");
-                        for (label, v) in [("Original", OutSize::Percent(1.0)), ("1080p", OutSize::Short(1080)), ("720p", OutSize::Short(720)), ("480p", OutSize::Short(480)), ("50 %", OutSize::Percent(0.5))] {
+                        ui.label(tr("Tamaño"));
+                        for (label, v) in [(tr("Original"), OutSize::Percent(1.0)), ("1080p", OutSize::Short(1080)), ("720p", OutSize::Short(720)), ("480p", OutSize::Short(480)), ("50 %", OutSize::Percent(0.5))] {
                             ui.selectable_value(&mut s.size, v, label);
                         }
                     });
                 }
                 if s.format.is_timed_video() {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Velocidad de salida");
-                        ui.selectable_value(&mut s.out_fps, None, format!("Del proyecto ({} fps)", app.doc.project.canvas.fps));
+                        ui.label(tr("Velocidad de salida"));
+                        ui.selectable_value(&mut s.out_fps, None, tf!("Del proyecto ({} fps)", app.doc.project.canvas.fps));
                         for f in [24, 30, 60] {
                             ui.selectable_value(&mut s.out_fps, Some(f), format!("{f} fps"));
                         }
                     });
                     ui.horizontal(|ui| {
-                        ui.label("Repeticiones");
-                        ui.add(egui::DragValue::new(&mut s.loops).range(1..=20)).on_hover_text("Útil para animaciones cortas en redes sociales");
+                        ui.label(tr("Repeticiones"));
+                        ui.add(egui::DragValue::new(&mut s.loops).range(1..=20)).on_hover_text(tr("Útil para animaciones cortas en redes sociales"));
                     });
                 }
                 if s.format != ExportFormat::Png {
                     if let Some((a, b)) = range {
-                        ui.checkbox(&mut app.export_ui.use_range, format!("Solo el rango de reproducción ({}–{})", a + 1, b + 1));
+                        ui.checkbox(&mut app.export_ui.use_range, tf!("Solo el rango de reproducción ({}–{})", a + 1, b + 1));
                     }
                 }
                 let s = &mut app.export_ui.settings;
                 if s.format.supports_alpha() {
-                    ui.checkbox(&mut s.background, "Incluir el fondo (desmarcado = transparente)");
+                    ui.checkbox(&mut s.background, tr("Incluir el fondo (desmarcado = transparente)"));
                 }
                 if matches!(s.format, ExportFormat::Mp4 | ExportFormat::Avi) {
-                    ui.checkbox(&mut s.include_audio, "Incluir el audio");
+                    ui.checkbox(&mut s.include_audio, tr("Incluir el audio"));
                 }
                 if matches!(s.format, ExportFormat::Mp4 | ExportFormat::Gif | ExportFormat::Avi) {
                     let mut q = s.quality as i32;
-                    if ui.add(egui::Slider::new(&mut q, 10..=100).text("Calidad")).changed() {
+                    if ui.add(egui::Slider::new(&mut q, 10..=100).text(tr("Calidad"))).changed() {
                         s.quality = q as u8;
                     }
                 }
                 ui.horizontal(|ui| {
-                    ui.label("Nombre");
+                    ui.label(tr("Nombre"));
                     ui.add(egui::TextEdit::singleline(&mut app.export_ui.file_name).desired_width(260.0));
                     ui.label(format!(".{}", app.export_ui.settings.format.extension()));
                 });
@@ -312,40 +313,40 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
 
             let pl = plan(&app.doc.project, &settings);
             let mut info = if settings.format.has_video() {
-                format!("{}×{} px · {} fps · {:.1} s", pl.width, pl.height, pl.fps, pl.duration_secs())
+                format!("{}×{} px · {} fps · {} s", pl.width, pl.height, pl.fps, crate::i18n::num(pl.duration_secs() as f32, 1))
             } else {
-                format!("{:.1} s de audio", pl.duration_secs())
+                tf!("{} s de audio", crate::i18n::num(pl.duration_secs() as f32, 1))
             };
             if settings.format == ExportFormat::Png {
-                info = format!("{}×{} px · fotograma {}", pl.width, pl.height, app.doc.frame + 1);
+                info = tf!("{}×{} px · fotograma {}", pl.width, pl.height, app.doc.frame + 1);
             }
             info.push_str(&format!(" · ≈ {}", human_bytes(estimate_bytes(&app.doc.project, &settings))));
             ui.label(RichText::new(info).weak());
             if settings.format == ExportFormat::Wav && app.doc.project.audio.is_empty() {
-                ui.label(RichText::new("El proyecto no tiene audio: el WAV saldrá en silencio.").color(Color32::from_rgb(240, 190, 80)));
+                ui.label(RichText::new(tr("El proyecto no tiene audio: el WAV saldrá en silencio.")).color(Color32::from_rgb(240, 190, 80)));
             }
             ui.separator();
 
             if let Some(job) = &app.export_ui.job {
                 let p = f32::from_bits(job.progress.load(Ordering::Relaxed));
                 let elapsed = job.started.elapsed().as_secs_f32();
-                let eta = if p > 0.03 { format!(" · quedan ≈ {:.0} s", elapsed * (1.0 - p) / p) } else { String::new() };
-                ui.add(egui::ProgressBar::new(p).show_percentage().text(format!("Exportando {}{eta}", job.format.label())));
-                ui.label(RichText::new("Puedes seguir dibujando; no cierres la app hasta que termine.").small().weak());
-                if ui.add(IconButton::new(Icon::Close).text("Cancelar")).clicked() {
+                let eta = if p > 0.03 { tf!(" · quedan ≈ {} s", format!("{:.0}", elapsed * (1.0 - p) / p)) } else { String::new() };
+                ui.add(egui::ProgressBar::new(p).show_percentage().text(tf!("Exportando {}", tr(job.format.label())) + &eta));
+                ui.label(RichText::new(tr("Puedes seguir dibujando; no cierres la app hasta que termine.")).small().weak());
+                if ui.add(IconButton::new(Icon::Close).text(tr("Cancelar"))).clicked() {
                     cancel = true;
                 }
                 ctx.request_repaint_after(std::time::Duration::from_millis(150));
             } else {
                 ui.horizontal(|ui| {
-                    if ui.add(IconButton::new(Icon::Export).text("Exportar").selected(true)).clicked() {
+                    if ui.add(IconButton::new(Icon::Export).text(tr("Exportar")).selected(true)).clicked() {
                         start = true;
                     }
                     if let Some(done) = &app.export_ui.last {
-                        if done.uri.is_some() && ui.add(IconButton::new(Icon::ArrowRight).text("Compartir")).on_hover_text("WhatsApp, TikTok, Instagram, correo…").clicked() {
+                        if done.uri.is_some() && ui.add(IconButton::new(Icon::ArrowRight).text(tr("Compartir"))).on_hover_text(tr("WhatsApp, TikTok, Instagram, correo…")).clicked() {
                             share = true;
                         }
-                        ui.label(RichText::new(format!("Último: {}", done.place)).small().weak());
+                        ui.label(RichText::new(tf!("Último: {}", done.place)).small().weak());
                     }
                 });
             }
@@ -397,7 +398,7 @@ fn start_export(app: &mut TrazoApp, ctx: &egui::Context, settings: ExportSetting
 
     // Desktop: ask where to save first. Android: render to a temp file, then publish to the gallery.
     #[cfg(not(target_os = "android"))]
-    let path = match app.platform.save_file("Exportar", &file_name, format.extension()) {
+    let path = match app.platform.save_file(tr("Exportar"), &file_name, format.extension()) {
         Some(p) => p,
         None => return,
     };
@@ -417,7 +418,7 @@ fn start_export(app: &mut TrazoApp, ctx: &egui::Context, settings: ExportSetting
             !c2.load(Ordering::Relaxed)
         };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_export(&project, &settings, &path, &file_name, &mut report)))
-            .unwrap_or_else(|_| Err("error interno al exportar".into()));
+            .unwrap_or_else(|_| Err(tr("error interno al exportar").into()));
         if result.is_err() {
             let _ = std::fs::remove_file(&path);
         }
@@ -427,7 +428,7 @@ fn start_export(app: &mut TrazoApp, ctx: &egui::Context, settings: ExportSetting
     });
     if spawned.is_err() {
         EXPORT_ACTIVE.store(false, Ordering::SeqCst);
-        app.toast(ctx, "No se pudo iniciar la exportación");
+        app.toast(ctx, tr("No se pudo iniciar la exportación"));
         return;
     }
     app.export_ui.job = Some(Job { progress, cancel, rx, format, started: Instant::now() });
@@ -478,17 +479,17 @@ fn poll(app: &mut TrazoApp, ctx: &egui::Context) {
     let result = match job.rx.try_recv() {
         Ok(r) => r,
         Err(mpsc::TryRecvError::Empty) => return,
-        Err(mpsc::TryRecvError::Disconnected) => Err("la exportación se detuvo".into()),
+        Err(mpsc::TryRecvError::Disconnected) => Err(tr("la exportación se detuvo").into()),
     };
     app.export_ui.job = None;
     match result {
         Ok(done) => {
-            app.toast(ctx, format!("Exportado en {}", done.place));
+            app.toast(ctx, tf!("Exportado en {}", done.place));
             app.export_ui.last = Some(done);
             app.export_ui.file_name = default_file_name(&app.doc.project.name);
         }
-        Err(e) if e == CANCELLED => app.toast(ctx, "Exportación cancelada"),
-        Err(e) => app.toast(ctx, format!("No se pudo exportar: {e}")),
+        Err(e) if e == CANCELLED => app.toast(ctx, tr("Exportación cancelada")),
+        Err(e) => app.toast(ctx, tf!("No se pudo exportar: {}", crate::i18n::tr_err(&e.to_string()))),
     }
 }
 
@@ -497,7 +498,7 @@ fn share_last(app: &mut TrazoApp, ctx: &egui::Context) {
     #[cfg(target_os = "android")]
     if let Some(uri) = &done.uri {
         if let Err(e) = crate::android::share(uri, done.mime) {
-            app.toast(ctx, format!("No se pudo compartir: {e}"));
+            app.toast(ctx, tf!("No se pudo compartir: {}", crate::i18n::tr_err(&e.to_string())));
         }
     }
     #[cfg(not(target_os = "android"))]
@@ -537,7 +538,7 @@ fn preset_card(ui: &mut egui::Ui, i: usize, selected: bool, enabled: bool, width
         p.rect_stroke(r.expand2(egui::vec2(3.0, 1.0)), 3.0, egui::Stroke::new(1.5, fg), egui::StrokeKind::Middle);
     }
     p.text(egui::pos2(rect.center().x, rect.bottom() - 16.0), egui::Align2::CENTER_CENTER, name, egui::FontId::proportional(12.0), if enabled { TEXT } else { TEXT2 });
-    resp.on_hover_text(PRESETS[i].hint)
+    resp.on_hover_text(tr(PRESETS[i].hint))
 }
 
 /// Settings row with a value and a chevron; returns its response (for a menu).
@@ -566,7 +567,7 @@ fn size_label(s: OutSize) -> &'static str {
         OutSize::Short(720) => "720p",
         OutSize::Short(480) => "480p",
         OutSize::Percent(f) if (f - 0.5).abs() < 0.01 => "50 %",
-        _ => "Original",
+        _ => tr("Original"),
     }
 }
 
@@ -596,12 +597,12 @@ fn phone_screen(
             // Header: Cancel · title.
             ui.horizontal(|ui| {
                 ui.set_min_height(48.0);
-                let label = if busy { "Ocultar" } else { "Cancelar" };
+                let label = if busy { tr("Ocultar") } else { tr("Cancelar") };
                 if ui.add(egui::Button::new(RichText::new(label).color(ACCENT).size(16.0)).frame(false).min_size(egui::vec2(84.0, 44.0))).clicked() {
                     *open = false;
                 }
                 let title_w = ui.available_width() - 84.0;
-                ui.add_sized([title_w, 44.0], egui::Label::new(RichText::new("Exportar").size(17.0).strong().color(TEXT)));
+                ui.add_sized([title_w, 44.0], egui::Label::new(RichText::new(tr("Exportar")).size(17.0).strong().color(TEXT)));
             });
 
             // Fixed footer height: button (+ share) and info.
@@ -635,19 +636,19 @@ fn phone_screen(
             ui.add_space(6.0);
             let pl = plan(&app.doc.project, &settings);
             let info = if settings.format == ExportFormat::Png {
-                format!("{}×{} · fotograma {}", pl.width, pl.height, app.doc.frame + 1)
+                tf!("{}×{} · fotograma {}", pl.width, pl.height, app.doc.frame + 1)
             } else if settings.format.has_video() {
-                format!("{}×{} · {} fps · {:.1} s · ≈ {}", pl.width, pl.height, pl.fps, pl.duration_secs(), human_bytes(estimate_bytes(&app.doc.project, &settings)))
+                format!("{}×{} · {} fps · {} s · ≈ {}", pl.width, pl.height, pl.fps, crate::i18n::num(pl.duration_secs() as f32, 1), human_bytes(estimate_bytes(&app.doc.project, &settings)))
             } else {
-                format!("{:.1} s de audio · ≈ {}", pl.duration_secs(), human_bytes(estimate_bytes(&app.doc.project, &settings)))
+                tf!("{} s de audio · ≈ {}", crate::i18n::num(pl.duration_secs() as f32, 1), human_bytes(estimate_bytes(&app.doc.project, &settings)))
             };
             if let Some(job) = &app.export_ui.job {
                 let p = f32::from_bits(job.progress.load(Ordering::Relaxed));
                 let elapsed = job.started.elapsed().as_secs_f32();
-                let eta = if p > 0.03 { format!(" · quedan ≈ {:.0} s", elapsed * (1.0 - p) / p) } else { String::new() };
+                let eta = if p > 0.03 { tf!(" · quedan ≈ {} s", format!("{:.0}", elapsed * (1.0 - p) / p)) } else { String::new() };
                 ui.add(egui::ProgressBar::new(p).show_percentage().desired_height(10.0).corner_radius(5).fill(ACCENT));
-                ui.label(RichText::new(format!("Exportando {}{eta}", job.format.label())).size(13.0).color(TEXT2));
-                if ui.add(egui::Button::new(RichText::new("Cancelar exportación").color(DANGER).size(16.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(ui.available_width(), 46.0))).clicked() {
+                ui.label(RichText::new(tf!("Exportando {}", tr(job.format.label())) + &eta).size(13.0).color(TEXT2));
+                if ui.add(egui::Button::new(RichText::new(tr("Cancelar exportación")).color(DANGER).size(16.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(ui.available_width(), 46.0))).clicked() {
                     *cancel = true;
                 }
                 ctx.request_repaint_after(std::time::Duration::from_millis(150));
@@ -656,10 +657,10 @@ fn phone_screen(
                     ui.label(RichText::new(info.clone()).size(13.0).color(TEXT2));
                 }
                 let what = match settings.format {
-                    ExportFormat::Mp4 | ExportFormat::Avi => "Exportar video",
-                    ExportFormat::Gif => "Exportar GIF",
-                    ExportFormat::Wav => "Exportar audio",
-                    _ => "Exportar imagen",
+                    ExportFormat::Mp4 | ExportFormat::Avi => tr("Exportar video"),
+                    ExportFormat::Gif => tr("Exportar GIF"),
+                    ExportFormat::Wav => tr("Exportar audio"),
+                    _ => tr("Exportar imagen"),
                 };
                 if landscape {
                     ui.horizontal(|ui| {
@@ -671,7 +672,7 @@ fn phone_screen(
                                     *start = true;
                                 }
                             });
-                            if share_ok && ui.add(egui::Button::new(RichText::new("Compartir").size(15.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(120.0, 50.0))).clicked() {
+                            if share_ok && ui.add(egui::Button::new(RichText::new(tr("Compartir")).size(15.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(120.0, 50.0))).clicked() {
                                 *share = true;
                             }
                         });
@@ -680,7 +681,7 @@ fn phone_screen(
                     *start = true;
                 }
                 if let Some(done) = app.export_ui.last.as_ref().filter(|_| !landscape) {
-                    if done.uri.is_some() && ui.add(egui::Button::new(RichText::new("Compartir el último").color(TEXT).size(15.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(ui.available_width(), 42.0))).clicked() {
+                    if done.uri.is_some() && ui.add(egui::Button::new(RichText::new(tr("Compartir el último")).color(TEXT).size(15.0)).fill(ELEVATED).corner_radius(crate::theme::R_ROW).min_size(egui::vec2(ui.available_width(), 42.0))).clicked() {
                         *share = true;
                     }
                 }
@@ -721,12 +722,12 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
             let s = &mut app.export_ui.settings;
-            let r = value_row(ui, "Formato", s.format.label());
+            let r = value_row(ui, tr("Formato"), tr(s.format.label()));
             egui::Popup::menu(&r).show(|ui| {
                 ui.set_min_width(240.0);
                 for f in FORMATS {
                     let ok = f != ExportFormat::Mp4 || mp4_available();
-                    if ui.add_enabled(ok, egui::Button::selectable(s.format == f, f.label()).min_size(egui::vec2(220.0, 40.0))).clicked() {
+                    if ui.add_enabled(ok, egui::Button::selectable(s.format == f, tr(f.label())).min_size(egui::vec2(220.0, 40.0))).clicked() {
                         s.format = f;
                         ui.close();
                     }
@@ -734,11 +735,11 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             });
             if s.format.has_video() {
                 divider(ui);
-                let r = value_row(ui, "Forma", s.aspect.label());
+                let r = value_row(ui, tr("Forma"), tr(s.aspect.label()));
                 egui::Popup::menu(&r).show(|ui| {
                     ui.set_min_width(220.0);
                     for a in Aspect::ALL {
-                        if ui.add(egui::Button::selectable(s.aspect == a, a.label()).min_size(egui::vec2(200.0, 40.0))).clicked() {
+                        if ui.add(egui::Button::selectable(s.aspect == a, tr(a.label())).min_size(egui::vec2(200.0, 40.0))).clicked() {
                             s.aspect = a;
                             ui.close();
                         }
@@ -748,16 +749,16 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
                     divider(ui);
                     ui.add_space(6.0);
                     let mut i = if s.fit == Fit::Pad { 0 } else { 1 };
-                    if crate::widgets::segmented(ui, &mut i, &["Todo visible", "Llenar recortando"], ui.available_width()) {
+                    if crate::widgets::segmented(ui, &mut i, &[tr("Todo visible"), tr("Llenar recortando")], ui.available_width()) {
                         s.fit = if i == 0 { Fit::Pad } else { Fit::Crop };
                     }
                     ui.add_space(6.0);
                 }
                 divider(ui);
-                let r = value_row(ui, "Tamaño", size_label(s.size));
+                let r = value_row(ui, tr("Tamaño"), size_label(s.size));
                 egui::Popup::menu(&r).show(|ui| {
                     ui.set_min_width(200.0);
-                    for (label, v) in [("Original", OutSize::Percent(1.0)), ("1080p", OutSize::Short(1080)), ("720p", OutSize::Short(720)), ("480p", OutSize::Short(480)), ("50 %", OutSize::Percent(0.5))] {
+                    for (label, v) in [(tr("Original"), OutSize::Percent(1.0)), ("1080p", OutSize::Short(1080)), ("720p", OutSize::Short(720)), ("480p", OutSize::Short(480)), ("50 %", OutSize::Percent(0.5))] {
                         if ui.add(egui::Button::selectable(s.size == v, label).min_size(egui::vec2(180.0, 40.0))).clicked() {
                             s.size = v;
                             ui.close();
@@ -768,10 +769,10 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             if s.format.is_timed_video() {
                 divider(ui);
                 let cur = s.out_fps.map(|f| format!("{f} fps")).unwrap_or_else(|| format!("{fps} fps"));
-                let r = value_row(ui, "Velocidad", &cur);
+                let r = value_row(ui, tr("Velocidad"), &cur);
                 egui::Popup::menu(&r).show(|ui| {
                     ui.set_min_width(220.0);
-                    if ui.add(egui::Button::selectable(s.out_fps.is_none(), format!("Del proyecto ({fps} fps)")).min_size(egui::vec2(200.0, 40.0))).clicked() {
+                    if ui.add(egui::Button::selectable(s.out_fps.is_none(), tf!("Del proyecto ({} fps)", fps)).min_size(egui::vec2(200.0, 40.0))).clicked() {
                         s.out_fps = None;
                         ui.close();
                     }
@@ -786,7 +787,7 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
                 ui.horizontal(|ui| {
                     ui.set_min_height(46.0);
                     ui.add_space(4.0);
-                    ui.label("Repeticiones");
+                    ui.label(tr("Repeticiones"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add(egui::Button::new(RichText::new("+").size(18.0)).min_size(egui::vec2(40.0, 34.0))).clicked() {
                             s.loops = (s.loops + 1).min(20);
@@ -800,18 +801,18 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             }
             if matches!(s.format, ExportFormat::Mp4 | ExportFormat::Avi) {
                 divider(ui);
-                crate::widgets::switch_row(ui, "Incluir el audio", &mut s.include_audio);
+                crate::widgets::switch_row(ui, tr("Incluir el audio"), &mut s.include_audio);
             }
             if s.format.supports_alpha() {
                 divider(ui);
-                crate::widgets::switch_row(ui, "Incluir el fondo", &mut s.background);
+                crate::widgets::switch_row(ui, tr("Incluir el fondo"), &mut s.background);
             }
             if matches!(s.format, ExportFormat::Mp4 | ExportFormat::Gif | ExportFormat::Avi) {
                 divider(ui);
                 ui.horizontal(|ui| {
                     ui.set_min_height(46.0);
                     ui.add_space(4.0);
-                    ui.label("Calidad");
+                    ui.label(tr("Calidad"));
                     let mut q = s.quality as i32;
                     ui.spacing_mut().slider_width = (ui.available_width() - 60.0).max(80.0);
                     if ui.add(egui::Slider::new(&mut q, 10..=100)).changed() {
@@ -822,13 +823,13 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             if s.format != ExportFormat::Png {
                 if let Some((a, b)) = range {
                     divider(ui);
-                    crate::widgets::switch_row(ui, &format!("Solo el rango {}–{}", a + 1, b + 1), &mut app.export_ui.use_range);
+                    crate::widgets::switch_row(ui, &tf!("Solo el rango {}–{}", a + 1, b + 1), &mut app.export_ui.use_range);
                 }
             }
         });
 
         // File name.
-        ui.label(RichText::new("Nombre del archivo").size(13.0).color(TEXT2));
+        ui.label(RichText::new(tr("Nombre del archivo")).size(13.0).color(TEXT2));
         ui.horizontal(|ui| {
             let ext = format!(".{}", app.export_ui.settings.format.extension());
             let w = ui.available_width() - 50.0;
@@ -836,6 +837,6 @@ fn export_settings(app: &mut TrazoApp, ui: &mut egui::Ui, range: Option<(usize, 
             ui.label(RichText::new(ext).color(TEXT2));
         });
         if settings.format == ExportFormat::Wav && app.doc.project.audio.is_empty() {
-            ui.label(RichText::new("El proyecto no tiene audio: el WAV saldrá en silencio.").color(Color32::from_rgb(255, 204, 0)));
+            ui.label(RichText::new(tr("El proyecto no tiene audio: el WAV saldrá en silencio.")).color(Color32::from_rgb(255, 204, 0)));
         }
 }

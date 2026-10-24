@@ -1,5 +1,6 @@
 //! Floating action bar for the selection tools.
 
+use crate::i18n::tr;
 use crate::app::TrazoApp;
 use crate::icons::{Icon, IconButton};
 
@@ -16,48 +17,48 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                     let doc = &mut app.doc;
                     let sel = &mut app.canvas.select;
                     if !active {
-                        ui.label("Arrastra sobre el dibujo para seleccionar");
-                        if ui.add(IconButton::new(Icon::SelectRect).text("Todo")).on_hover_text("Seleccionar todo lo de la capa (Ctrl+A)").clicked() {
+                        ui.label(tr("Arrastra sobre el dibujo para seleccionar"));
+                        if ui.add(IconButton::new(Icon::SelectRect).text(tr("Todo"))).on_hover_text(tr("Seleccionar todo lo de la capa (Ctrl+A)")).clicked() {
                             if let Some(m) = sel.select_all(doc) {
                                 app.toast(ctx, m);
                             }
                         }
                     } else {
-                        if ui.add(IconButton::new(Icon::FlipH)).on_hover_text("Voltear horizontal").clicked() {
+                        if ui.add(IconButton::new(Icon::FlipH)).on_hover_text(tr("Voltear horizontal")).clicked() {
                             sel.flip(doc, true);
                         }
-                        if ui.add(IconButton::new(Icon::FlipV)).on_hover_text("Voltear vertical").clicked() {
+                        if ui.add(IconButton::new(Icon::FlipV)).on_hover_text(tr("Voltear vertical")).clicked() {
                             sel.flip(doc, false);
                         }
-                        if ui.add(IconButton::new(Icon::RotateRight)).on_hover_text("Girar 90°").clicked() {
+                        if ui.add(IconButton::new(Icon::RotateRight)).on_hover_text(tr("Girar 90°")).clicked() {
                             sel.rotate90(doc);
                         }
                         ui.separator();
-                        if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text("Duplicar selección").clicked() {
+                        if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text(tr("Duplicar selección")).clicked() {
                             sel.duplicate(doc);
                         }
-                        if ui.add(IconButton::new(Icon::Copy)).on_hover_text("Copiar (Ctrl+C) — pégalo en otro fotograma").clicked() {
+                        if ui.add(IconButton::new(Icon::Copy)).on_hover_text(tr("Copiar (Ctrl+C) — pégalo en otro fotograma")).clicked() {
                             sel.copy();
-                            app.toast(ctx, "Copiado: cambia de fotograma o capa y pulsa Pegar");
+                            app.toast(ctx, tr("Copiado: cambia de fotograma o capa y pulsa Pegar"));
                         }
                         let sel = &mut app.canvas.select;
-                        if ui.add(IconButton::new(Icon::Cut)).on_hover_text("Cortar (Ctrl+X)").clicked() {
+                        if ui.add(IconButton::new(Icon::Cut)).on_hover_text(tr("Cortar (Ctrl+X)")).clicked() {
                             sel.cut(&mut app.doc);
                         }
-                        if ui.add(IconButton::new(Icon::Trash)).on_hover_text("Borrar contenido (Supr)").clicked() {
+                        if ui.add(IconButton::new(Icon::Trash)).on_hover_text(tr("Borrar contenido (Supr)")).clicked() {
                             sel.delete(&mut app.doc);
                         }
                     }
                     let has_clip = app.canvas.select.has_clipboard();
-                    if ui.add_enabled(has_clip, IconButton::new(Icon::Paste).text("Pegar")).on_hover_text("Pegar en la capa y fotograma actuales (Ctrl+V)").clicked() {
+                    if ui.add_enabled(has_clip, IconButton::new(Icon::Paste).text(tr("Pegar"))).on_hover_text(tr("Pegar en la capa y fotograma actuales (Ctrl+V)")).clicked() {
                         app.paste_selection(ctx);
                     }
                     if app.canvas.select.is_active() {
                         ui.separator();
-                        if ui.add(IconButton::new(Icon::Check).keep_text().text("Aplicar").selected(true)).on_hover_text("Fijar (Enter)").clicked() {
+                        if ui.add(IconButton::new(Icon::Check).keep_text().text(tr("Aplicar")).selected(true)).on_hover_text(tr("Fijar (Enter)")).clicked() {
                             app.canvas.select.commit(&mut app.doc);
                         }
-                        if ui.add(IconButton::new(Icon::Close)).on_hover_text("Cancelar (Esc)").clicked() {
+                        if ui.add(IconButton::new(Icon::Close)).on_hover_text(tr("Cancelar (Esc)")).clicked() {
                             app.canvas.select.cancel(&mut app.doc);
                         }
                     }

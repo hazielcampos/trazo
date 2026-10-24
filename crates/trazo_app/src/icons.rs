@@ -83,6 +83,7 @@ pub enum Icon {
     Close,
     Background,
     More,
+    Globe,
 }
 
 /// Draw `icon` filling `rect` (square works best).
@@ -444,6 +445,19 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             line(&[(12.0, 16.0), (12.0, 8.0)]);
             arrow_head((12.0, 3.5), -FRAC_PI_2);
             line(&[(4.0, 15.0), (4.0, 20.5), (20.0, 20.5), (20.0, 15.0)]);
+        }
+        Icon::Globe => {
+            circle(12.0, 12.0, 8.5);
+            line(&[(3.5, 12.0), (20.5, 12.0)]);
+            line(&[(5.0, 7.5), (19.0, 7.5)]);
+            line(&[(5.0, 16.5), (19.0, 16.5)]);
+            let meridian: Vec<(f32, f32)> = (0..=16).map(|i| {
+                let a = -std::f32::consts::FRAC_PI_2 + i as f32 / 16.0 * std::f32::consts::PI;
+                (12.0 + 3.8 * a.cos(), 12.0 + 8.5 * a.sin())
+            }).collect();
+            line(&meridian);
+            let back: Vec<(f32, f32)> = meridian.iter().map(|&(x, y)| (24.0 - x, y)).collect();
+            line(&back);
         }
         Icon::Check => line(&[(4.5, 12.5), (9.5, 17.5), (19.5, 6.5)]),
         Icon::Close => {

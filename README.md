@@ -67,7 +67,7 @@ no accounts, no ads, no paywalls.
   and desktop.
 - A neutral dark theme so the colors of your drawing look true.
 - Two-finger tap to undo, three-finger tap to redo.
-- The interface is currently in Spanish.
+- Interface in English and Spanish: pick one the first time you open the app, change it any time from the project menu.
 
 <p align="center">
   <img src="docs/capturas/telefono_horizontal.png" width="49%" alt="Phone in landscape">
@@ -155,8 +155,11 @@ import for rotoscoping and the adaptive interface. Next steps (details in [TODO.
 ## Contributing
 
 Issues and pull requests are welcome. Before sending a change, run `cargo test --workspace` and
-`cargo clippy --workspace`. The interface is in Spanish; if you'd like to help translate it, please open an
-issue.
+`cargo clippy --workspace`.
+
+**Translations:** the interface is in Spanish and English, chosen the first time the app opens (and later from the project menu). To add a language, copy
+[`crates/trazo_app/src/i18n/en.rs`](crates/trazo_app/src/i18n/en.rs), translate the right-hand column and add the language to `Lang` in
+[`i18n.rs`](crates/trazo_app/src/i18n.rs); `cargo test` tells you if a string is missing.
 
 ## License
 
@@ -168,4 +171,4 @@ If you distribute a modified version, it must be free as well.
 *En español:* **Trazo** es una app libre y gratuita para animar a mano, cuadro a cuadro, al estilo de FlipaClip o
 ibis Paint, para teléfonos Android, tablets y PC, escrita en Rust. Tiene capas con su propio ritmo, 24 pinceles,
 papel cebolla, pistas de audio con voz en off y lip-sync, rotoscopia con video y exportación a MP4, GIF y PNG para
-redes. La interfaz está en español. Licencia GPL-3.0.
+redes. La interfaz está en español e inglés. Licencia GPL-3.0.

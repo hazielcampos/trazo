@@ -1,5 +1,13 @@
 # TODO
 
+## Idiomas — hecho (23-10-2026)
+- Interfaz en español e inglés (`crates/trazo_app/src/i18n.rs`, tabla `i18n/en.rs`). Los textos se
+  escriben en español con `tr("…")` / `tf!("… {}", x)`; se elige el idioma al abrir la app por primera
+  vez (se propone el del sistema) y después desde el menú del proyecto. Se guarda en `idioma.txt`.
+- Los proyectos guardan los nombres por defecto en español («Capa 2»); se traducen al mostrarlos.
+- Pruebas: todo `tr("…")` tiene traducción, nombres del motor (pinceles, modos, formatos) también.
+- Pendiente: decimales con coma en los deslizadores de egui; más idiomas (portugués, francés).
+
 ## Línea de tiempo por capas — hecha (23-10-2026)
 - Una pista por capa; cada dibujo dura N fotogramas (`Frame.cont` marca las continuaciones).
 - Estirar arrastrando el borde (burbuja ×N · s), −/+ en la barra de acciones, añadir, duplicar,

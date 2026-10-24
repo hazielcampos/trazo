@@ -1,6 +1,7 @@
 //! Importing pictures: as a movable image on a new layer, as a fixed
 //! reference picture, or as an image sequence for rotoscoping.
 
+use crate::i18n::tr;
 use trazo_core::composite::premultiply;
 use trazo_core::document::SHARED_FRAME;
 use trazo_core::io::{decode_image, fit_image};
@@ -18,7 +19,7 @@ fn load_fitted(path: &std::path::Path, cw: u32, ch: u32) -> Result<(IRect, Vec<u
     let (w, h, rgba) = decode_image(&bytes).map_err(|e| e.to_string())?;
     let (w, h, mut rgba) = fit_image(w, h, rgba, cw, ch);
     if w == 0 {
-        return Err("imagen no válida".into());
+        return Err(tr("imagen no válida").into());
     }
     premultiply(&mut rgba);
     let x = (cw as i32 - w as i32) / 2;
@@ -27,7 +28,7 @@ fn load_fitted(path: &std::path::Path, cw: u32, ch: u32) -> Result<(IRect, Vec<u
 }
 
 fn file_name(path: &std::path::Path) -> String {
-    path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Imagen".into())
+    path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| tr("Imagen").into())
 }
 
 fn new_layer(app: &mut TrazoApp, name: String, props: impl FnOnce(&mut LayerProps), cels: Vec<(u64, TiledImage)>) -> u64 {
@@ -53,9 +54,9 @@ pub fn image_as_layer(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<std::p
             new_layer(app, file_name(path), |_| {}, vec![]);
             app.tools.tool = Tool::Select;
             app.canvas.select.place(&mut app.doc, rect, px);
-            app.toast(ctx, "Imagen importada: muévela o escálala y pulsa Aplicar");
+            app.toast(ctx, tr("Imagen importada: muévela o escálala y pulsa Aplicar"));
         }
-        Err(e) => app.toast(ctx, format!("No se pudo importar: {e}")),
+        Err(e) => app.toast(ctx, tf!("No se pudo importar: {}", crate::i18n::tr_err(&e.to_string()))),
     }
 }
 
@@ -80,9 +81,9 @@ pub fn reference_image(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<std::
                 },
                 vec![(SHARED_FRAME, img)],
             );
-            app.toast(ctx, "Referencia añadida (capa bloqueada al 50 %)");
+            app.toast(ctx, tr("Referencia añadida (capa bloqueada al 50 %)"));
         }
-        Err(e) => app.toast(ctx, format!("No se pudo importar: {e}")),
+        Err(e) => app.toast(ctx, tf!("No se pudo importar: {}", crate::i18n::tr_err(&e.to_string()))),
     }
 }
 
@@ -105,7 +106,7 @@ pub fn image_sequence(app: &mut TrazoApp, ctx: &egui::Context, mut files: Vec<st
                 images.push(img);
             }
             Err(e) => {
-                app.toast(ctx, format!("{}: {e}", file_name(f)));
+                app.toast(ctx, format!("{}: {}", file_name(f), crate::i18n::tr_err(&e.to_string())));
                 return;
             }
         }
@@ -132,5 +133,5 @@ pub fn image_sequence(app: &mut TrazoApp, ctx: &egui::Context, mut files: Vec<st
     d.history.execute(&mut d.project, Edit::InsertLayer { index, layer: Layer { id: layer_id, props }, cels: existing });
     d.history.group_since(mark);
     d.invalidate_all();
-    app.toast(ctx, format!("{} imágenes importadas. Dibuja encima en una capa nueva.", files.len()));
+    app.toast(ctx, tf!("{} imágenes importadas. Dibuja encima en una capa nueva.", files.len()));
 }

@@ -1,5 +1,6 @@
 //! Left tool strip: tools, size/opacity sliders, current color.
 
+use crate::i18n::tr;
 use egui::{Color32, RichText, Vec2};
 
 use trazo_core::shapes::ShapeKind;
@@ -28,9 +29,9 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                 if app.tools.tool == Tool::Lasso {
                     ui.separator();
                     for (mode, icon, tip) in [
-                        (LassoMode::Select, Icon::Lasso, "Lazo: seleccionar"),
-                        (LassoMode::Fill, Icon::Bucket, "Lazo: rellenar con el color"),
-                        (LassoMode::Erase, Icon::Eraser, "Lazo: borrar"),
+                        (LassoMode::Select, Icon::Lasso, tr("Lazo: seleccionar")),
+                        (LassoMode::Fill, Icon::Bucket, tr("Lazo: rellenar con el color")),
+                        (LassoMode::Erase, Icon::Eraser, tr("Lazo: borrar")),
                     ] {
                         if ui.add(IconButton::new(icon).size(40.0).selected(app.tools.lasso_mode == mode)).on_hover_text(tip).clicked() {
                             app.tools.lasso_mode = mode;
@@ -40,11 +41,11 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                 if app.tools.tool == Tool::Shape {
                     ui.separator();
                     for (kind, icon) in [(ShapeKind::Line, Icon::Line), (ShapeKind::Rect, Icon::Rect), (ShapeKind::Ellipse, Icon::Ellipse)] {
-                        if ui.add(IconButton::new(icon).size(40.0).selected(app.tools.shape == kind)).on_hover_text(kind.label()).clicked() {
+                        if ui.add(IconButton::new(icon).size(40.0).selected(app.tools.shape == kind)).on_hover_text(tr(kind.label())).clicked() {
                             app.tools.shape = kind;
                         }
                     }
-                    ui.checkbox(&mut app.tools.shape_constrain, "").on_hover_text("Proporción fija: cuadrado, círculo, líneas a 15° (o mantén Mayús)");
+                    ui.checkbox(&mut app.tools.shape_constrain, "").on_hover_text(tr("Proporción fija: cuadrado, círculo, líneas a 15° (o mantén Mayús)"));
                 }
                 ui.separator();
 
@@ -52,19 +53,19 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
                 let (rect, resp) = ui.allocate_exact_size(Vec2::splat(46.0), egui::Sense::click());
                 ui.painter().circle_filled(rect.center(), 21.0, app.tools.color);
                 ui.painter().circle_stroke(rect.center(), 22.0, egui::Stroke::new(2.0, Color32::WHITE));
-                if resp.on_hover_text("Color").clicked() {
+                if resp.on_hover_text(tr("Color")).clicked() {
                     app.ui.show_side_panel = true;
                     app.ui.side_tab = SideTab::Color;
                 }
                 ui.separator();
 
-                let brush_name = app.tools.active_brush().name.clone();
+                let brush_name = tr(&app.tools.active_brush().name).to_string();
                 ui.label(RichText::new(brush_name).small());
                 let tweak = app.tools.active_tweak_mut();
-                ui.label(RichText::new("Tamaño").small());
+                ui.label(RichText::new(tr("Tamaño")).small());
                 ui.add(egui::Slider::new(&mut tweak.size, 1.0..=300.0).logarithmic(true).vertical().show_value(false));
                 ui.label(RichText::new(format!("{:.0}px", tweak.size)).small());
-                ui.label(RichText::new("Opacidad").small());
+                ui.label(RichText::new(tr("Opacidad")).small());
                 ui.add(egui::Slider::new(&mut tweak.opacity, 0.02..=1.0).vertical().show_value(false));
                 ui.label(RichText::new(format!("{:.0}%", tweak.opacity * 100.0)).small());
             });
@@ -80,7 +81,7 @@ pub fn color_panel(app: &mut TrazoApp, ui: &mut egui::Ui) {
             app.tools.set_color(c);
         }
         ui.horizontal(|ui| {
-            ui.label("Hex");
+            ui.label(tr("Hex"));
             let id = egui::Id::unique("hex_edit");
             let current = format!("#{:02X}{:02X}{:02X}", app.tools.color.r(), app.tools.color.g(), app.tools.color.b());
             let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.clone());
@@ -96,44 +97,44 @@ pub fn color_panel(app: &mut TrazoApp, ui: &mut egui::Ui) {
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            ui.label("Mi paleta");
-            if ui.add(IconButton::new(Icon::Plus).size(24.0)).on_hover_text("Guardar el color actual").clicked() && !app.tools.user_palette.contains(&app.tools.color) {
+            ui.label(tr("Mi paleta"));
+            if ui.add(IconButton::new(Icon::Plus).size(24.0)).on_hover_text(tr("Guardar el color actual")).clicked() && !app.tools.user_palette.contains(&app.tools.color) {
                 app.tools.user_palette.push(app.tools.color);
             }
-            if ui.add_enabled(!app.tools.user_palette.is_empty(), IconButton::new(Icon::Minus).size(24.0)).on_hover_text("Quitar el color actual de mi paleta").clicked() {
+            if ui.add_enabled(!app.tools.user_palette.is_empty(), IconButton::new(Icon::Minus).size(24.0)).on_hover_text(tr("Quitar el color actual de mi paleta")).clicked() {
                 let c = app.tools.color;
                 app.tools.user_palette.retain(|x| *x != c);
             }
         });
         if app.tools.user_palette.is_empty() {
-            ui.label(egui::RichText::new("Pulsa + para guardar colores aquí").small().weak());
+            ui.label(egui::RichText::new(tr("Pulsa + para guardar colores aquí")).small().weak());
         } else {
             let mine = app.tools.user_palette.clone();
             swatches(ui, &mine, &mut app.tools.color);
         }
         ui.add_space(6.0);
-        ui.label("Paleta básica");
+        ui.label(tr("Paleta básica"));
         swatches(ui, &PALETTE, &mut app.tools.color);
         if !app.tools.recent_colors.is_empty() {
             ui.add_space(6.0);
-            ui.label("Recientes");
+            ui.label(tr("Recientes"));
             let recent = app.tools.recent_colors.clone();
             swatches(ui, &recent, &mut app.tools.color);
         }
         ui.add_space(6.0);
         ui.separator();
-        ui.checkbox(&mut app.tools.pick_layer_only, "Cuentagotas: solo la capa actual");
+        ui.checkbox(&mut app.tools.pick_layer_only, tr("Cuentagotas: solo la capa actual"));
         ui.separator();
-        ui.label("Relleno y varita mágica");
-        ui.checkbox(&mut app.tools.fill_all_layers, "Detectar bordes de todas las capas")
-            .on_hover_text("Si alguna capa está marcada como «Líneas para el relleno», se usa esa");
+        ui.label(tr("Relleno y varita mágica"));
+        ui.checkbox(&mut app.tools.fill_all_layers, tr("Detectar bordes de todas las capas"))
+            .on_hover_text(tr("Si alguna capa está marcada como «Líneas para el relleno», se usa esa"));
         let mut tol = app.tools.fill.tolerance as i32;
-        if ui.add(egui::Slider::new(&mut tol, 0..=255).text("Tolerancia")).changed() {
+        if ui.add(egui::Slider::new(&mut tol, 0..=255).text(tr("Tolerancia"))).changed() {
             app.tools.fill.tolerance = tol as u8;
         }
-        ui.add(egui::Slider::new(&mut app.tools.fill.grow, 0..=4).text("Expandir (px)"));
-        ui.add(egui::Slider::new(&mut app.tools.fill.gap_close, 0..=8).text("Cerrar huecos (px)"))
-            .on_hover_text("Rellena aunque la línea tenga pequeñas aberturas");
+        ui.add(egui::Slider::new(&mut app.tools.fill.grow, 0..=4).text(tr("Expandir (px)")));
+        ui.add(egui::Slider::new(&mut app.tools.fill.gap_close, 0..=8).text(tr("Cerrar huecos (px)")))
+            .on_hover_text(tr("Rellena aunque la línea tenga pequeñas aberturas"));
     });
 }
 

@@ -4,6 +4,7 @@
 //! on the same file. Blocking saves (app shutdown, switching projects) go
 //! through the same queue and simply wait for their turn.
 
+use crate::i18n::tr;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -76,8 +77,8 @@ impl SaveWorker {
         let (reply, wait) = mpsc::channel();
         self.in_flight += 1;
         let job = Job { project, path, revision, doc_serial, announce: false, reply: Some(reply) };
-        self.tx.send(job).map_err(|_| "el hilo de guardado no responde".to_string())?;
-        wait.recv().map_err(|_| "el hilo de guardado se detuvo".to_string())?
+        self.tx.send(job).map_err(|_| tr("el hilo de guardado no responde").to_string())?;
+        wait.recv().map_err(|_| tr("el hilo de guardado se detuvo").to_string())?
     }
 
     /// Finished saves since the last call.

@@ -2,6 +2,7 @@
 //! controls every panel uses (tool button, switch, segmented control,
 //! vertical slider). One look everywhere, sized for fingers.
 
+use crate::i18n::tr;
 use egui::{Align2, Color32, CornerRadius, Id, Order, Pos2, Rect, Response, RichText, Sense, Stroke, Ui, Vec2};
 
 use crate::icons::{paint, Icon};
@@ -199,7 +200,7 @@ pub fn sheet(ctx: &egui::Context, id: &str, edge: SheetEdge, touch: bool, header
                 ui.set_min_height(44.0);
                 header(ui);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let label = if edge == SheetEdge::Bottom { "Listo" } else { "Cerrar" };
+                    let label = if edge == SheetEdge::Bottom { tr("Listo") } else { tr("Cerrar") };
                     if ui.add(egui::Button::new(RichText::new(label).color(ACCENT).strong()).frame(false).min_size(Vec2::new(56.0, 44.0))).clicked() {
                         close = true;
                     }

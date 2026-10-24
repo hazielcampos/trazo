@@ -6,6 +6,7 @@
 //! DCIM…), using the READ_MEDIA_* permissions, plus the app's own
 //! `importar` folder for files that aren't media (brushes).
 
+use crate::i18n::tr;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -27,12 +28,12 @@ pub enum PickPurpose {
 impl PickPurpose {
     pub fn title(self) -> &'static str {
         match self {
-            PickPurpose::Audio => "Importar audio",
-            PickPurpose::Brushes => "Importar pinceles",
-            PickPurpose::ImageLayer => "Importar imagen",
-            PickPurpose::ImageReference => "Imagen de referencia",
-            PickPurpose::ImageSequence => "Secuencia de imágenes (rotoscopia)",
-            PickPurpose::Video => "Importar video",
+            PickPurpose::Audio => tr("Importar audio"),
+            PickPurpose::Brushes => tr("Importar pinceles"),
+            PickPurpose::ImageLayer => tr("Importar imagen"),
+            PickPurpose::ImageReference => tr("Imagen de referencia"),
+            PickPurpose::ImageSequence => tr("Secuencia de imágenes (rotoscopia)"),
+            PickPurpose::Video => tr("Importar video"),
         }
     }
 
@@ -155,14 +156,14 @@ pub fn show_browser(app: &mut TrazoApp, ctx: &egui::Context) {
             ui.horizontal_wrapped(|ui| {
                 let root = shared_root();
                 let places: [(&str, PathBuf); 8] = [
-                    ("Descargas", root.join("Download")),
-                    ("Música", root.join("Music")),
-                    ("Grabaciones", root.join("Recordings")),
-                    ("Imágenes", root.join("Pictures")),
-                    ("Cámara", root.join("DCIM")),
-                    ("Películas", root.join("Movies")),
-                    ("Documentos", root.join("Documents")),
-                    ("Carpeta de la app", import_dir.clone()),
+                    (tr("Descargas"), root.join("Download")),
+                    (tr("Música"), root.join("Music")),
+                    (tr("Grabaciones"), root.join("Recordings")),
+                    (tr("Imágenes"), root.join("Pictures")),
+                    (tr("Cámara"), root.join("DCIM")),
+                    (tr("Películas"), root.join("Movies")),
+                    (tr("Documentos"), root.join("Documents")),
+                    (tr("Carpeta de la app"), import_dir.clone()),
                 ];
                 for (label, path) in places {
                     if ui.selectable_label(browser.dir == path, label).clicked() {
@@ -173,7 +174,7 @@ pub fn show_browser(app: &mut TrazoApp, ctx: &egui::Context) {
             ui.separator();
             ui.horizontal(|ui| {
                 let can_up = browser.dir.parent().is_some_and(|p| p.starts_with(shared_root()) || p.starts_with(&import_dir));
-                if ui.add_enabled(can_up, IconButton::new(Icon::Up).keep_text().text("Subir")).clicked() {
+                if ui.add_enabled(can_up, IconButton::new(Icon::Up).keep_text().text(tr("Subir de carpeta"))).clicked() {
                     go_to = browser.dir.parent().map(Path::to_path_buf);
                 }
                 ui.label(RichText::new(browser.dir.display().to_string()).small().weak());
@@ -181,10 +182,10 @@ pub fn show_browser(app: &mut TrazoApp, ctx: &egui::Context) {
 
             egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                 if let Some(e) = &browser.error {
-                    ui.label(RichText::new(format!("No se puede abrir esta carpeta ({e}).")).weak());
+                    ui.label(RichText::new(tf!("No se puede abrir esta carpeta ({}).", crate::i18n::tr_err(&e.to_string()))).weak());
                 }
                 if browser.entries.iter().all(|(_, d)| *d) {
-                    ui.label(RichText::new("No hay archivos compatibles aquí.").weak());
+                    ui.label(RichText::new(tr("No hay archivos compatibles aquí.")).weak());
                 }
                 for (path, is_dir) in browser.entries.clone() {
                     let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -217,23 +218,23 @@ pub fn show_browser(app: &mut TrazoApp, ctx: &egui::Context) {
                 let perms = crate::android::media_permissions();
                 if !perms.iter().all(|p| crate::android::has_permission(p)) {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Para ver tu música e imágenes, Trazo necesita permiso.");
-                        if ui.button("Dar permiso").clicked() {
+                        ui.label(tr("Para ver tu música e imágenes, Trazo necesita permiso."));
+                        if ui.button(tr("Dar permiso")).clicked() {
                             ask_permission = true;
                         }
                     });
                 }
             }
             if purpose == PickPurpose::Brushes {
-                ui.label(RichText::new("Los pinceles .animbrush deben estar en «Carpeta de la app» (cópialos ahí con el cable USB o un gestor de archivos). Las imágenes PNG pueden estar en cualquier carpeta.").small().weak());
+                ui.label(RichText::new(tr("Los pinceles .animbrush deben estar en «Carpeta de la app» (cópialos ahí con el cable USB o un gestor de archivos). Las imágenes PNG pueden estar en cualquier carpeta.")).small().weak());
             }
             ui.horizontal(|ui| {
                 let n = browser.selected.len();
-                let label = if n > 1 { format!("Abrir {n} archivos") } else { "Abrir".to_string() };
+                let label = if n > 1 { tf!("Abrir {} archivos", n) } else { tr("Abrir").to_string() };
                 if ui.add_enabled(n > 0, IconButton::new(Icon::Check).keep_text().text(&label).selected(n > 0)).clicked() {
                     chosen = Some(browser.selected.iter().cloned().collect());
                 }
-                if purpose.multi() && ui.button("Elegir todos").clicked() {
+                if purpose.multi() && ui.button(tr("Elegir todos")).clicked() {
                     browser.selected = browser.entries.iter().filter(|(_, d)| !d).map(|(p, _)| p.clone()).collect();
                 }
             });

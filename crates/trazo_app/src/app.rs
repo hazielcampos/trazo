@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use trazo_core::composite::OnionSkin;
 use trazo_core::io::{self, FILE_EXTENSION};
+use crate::i18n::{tr, tr_err};
 use trazo_core::{CanvasSettings, FrameId, History, IRect, LayerId, Project};
 
 use trazo_core::audio::{samples_to_ticks, ticks_to_samples};
@@ -214,6 +215,8 @@ pub struct UiState {
     pub new_project_dialog: Option<panels::dialogs::NewProject>,
     pub open_dialog: bool,
     pub settings_dialog: bool,
+    /// Language picker; `Some(true)` the first time the app opens.
+    pub language_dialog: Option<bool>,
     pub toast: Option<Toast>,
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
@@ -256,6 +259,12 @@ const EXPORT_KEY: &str = "exportar";
 impl TrazoApp {
     pub fn new(cc: &eframe::CreationContext<'_>, platform: Platform) -> Self {
         let wide = cc.egui_ctx.content_rect().width() >= 900.0;
+        // Language first: it names the starting project.
+        let first_run = crate::i18n::load(&platform.data_dir).is_none();
+        if first_run {
+            let upgrading = !list_projects(&platform.projects_dir).is_empty();
+            crate::i18n::set_lang(if upgrading { crate::i18n::Lang::Es } else { crate::i18n::system_guess() });
+        }
         // Reopen the most recent project, or start a new one.
         let doc = most_recent_project(&platform.projects_dir)
             .and_then(|path| match io::load_project(&path) {
@@ -266,7 +275,7 @@ impl TrazoApp {
                 }
             })
             .unwrap_or_else(|| {
-                let name = "Mi animación".to_string();
+                let name = tr("Mi animación").to_string();
                 let path = unique_project_path(&platform.projects_dir, &name);
                 Document::new(Project::new(name, CanvasSettings::default()), path)
             });
@@ -288,6 +297,7 @@ impl TrazoApp {
                 new_project_dialog: None,
                 open_dialog: false,
                 settings_dialog: false,
+                language_dialog: first_run.then_some(true),
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
@@ -364,12 +374,12 @@ impl TrazoApp {
                 Ok(()) => {
                     self.doc.saved_revision = self.doc.saved_revision.max(done.revision);
                     if done.announce {
-                        self.toast(ctx, "Guardado");
+                        self.toast(ctx, tr("Guardado"));
                     }
                 }
                 Err(e) => {
                     self.doc.settings_dirty = true;
-                    self.toast(ctx, format!("No se pudo guardar: {e}"));
+                    self.toast(ctx, tf!("No se pudo guardar: {}", tr_err(&e)));
                 }
             }
         }
@@ -383,7 +393,7 @@ impl TrazoApp {
         self.canvas.select.commit(&mut self.doc);
         if self.doc.is_modified() {
             if let Err(e) = self.save_blocking() {
-                self.toast(ctx, format!("No se pudo guardar el proyecto actual: {e}"));
+                self.toast(ctx, tf!("No se pudo guardar el proyecto actual: {}", tr_err(&e)));
                 return;
             }
         }
@@ -391,9 +401,9 @@ impl TrazoApp {
             Ok(p) => {
                 self.doc = Document::new(p, path.to_path_buf());
                 self.after_document_change();
-                self.toast(ctx, format!("Abierto: {}", self.doc.project.name));
+                self.toast(ctx, tf!("Abierto: {}", self.doc.project.name));
             }
-            Err(e) => self.toast(ctx, format!("No se pudo abrir: {e}")),
+            Err(e) => self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e.to_string()))),
         }
     }
 
@@ -405,7 +415,7 @@ impl TrazoApp {
         self.canvas.select.commit(&mut self.doc);
         if self.doc.is_modified() {
             if let Err(e) = self.save_blocking() {
-                self.toast(ctx, format!("No se pudo guardar el proyecto actual: {e}"));
+                self.toast(ctx, tf!("No se pudo guardar el proyecto actual: {}", tr_err(&e)));
                 return;
             }
         }
@@ -414,6 +424,18 @@ impl TrazoApp {
         // Save immediately so it shows up in the project list.
         self.doc.settings_dirty = true;
         self.after_document_change();
+    }
+
+    /// After the first-run language choice: the starting project, if it is
+    /// still the untouched default, takes its name in that language.
+    pub fn after_first_language(&mut self) {
+        let untouched = !self.doc.path.exists() && !self.doc.history.can_undo() && self.doc.project.frames.len() == 1;
+        if untouched {
+            let name = tr("Mi animación").to_string();
+            let path = unique_project_path(&self.platform.projects_dir, &name);
+            self.doc = Document::new(Project::new(name, self.doc.project.canvas.clone()), path);
+            self.after_document_change();
+        }
     }
 
     fn after_document_change(&mut self) {
@@ -554,7 +576,8 @@ impl TrazoApp {
     // ---- keyboard ---------------------------------------------------------
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() {
+        // Nothing reaches the drawing while the language is being chosen.
+        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() {
             return;
         }
         use egui::{Key, KeyboardShortcut, Modifiers};
@@ -585,7 +608,7 @@ impl TrazoApp {
             if self.canvas.select.copy() {
                 ctx.copy_text("[Trazo] dibujo copiado".into());
             } else {
-                self.toast(ctx, "Selecciona algo primero (S, L o W)");
+                self.toast(ctx, tr("Selecciona algo primero (S, L o W)"));
             }
         }
         if ev_cut || pressed(cmd, Key::X) {
@@ -710,12 +733,12 @@ impl TrazoApp {
         if self.canvas.select.is_active() {
             // Undo while transforming = cancel the transform.
             self.canvas.select.cancel(&mut self.doc);
-            self.toast(ctx, "Transformación cancelada");
+            self.toast(ctx, tr("Transformación cancelada"));
             return;
         }
         match self.doc.undo() {
-            Some(l) => self.toast(ctx, format!("Deshacer: {l}")),
-            None => self.toast(ctx, "Nada que deshacer"),
+            Some(l) => self.toast(ctx, tf!("Deshacer: {}", tr(l))),
+            None => self.toast(ctx, tr("Nada que deshacer")),
         }
     }
 
@@ -727,8 +750,8 @@ impl TrazoApp {
         self.canvas.cancel_stroke(&mut self.doc);
         self.canvas.select.commit(&mut self.doc);
         match self.doc.redo() {
-            Some(l) => self.toast(ctx, format!("Rehacer: {l}")),
-            None => self.toast(ctx, "Nada que rehacer"),
+            Some(l) => self.toast(ctx, tf!("Rehacer: {}", tr(l))),
+            None => self.toast(ctx, tr("Nada que rehacer")),
         }
     }
 
@@ -763,13 +786,13 @@ impl TrazoApp {
     /// Paste copied pixels on the current layer/frame as a movable selection.
     pub fn paste_selection(&mut self, ctx: &egui::Context) {
         if !self.canvas.select.has_clipboard() {
-            self.toast(ctx, "No hay nada copiado");
+            self.toast(ctx, tr("No hay nada copiado"));
             return;
         }
         self.stop_playback();
         let editable = self.doc.project.layer(self.doc.layer).is_some_and(|l| l.props.paintable());
         if !editable {
-            self.toast(ctx, "La capa está bloqueada, oculta o es de video");
+            self.toast(ctx, tr("La capa está bloqueada, oculta o es de video"));
             return;
         }
         self.tools.tool = Tool::Select;
@@ -899,6 +922,7 @@ impl eframe::App for TrazoApp {
         let modal = self.ui.new_project_dialog.is_some()
             || self.ui.open_dialog
             || self.ui.settings_dialog
+            || self.ui.language_dialog.is_some()
             || self.export_ui.open
             || self.video_import.is_busy()
             || self.file_browser.is_some();

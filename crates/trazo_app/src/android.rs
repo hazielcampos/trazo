@@ -51,6 +51,17 @@ pub fn sdk_int() -> i32 {
     with_activity(|env, _| env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()).unwrap_or(0)
 }
 
+/// System language as a tag like "es-MX".
+pub fn locale() -> Option<String> {
+    with_activity(|env, _| {
+        let loc = env.call_static_method("java/util/Locale", "getDefault", "()Ljava/util/Locale;", &[])?.l()?;
+        let tag = env.call_method(&loc, "toLanguageTag", "()Ljava/lang/String;", &[])?.l()?;
+        let tag: String = env.get_string(&jni::objects::JString::from(tag))?.into();
+        Ok(tag)
+    })
+    .ok()
+}
+
 pub fn has_permission(name: &str) -> bool {
     with_activity(|env, activity| {
         let perm = env.new_string(name)?;
@@ -180,7 +191,7 @@ pub fn share(uri: &str, mime: &str) -> Result<(), String> {
         let key = env.new_string("android.intent.extra.STREAM")?;
         env.call_method(&intent, "putExtra", "(Ljava/lang/String;Landroid/os/Parcelable;)Landroid/content/Intent;", &[JValue::Object(&key), JValue::Object(&uri)])?;
         env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(1)])?; // FLAG_GRANT_READ_URI_PERMISSION
-        let title = env.new_string("Compartir animación")?;
+        let title = env.new_string(crate::i18n::tr("Compartir animación"))?;
         let chooser = env
             .call_static_method("android/content/Intent", "createChooser", "(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;", &[JValue::Object(&intent), JValue::Object(&title)])?
             .l()?;

@@ -1,5 +1,6 @@
 //! Tool selection, per-tool settings and the brush library (built-in + user).
 
+use crate::i18n::tr;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -55,15 +56,15 @@ impl Tool {
 
     pub fn label(self) -> &'static str {
         match self {
-            Tool::Brush => "Pincel (B)",
-            Tool::Eraser => "Borrador (E)",
-            Tool::Fill => "Relleno (G)",
-            Tool::Eyedropper => "Cuentagotas (I · Alt mientras dibujas)",
-            Tool::Select => "Selección rectangular (S)",
-            Tool::Lasso => "Lazo: seleccionar, rellenar o borrar (L)",
-            Tool::Wand => "Varita mágica: selecciona por color (W)",
-            Tool::Shape => "Figuras: línea, rectángulo, elipse (U)",
-            Tool::Hand => "Mover lienzo (H / espacio)",
+            Tool::Brush => tr("Pincel (B)"),
+            Tool::Eraser => tr("Borrador (E)"),
+            Tool::Fill => tr("Relleno (G)"),
+            Tool::Eyedropper => tr("Cuentagotas (I · Alt mientras dibujas)"),
+            Tool::Select => tr("Selección rectangular (S)"),
+            Tool::Lasso => tr("Lazo: seleccionar, rellenar o borrar (L)"),
+            Tool::Wand => tr("Varita mágica: selecciona por color (W)"),
+            Tool::Shape => tr("Figuras: línea, rectángulo, elipse (U)"),
+            Tool::Hand => tr("Mover lienzo (H / espacio)"),
         }
     }
 
@@ -299,7 +300,7 @@ impl ToolState {
     }
 
     pub fn delete_user_brush(&mut self, index: usize) -> Result<(), String> {
-        let Some(Some(path)) = self.files.get(index).cloned() else { return Err("es un pincel de serie".into()) };
+        let Some(Some(path)) = self.files.get(index).cloned() else { return Err(tr("es un pincel de serie").into()) };
         std::fs::remove_file(&path).map_err(|e| e.to_string())?;
         self.library.remove(index);
         self.tweaks.remove(index);
@@ -329,7 +330,7 @@ impl ToolState {
         for i in std::mem::take(&mut self.dirty_files) {
             if let (Some(Some(path)), Some(b)) = (self.files.get(i), self.library.get(i)) {
                 if let Err(e) = brush_io::save_brush(b, path) {
-                    err = Some(format!("No se pudo guardar el pincel: {e}"));
+                    err = Some(tf!("No se pudo guardar el pincel: {}", crate::i18n::tr_err(&e.to_string())));
                 }
             }
         }

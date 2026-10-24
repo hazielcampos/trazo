@@ -2635,7 +2635,7 @@ dependencies = [
 
 [[package]]
 name = "trazo_app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "android_logger",
  "cpal",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "trazo_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gif",
  "hound",

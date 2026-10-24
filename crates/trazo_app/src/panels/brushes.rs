@@ -1,6 +1,7 @@
 //! Brush library with live previews, brush settings and user brushes
 //! (create, import, export, delete).
 
+use crate::i18n::tr;
 use std::collections::HashMap;
 
 use trazo_core::brush::{Accumulate, Brush, BrushCategory, DabShape};
@@ -107,7 +108,7 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
         let (rect, _) = ui.allocate_exact_size(Vec2::new(w, w * 150.0 / 560.0), egui::Sense::hover());
         ui.painter().rect_filled(rect, 8.0, PAPER);
         ui.painter().image(big, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-        ui.label(RichText::new(&app.tools.active_brush().name).strong());
+        ui.label(RichText::new(tr(&app.tools.active_brush().name)).strong());
 
         brush_actions(app, ui, &ctx);
         ui.separator();
@@ -118,13 +119,13 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
             if members.is_empty() {
                 continue;
             }
-            egui::CollapsingHeader::new(RichText::new(cat.label()).strong()).default_open(true).show(ui, |ui| {
+            egui::CollapsingHeader::new(RichText::new(tr(cat.label())).strong()).default_open(true).show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::splat(6.0);
                     for i in members {
                         let tex = app.previews.card(&ctx, &app.tools, i, &mut budget);
                         pending |= tex.is_none();
-                        if brush_card(ui, tex, &app.tools.library[i].name, i == active).clicked() {
+                        if brush_card(ui, tex, tr(&app.tools.library[i].name), i == active).clicked() {
                             app.tools.select_brush(i);
                         }
                     }
@@ -133,11 +134,11 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
         }
 
         ui.separator();
-        ui.label(RichText::new("Ajustes del trazo").strong());
-        ui.add(egui::Slider::new(&mut app.tools.stabilizer, 0.0..=0.95).text("Estabilizador")).on_hover_text("Suaviza el temblor de la mano");
-        ui.add(egui::Slider::new(&mut app.tools.pressure_gamma, 0.3..=3.0).logarithmic(true).text("Curva de presión"))
-            .on_hover_text("Menos de 1: el lápiz se siente más suave. Más de 1: hay que apretar más.");
-        ui.checkbox(&mut app.tools.simulate_pressure, "Simular presión con la velocidad (ratón / dedo)");
+        ui.label(RichText::new(tr("Ajustes del trazo")).strong());
+        ui.add(egui::Slider::new(&mut app.tools.stabilizer, 0.0..=0.95).text(tr("Estabilizador"))).on_hover_text(tr("Suaviza el temblor de la mano"));
+        ui.add(egui::Slider::new(&mut app.tools.pressure_gamma, 0.3..=3.0).logarithmic(true).text(tr("Curva de presión")))
+            .on_hover_text(tr("Menos de 1: el lápiz se siente más suave. Más de 1: hay que apretar más."));
+        ui.checkbox(&mut app.tools.simulate_pressure, tr("Simular presión con la velocidad (ratón / dedo)"));
         advanced(app, ui);
     });
     if pending {
@@ -172,40 +173,40 @@ fn brush_actions(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context) {
     let i = app.tools.active_index();
     let is_user = app.tools.is_user_brush(i);
     ui.horizontal_wrapped(|ui| {
-        if ui.add(IconButton::new(Icon::Duplicate).text("Crear copia")).on_hover_text("Copia este pincel en «Mis pinceles» para modificarlo").clicked() {
+        if ui.add(IconButton::new(Icon::Duplicate).text(tr("Crear copia"))).on_hover_text(tr("Copia este pincel en «Mis pinceles» para modificarlo")).clicked() {
             let mut b = app.tools.library[i].clone();
-            b.name = format!("{} (mío)", b.name);
+            b.name = tf!("{} (mío)", tr(&b.name));
             b.size = app.tools.tweaks[i].size;
             b.opacity = app.tools.tweaks[i].opacity;
             match app.tools.add_user_brush(b, &app.platform.brushes_dir) {
                 Ok(n) => {
                     app.tools.select_brush(n);
-                    app.toast(ctx, "Pincel creado en «Mis pinceles»");
+                    app.toast(ctx, tr("Pincel creado en «Mis pinceles»"));
                 }
-                Err(e) => app.toast(ctx, format!("No se pudo crear: {e}")),
+                Err(e) => app.toast(ctx, tf!("No se pudo crear: {}", crate::i18n::tr_err(&e.to_string()))),
             }
         }
-        if ui.add(IconButton::new(Icon::Import).text("Importar")).on_hover_text("Pinceles .animbrush o imágenes PNG como punta").clicked() {
+        if ui.add(IconButton::new(Icon::Import).text(tr("Importar"))).on_hover_text(tr("Pinceles .animbrush o imágenes PNG como punta")).clicked() {
             crate::files::request(app, ctx, crate::files::PickPurpose::Brushes);
         }
-        if ui.add(IconButton::new(Icon::Export).text("Exportar")).on_hover_text("Guardar este pincel en un archivo .animbrush para compartirlo").clicked() {
+        if ui.add(IconButton::new(Icon::Export).text(tr("Exportar"))).on_hover_text(tr("Guardar este pincel en un archivo .animbrush para compartirlo")).clicked() {
             let b = app.tools.library[i].clone();
             let name = format!("{}.{BRUSH_EXTENSION}", b.name);
-            if let Some(path) = app.platform.save_file("Exportar pincel", &name, BRUSH_EXTENSION) {
+            if let Some(path) = app.platform.save_file(tr("Exportar pincel"), &name, BRUSH_EXTENSION) {
                 match brush_io::save_brush(&b, &path) {
-                    Ok(()) => app.toast(ctx, format!("Exportado: {}", path.display())),
-                    Err(e) => app.toast(ctx, format!("No se pudo exportar: {e}")),
+                    Ok(()) => app.toast(ctx, tf!("Exportado: {}", path.display())),
+                    Err(e) => app.toast(ctx, tf!("No se pudo exportar: {}", crate::i18n::tr_err(&e.to_string()))),
                 }
             }
         }
         if is_user {
             let confirming = app.previews.confirm_delete == Some(i);
-            let label = if confirming { "¿Seguro? Pulsa otra vez" } else { "Borrar" };
+            let label = if confirming { tr("¿Seguro? Pulsa otra vez") } else { tr("Borrar") };
             if ui.add(IconButton::new(Icon::Trash).keep_text().text(label).selected(confirming)).clicked() {
                 if confirming {
                     match app.tools.delete_user_brush(i) {
-                        Ok(()) => app.toast(ctx, "Pincel borrado"),
-                        Err(e) => app.toast(ctx, format!("No se pudo borrar: {e}")),
+                        Ok(()) => app.toast(ctx, tr("Pincel borrado")),
+                        Err(e) => app.toast(ctx, tf!("No se pudo borrar: {}", crate::i18n::tr_err(&e.to_string()))),
                     }
                     app.previews.clear();
                     app.previews.confirm_delete = None;
@@ -213,7 +214,7 @@ fn brush_actions(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context) {
                     app.previews.confirm_delete = Some(i);
                 }
             }
-        } else if ui.add(IconButton::new(Icon::RotateLeft).text("Restablecer")).on_hover_text("Volver a los valores de fábrica").clicked() {
+        } else if ui.add(IconButton::new(Icon::RotateLeft).text(tr("Restablecer"))).on_hover_text(tr("Volver a los valores de fábrica")).clicked() {
             let name = app.tools.library[i].name.clone();
             if let Some(orig) = trazo_core::brush::builtin_brushes().into_iter().find(|x| x.name == name) {
                 app.tools.tweaks[i] = crate::tools::BrushTweak { size: orig.size, opacity: orig.opacity };
@@ -233,7 +234,7 @@ pub fn import_brush_files(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<st
     }
     let (mut ok, mut last, mut errors) = (0, None, Vec::new());
     for path in files {
-        let name = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Pincel".into());
+        let name = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| tr("Pincel").into());
         let is_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
         let brush = std::fs::read(&path)
             .map_err(|e| e.to_string())
@@ -244,15 +245,15 @@ pub fn import_brush_files(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<st
                 last = Some(i);
                 app.platform.imported(&path);
             }
-            Err(e) => errors.push(format!("{name}: {e}")),
+            Err(e) => errors.push(format!("{name}: {}", crate::i18n::tr_err(&e.to_string()))),
         }
     }
     if let Some(i) = last {
         app.tools.select_brush(i);
     }
     let msg = match (ok, errors.first()) {
-        (n, None) => format!("{n} pincel(es) importado(s)"),
-        (n, Some(e)) => format!("{n} importado(s); error en {e}"),
+        (n, None) => tf!("{} pincel(es) importado(s)", n),
+        (n, Some(e)) => tf!("{} importado(s); error en {}", n, e),
     };
     app.toast(ctx, msg);
 }
@@ -266,9 +267,9 @@ fn advanced(app: &mut TrazoApp, ui: &mut egui::Ui) {
     let mut rename: Option<String> = None;
     if is_user {
         let id = egui::Id::unique(("brush_name", i));
-        let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| app.tools.library[i].name.clone());
+        let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| tr(&app.tools.library[i].name).to_string());
         ui.horizontal(|ui| {
-            ui.label("Nombre del pincel");
+            ui.label(tr("Nombre del pincel"));
             let r = ui.text_edit_singleline(&mut text);
             if r.lost_focus() {
                 rename = Some(text.clone());
@@ -282,10 +283,10 @@ fn advanced(app: &mut TrazoApp, ui: &mut egui::Ui) {
         app.tools.rename_brush(i, &n);
     }
     let b = &mut app.tools.library[i];
-    egui::CollapsingHeader::new(RichText::new(format!("Editar pincel: {}", b.name)).strong()).id_salt("brush_advanced").show(ui, |ui| {
-        ui.label(RichText::new("Forma").strong());
+    egui::CollapsingHeader::new(RichText::new(tf!("Editar pincel: {}", tr(&b.name))).strong()).id_salt("brush_advanced").show(ui, |ui| {
+        ui.label(RichText::new(tr("Forma")).strong());
         let has_tip = b.tip.is_some();
-        egui::ComboBox::from_label("Punta")
+        egui::ComboBox::from_label(tr("Punta"))
             .selected_text(shape_label(b.shape))
             .show_ui(ui, |ui| {
                 for s in [DabShape::Round, DabShape::Pixel, DabShape::Spray, DabShape::Image] {
@@ -295,48 +296,48 @@ fn advanced(app: &mut TrazoApp, ui: &mut egui::Ui) {
                     changed |= ui.selectable_value(&mut b.shape, s, shape_label(s)).changed();
                 }
             });
-        changed |= slider(ui, &mut b.hardness, 0.0..=1.0, "Dureza");
-        changed |= slider(ui, &mut b.roundness, 0.05..=1.0, "Redondez");
-        changed |= slider(ui, &mut b.angle_deg, -90.0..=90.0, "Ángulo");
-        changed |= ui.checkbox(&mut b.follow_direction, "La punta sigue la dirección del trazo").changed();
-        changed |= slider(ui, &mut b.rotation_jitter, 0.0..=180.0, "Rotación aleatoria (°)");
+        changed |= slider(ui, &mut b.hardness, 0.0..=1.0, tr("Dureza"));
+        changed |= slider(ui, &mut b.roundness, 0.05..=1.0, tr("Redondez"));
+        changed |= slider(ui, &mut b.angle_deg, -90.0..=90.0, tr("Ángulo"));
+        changed |= ui.checkbox(&mut b.follow_direction, tr("La punta sigue la dirección del trazo")).changed();
+        changed |= slider(ui, &mut b.rotation_jitter, 0.0..=180.0, tr("Rotación aleatoria (°)"));
         if b.shape == DabShape::Spray {
             let mut d = b.density as f32;
-            changed |= slider(ui, &mut d, 1.0..=200.0, "Densidad");
+            changed |= slider(ui, &mut d, 1.0..=200.0, tr("Densidad"));
             b.density = d as u32;
         }
 
-        ui.label(RichText::new("Trazo").strong());
-        changed |= slider(ui, &mut b.flow, 0.01..=1.0, "Flujo");
-        changed |= slider(ui, &mut b.spacing, 0.02..=2.0, "Espaciado");
-        egui::ComboBox::from_label("Mezcla dentro del trazo")
-            .selected_text(if b.accumulate == Accumulate::Max { "Uniforme (rotulador)" } else { "Acumula (aerógrafo)" })
+        ui.label(RichText::new(tr("Trazo")).strong());
+        changed |= slider(ui, &mut b.flow, 0.01..=1.0, tr("Flujo"));
+        changed |= slider(ui, &mut b.spacing, 0.02..=2.0, tr("Espaciado"));
+        egui::ComboBox::from_label(tr("Mezcla dentro del trazo"))
+            .selected_text(if b.accumulate == Accumulate::Max { tr("Uniforme (rotulador)") } else { tr("Acumula (aerógrafo)") })
             .show_ui(ui, |ui| {
-                changed |= ui.selectable_value(&mut b.accumulate, Accumulate::Max, "Uniforme (rotulador)").changed();
-                changed |= ui.selectable_value(&mut b.accumulate, Accumulate::Buildup, "Acumula (aerógrafo)").changed();
+                changed |= ui.selectable_value(&mut b.accumulate, Accumulate::Max, tr("Uniforme (rotulador)")).changed();
+                changed |= ui.selectable_value(&mut b.accumulate, Accumulate::Buildup, tr("Acumula (aerógrafo)")).changed();
             });
-        egui::ComboBox::from_label("Fusión")
-            .selected_text(b.blend.label())
+        egui::ComboBox::from_label(tr("Fusión"))
+            .selected_text(tr(b.blend.label()))
             .show_ui(ui, |ui| {
                 for m in [BlendMode::Normal, BlendMode::Multiply, BlendMode::Screen, BlendMode::Add, BlendMode::Overlay] {
-                    changed |= ui.selectable_value(&mut b.blend, m, m.label()).changed();
+                    changed |= ui.selectable_value(&mut b.blend, m, tr(m.label())).changed();
                 }
             });
-        changed |= slider(ui, &mut b.taper_start, 0.0..=80.0, "Afinar inicio (px)");
-        changed |= slider(ui, &mut b.taper_end, 0.0..=80.0, "Afinar final (px)");
+        changed |= slider(ui, &mut b.taper_start, 0.0..=80.0, tr("Afinar inicio (px)"));
+        changed |= slider(ui, &mut b.taper_end, 0.0..=80.0, tr("Afinar final (px)"));
 
-        ui.label(RichText::new("Presión").strong());
-        changed |= ui.checkbox(&mut b.pressure_size, "Presión → tamaño").changed();
-        changed |= ui.checkbox(&mut b.pressure_opacity, "Presión → opacidad").changed();
-        changed |= slider(ui, &mut b.min_size, 0.0..=1.0, "Tamaño mínimo");
+        ui.label(RichText::new(tr("Presión")).strong());
+        changed |= ui.checkbox(&mut b.pressure_size, tr("Presión → tamaño")).changed();
+        changed |= ui.checkbox(&mut b.pressure_opacity, tr("Presión → opacidad")).changed();
+        changed |= slider(ui, &mut b.min_size, 0.0..=1.0, tr("Tamaño mínimo"));
 
-        ui.label(RichText::new("Textura y variación").strong());
-        changed |= slider(ui, &mut b.grain, 0.0..=1.0, "Textura de papel");
-        changed |= slider(ui, &mut b.grain_scale, 0.5..=16.0, "Tamaño del grano");
-        changed |= slider(ui, &mut b.jitter, 0.0..=0.6, "Dispersión");
-        changed |= slider(ui, &mut b.size_jitter, 0.0..=1.0, "Variación de tamaño");
+        ui.label(RichText::new(tr("Textura y variación")).strong());
+        changed |= slider(ui, &mut b.grain, 0.0..=1.0, tr("Textura de papel"));
+        changed |= slider(ui, &mut b.grain_scale, 0.5..=16.0, tr("Tamaño del grano"));
+        changed |= slider(ui, &mut b.jitter, 0.0..=0.6, tr("Dispersión"));
+        changed |= slider(ui, &mut b.size_jitter, 0.0..=1.0, tr("Variación de tamaño"));
         if !is_user {
-            ui.label(RichText::new("Es un pincel de serie: los cambios no se guardan. Usa «Crear copia» para conservarlos.").small().weak());
+            ui.label(RichText::new(tr("Es un pincel de serie: los cambios no se guardan. Usa «Crear copia» para conservarlos.")).small().weak());
         }
     });
     if changed {
@@ -346,10 +347,10 @@ fn advanced(app: &mut TrazoApp, ui: &mut egui::Ui) {
 
 fn shape_label(s: DabShape) -> &'static str {
     match s {
-        DabShape::Round => "Redonda",
-        DabShape::Pixel => "Píxel",
-        DabShape::Spray => "Spray",
-        DabShape::Image => "Imagen importada",
+        DabShape::Round => tr("Redonda"),
+        DabShape::Pixel => tr("Píxel"),
+        DabShape::Spray => tr("Spray"),
+        DabShape::Image => tr("Imagen importada"),
     }
 }
 

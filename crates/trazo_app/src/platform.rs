@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct Platform {
+    /// The app's own folder (settings live here).
+    pub data_dir: PathBuf,
     /// Folder where projects are stored.
     pub projects_dir: PathBuf,
     /// Folder with the user's own brushes.
@@ -44,16 +46,16 @@ impl Platform {
         let export_dir = base.join("exportar");
         for d in [&projects_dir, &brushes_dir, &import_dir, &export_dir] {
             if let Err(e) = std::fs::create_dir_all(d) {
-                log::warn!("no se pudo crear {}: {e}", d.display());
+                log::warn!("could not create {}: {e}", d.display());
             }
         }
-        Self { projects_dir, brushes_dir, import_dir, export_dir, touch_first }
+        Self { data_dir: base, projects_dir, brushes_dir, import_dir, export_dir, touch_first }
     }
 
     /// System file dialog (desktop). Android uses the in-app browser in `files.rs`.
     #[cfg(not(target_os = "android"))]
     pub fn pick_files(&self, title: &str, exts: &[&str]) -> Vec<PathBuf> {
-        rfd::FileDialog::new().set_title(title).add_filter("Archivos", exts).pick_files().unwrap_or_default()
+        rfd::FileDialog::new().set_title(title).add_filter(crate::i18n::tr("Archivos"), exts).pick_files().unwrap_or_default()
     }
 
     /// Called after a picked file was imported. Without a file dialog the file

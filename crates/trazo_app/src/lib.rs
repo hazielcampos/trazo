@@ -2,6 +2,9 @@
 //!
 //! The engine lives in `trazo_core`; this crate is the egui front end.
 
+// First, so `tf!` is in scope for every module below.
+#[macro_use]
+pub mod i18n;
 #[cfg(target_os = "android")]
 mod android;
 #[cfg(target_os = "android")]

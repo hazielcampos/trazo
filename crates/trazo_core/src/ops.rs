@@ -86,10 +86,9 @@ fn clear_cel_edit(p: &mut Project, frame: FrameId, layer: LayerId) -> Option<Edi
     b.finish(cel, frame, layer).map(Edit::Pixels)
 }
 
-/// Add an empty layer at `index` (0 = bottom). Returns the new layer id.
-pub fn add_layer(p: &mut Project, h: &mut History, index: usize) -> LayerId {
+/// Add an empty layer named `name` at `index` (0 = bottom). Returns the new layer id.
+pub fn add_layer(p: &mut Project, h: &mut History, index: usize, name: String) -> LayerId {
     let id = p.alloc_id();
-    let name = format!("Capa {}", p.layers.len() + 1);
     let index = index.min(p.layers.len());
     h.execute(p, Edit::InsertLayer { index, layer: Layer { id, props: LayerProps::named(name) }, cels: vec![] });
     id
@@ -330,7 +329,7 @@ mod tests {
     fn merge_down_combines_and_undoes() {
         let (mut p, mut h) = proj();
         let bottom = p.layers[0].id;
-        let top = add_layer(&mut p, &mut h, 1);
+        let top = add_layer(&mut p, &mut h, 1, "Capa 2".into());
         p.frames[0].cel_mut(top, 64, 64).set_pixel(5, 5, [255, 0, 0, 255]);
         assert_eq!(merge_down(&mut p, &mut h, top), Some(bottom));
         assert_eq!(p.layers.len(), 1);

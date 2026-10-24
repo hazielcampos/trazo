@@ -1,6 +1,7 @@
 //! The drawing canvas: view transform (zoom, pan, rotate, mirror), input
 //! (mouse, pen, touch gestures) and the texture that mirrors the frame.
 
+use crate::i18n::tr;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -528,15 +529,15 @@ impl CanvasView {
     fn editable_layer(&mut self, doc: &Document) -> bool {
         let Some(layer) = doc.project.layer(doc.layer) else { return false };
         if layer.props.video.is_some() {
-            self.message = Some("Es una capa de video: dibuja en otra capa".into());
+            self.message = Some(tr("Es una capa de video: dibuja en otra capa").into());
             return false;
         }
         if layer.props.locked {
-            self.message = Some("La capa está bloqueada".into());
+            self.message = Some(tr("La capa está bloqueada").into());
             return false;
         }
         if !layer.props.visible {
-            self.message = Some("La capa está oculta".into());
+            self.message = Some(tr("La capa está oculta").into());
             return false;
         }
         true

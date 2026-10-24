@@ -2,6 +2,7 @@
 //! under the current layer, for rotoscoping. Reading and decoding run in a
 //! background thread; the dialog shows the range, audio and memory options.
 
+use crate::i18n::tr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc};
@@ -77,7 +78,7 @@ impl VideoImportUi {
 }
 
 fn name_of(path: &Path) -> String {
-    path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Video".into())
+    path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| tr("Video").into())
 }
 
 fn is_gif(path: &Path) -> bool {
@@ -88,7 +89,7 @@ fn is_gif(path: &Path) -> bool {
 pub fn open(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<PathBuf>) {
     let Some(path) = files.into_iter().next() else { return };
     if app.video_import.is_busy() {
-        app.toast(ctx, "Ya se está importando un video");
+        app.toast(ctx, tr("Ya se está importando un video"));
         return;
     }
     app.stop_playback();
@@ -115,17 +116,17 @@ fn probe(path: &Path) -> Result<SourceInfo, String> {
         Ok(SourceInfo { gif: false, duration: i.duration, width, height, has_audio: i.has_audio })
     }
     #[cfg(not(target_os = "android"))]
-    Err("En el ordenador por ahora solo se pueden importar GIF animados".into())
+    Err(tr("En el ordenador por ahora solo se pueden importar GIF animados").into())
 }
 
 /// Size and length of an animated GIF (reads the frame delays only).
 fn gif_info(bytes: &[u8]) -> Result<(u32, u32, f64), String> {
     let mut opts = gif::DecodeOptions::new();
     opts.set_color_output(gif::ColorOutput::Indexed);
-    let mut dec = opts.read_info(std::io::Cursor::new(bytes)).map_err(|e| format!("GIF no válido: {e}"))?;
+    let mut dec = opts.read_info(std::io::Cursor::new(bytes)).map_err(|e| tf!("GIF no válido: {}", e))?;
     let (w, h) = (dec.width() as u32, dec.height() as u32);
     let mut secs = 0.0;
-    while let Some(f) = dec.next_frame_info().map_err(|e| format!("GIF no válido: {e}"))? {
+    while let Some(f) = dec.next_frame_info().map_err(|e| tf!("GIF no válido: {}", e))? {
         // Browsers show 0–10 ms delays as 100 ms (same rule as the decoder).
         secs += if f.delay <= 1 { 0.1 } else { f.delay as f64 / 100.0 };
     }
@@ -170,7 +171,7 @@ fn start(app: &mut TrazoApp, ctx: &egui::Context, o: Options) {
                 #[cfg(target_os = "android")]
                 crate::android_video::decode(&path, fps as f32, from, to, &mut b, &mut tick)?;
                 #[cfg(not(target_os = "android"))]
-                return Err("formato no compatible en el ordenador".into());
+                return Err(tr("formato no compatible en el ordenador").into());
             }
             let cancelled = || if ca.load(Ordering::Relaxed) { Err(trazo_core::export::CANCELLED.to_string()) } else { Ok(()) };
             cancelled()?;
@@ -185,7 +186,7 @@ fn start(app: &mut TrazoApp, ctx: &egui::Context, o: Options) {
             cancelled()?;
             Ok(Output { media: b.finish(name).map_err(|e| e.to_string())?, audio })
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)).unwrap_or_else(|_| Err("error inesperado al leer el video".into()));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)).unwrap_or_else(|_| Err(tr("error inesperado al leer el video").into()));
         let _ = tx.send(result);
         ctx2.request_repaint();
     });
@@ -214,10 +215,10 @@ fn finish(app: &mut TrazoApp, ctx: &egui::Context, job: &Job, out: Output) {
     match out.audio {
         Some(Ok(samples)) if !samples.is_empty() => {
             let at = ticks_to_samples(job.start_tick as f64, fps);
-            crate::panels::audio::add_clip(app, &job.name, samples, at, None, "Audio del video", false);
-            note = " con su audio".into();
+            crate::panels::audio::add_clip(app, &job.name, samples, at, None, tr("Audio del video"), false);
+            note = tr(" con su audio").into();
         }
-        Some(Err(e)) => note = format!(" (sin audio: {e})"),
+        Some(Err(e)) => note = tf!(" (sin audio: {})", crate::i18n::tr_err(&e.to_string())),
         _ => {}
     }
     let d = &mut app.doc;
@@ -226,8 +227,8 @@ fn finish(app: &mut TrazoApp, ctx: &egui::Context, job: &Job, out: Output) {
         d.layer = d.project.layers.iter().rev().find(|l| l.props.video.is_none()).map_or(d.layer, |l| l.id);
     }
     d.invalidate_all();
-    let extra = if added > 0 { format!(", +{added} fotogramas") } else { String::new() };
-    app.toast(ctx, format!("Video importado: {n} imágenes{note}{extra}. Dibuja encima."));
+    let extra = if added > 0 { tf!(", +{} fotogramas", added) } else { String::new() };
+    app.toast(ctx, tf!("Video importado: {} imágenes{}{}. Dibuja encima.", n, note, extra));
 }
 
 pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
@@ -240,18 +241,18 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
                 let frames_hold = if total + 0.01 < to { 1 } else { 0 };
                 app.video_import.stage = Stage::Ready(Options { path, from: 0.0, to, audio: info.has_audio, frames_hold, info });
             }
-            Ok(Err(e)) => app.toast(ctx, format!("No se pudo abrir el video: {e}")),
+            Ok(Err(e)) => app.toast(ctx, tf!("No se pudo abrir el video: {}", crate::i18n::tr_err(&e.to_string()))),
             Err(mpsc::TryRecvError::Empty) => app.video_import.stage = Stage::Probing(path, rx),
-            Err(mpsc::TryRecvError::Disconnected) => app.toast(ctx, "No se pudo abrir el video"),
+            Err(mpsc::TryRecvError::Disconnected) => app.toast(ctx, tr("No se pudo abrir el video")),
         },
         Stage::Running(job) => match job.rx.try_recv() {
-            Ok(Ok(_)) if job.cancel.load(Ordering::Relaxed) => app.toast(ctx, "Importación cancelada"),
-            Ok(Ok(_)) if job.doc_serial != app.doc.serial => app.toast(ctx, "Se abrió otro proyecto: el video no se importó"),
+            Ok(Ok(_)) if job.cancel.load(Ordering::Relaxed) => app.toast(ctx, tr("Importación cancelada")),
+            Ok(Ok(_)) if job.doc_serial != app.doc.serial => app.toast(ctx, tr("Se abrió otro proyecto: el video no se importó")),
             Ok(Ok(out)) => finish(app, ctx, &job, out),
-            Ok(Err(e)) if e == trazo_core::export::CANCELLED => app.toast(ctx, "Importación cancelada"),
-            Ok(Err(e)) => app.toast(ctx, format!("No se pudo importar el video: {e}")),
+            Ok(Err(e)) if e == trazo_core::export::CANCELLED => app.toast(ctx, tr("Importación cancelada")),
+            Ok(Err(e)) => app.toast(ctx, tf!("No se pudo importar el video: {}", crate::i18n::tr_err(&e.to_string()))),
             Err(mpsc::TryRecvError::Empty) => app.video_import.stage = Stage::Running(job),
-            Err(mpsc::TryRecvError::Disconnected) => app.toast(ctx, "La importación se interrumpió"),
+            Err(mpsc::TryRecvError::Disconnected) => app.toast(ctx, tr("La importación se interrumpió")),
         },
         other => app.video_import.stage = other,
     }
@@ -266,7 +267,7 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
         return;
     }
     crate::widgets::backdrop(ctx);
-    egui::Window::new("Importar video")
+    egui::Window::new(tr("Importar video"))
         .order(egui::Order::Foreground)
         .open(&mut open)
         .collapsible(false)
@@ -281,63 +282,63 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
             Stage::Probing(path, _) => {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(format!("Leyendo «{}»…", name_of(path)));
+                    ui.label(tf!("Leyendo «{}»…", name_of(path)));
                 });
             }
             Stage::Ready(o) => {
                 let i = &o.info;
                 ui.label(RichText::new(name_of(&o.path)).strong());
-                let sound = if i.gif { "GIF animado" } else if i.has_audio { "con audio" } else { "sin audio" };
-                ui.label(format!("{}×{} · {:.1} s · {sound}", i.width, i.height, i.duration));
+                let sound = if i.gif { tr("GIF animado") } else if i.has_audio { tr("con audio") } else { tr("sin audio") };
+                ui.label(format!("{}×{} · {} s · {sound}", i.width, i.height, crate::i18n::num(i.duration as f32, 1)));
                 ui.add_space(6.0);
                 if !i.gif {
                     let max = i.duration.max(0.1);
                     ui.horizontal(|ui| {
-                        ui.label("Desde");
+                        ui.label(tr("Desde"));
                         ui.add(egui::DragValue::new(&mut o.from).range(0.0..=max).speed(0.05).suffix(" s").fixed_decimals(1));
-                        ui.label("hasta");
+                        ui.label(tr("hasta"));
                         ui.add(egui::DragValue::new(&mut o.to).range(0.0..=max).speed(0.05).suffix(" s").fixed_decimals(1));
                     });
                     if o.to < o.from + 0.1 {
                         o.to = (o.from + 0.1).min(max);
                     }
                     if i.has_audio {
-                        ui.checkbox(&mut o.audio, "Importar también el audio");
+                        ui.checkbox(&mut o.audio, tr("Importar también el audio"));
                     }
                 }
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Fotogramas para dibujar:").on_hover_text("Fotogramas vacíos hasta el final del video, para calcar uno cada 1, 2 o 3 imágenes");
-                    for (label, hold) in [("no crear", 0), ("a unos", 1), ("a doses", 2), ("a treses", 3)] {
+                    ui.label(tr("Fotogramas para dibujar:")).on_hover_text(tr("Fotogramas vacíos hasta el final del video, para calcar uno cada 1, 2 o 3 imágenes"));
+                    for (label, hold) in [(tr("no crear"), 0), (tr("a unos"), 1), (tr("a doses"), 2), (tr("a treses"), 3)] {
                         ui.selectable_value(&mut o.frames_hold, hold, label);
                     }
                 });
                 let (n, bytes) = estimate_bytes(o, cw, ch, fps);
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new(format!("{n} imágenes a {fps} fps (las del proyecto) · ≈ {:.0} MB", bytes as f64 / 1e6 + 0.5))
+                    RichText::new(tf!("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", n, fps, format!("{:.0}", bytes as f64 / 1e6 + 0.5)))
                         .small()
                         .weak(),
                 );
                 let too_long = n > MAX_FRAMES || bytes as usize > MAX_BYTES;
                 if too_long {
-                    ui.colored_label(ui.visuals().warn_fg_color, format!("Demasiado largo: el máximo son {MAX_FRAMES} imágenes y {} MB. Acorta el rango.", MAX_BYTES >> 20));
+                    ui.colored_label(ui.visuals().warn_fg_color, tf!("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", MAX_FRAMES, MAX_BYTES >> 20));
                 }
-                ui.label(RichText::new("Se añade como capa de referencia bajo la capa actual, al 60 %: se ve al dibujar y no se exporta.").small().weak());
+                ui.label(RichText::new(tr("Se añade como capa de referencia bajo la capa actual, al 60 %: se ve al dibujar y no se exporta.")).small().weak());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(!too_long, egui::Button::new("Importar")).clicked() {
+                    if ui.add_enabled(!too_long, egui::Button::new(tr("Importar"))).clicked() {
                         go = true;
                     }
-                    if ui.button("Cancelar").clicked() {
+                    if ui.button(tr("Cancelar")).clicked() {
                         close = true;
                     }
                 });
             }
             Stage::Running(job) => {
                 let f = f32::from_bits(job.progress.load(Ordering::Relaxed));
-                ui.label(format!("Importando «{}»…", job.name));
+                ui.label(tf!("Importando «{}»…", job.name));
                 ui.add(egui::ProgressBar::new(f).show_percentage());
-                if ui.button("Cancelar").clicked() {
+                if ui.button(tr("Cancelar")).clicked() {
                     job.cancel.store(true, Ordering::Relaxed);
                 }
             }

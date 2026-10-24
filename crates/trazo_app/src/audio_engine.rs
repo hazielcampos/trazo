@@ -9,6 +9,7 @@
 //! Real-time rules in the callbacks: no allocation after warm-up, no blocking
 //! locks (`try_lock` only), microphone samples go through a lock-free ring.
 
+use crate::i18n::tr;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -76,7 +77,7 @@ impl AudioEngine {
     /// Open the default output device. Fails if there is no sound device.
     pub fn new() -> Result<Self, String> {
         let host = cpal::default_host();
-        let device = host.default_output_device().ok_or("no hay salida de audio")?;
+        let device = host.default_output_device().ok_or(tr("no hay salida de audio"))?;
         let supported = preferred_output_config(&device)?;
         let config = supported.config();
         let shared = Arc::new(Shared {
@@ -102,7 +103,7 @@ impl AudioEngine {
             F::I32 => build_output::<i32>(&device, &config, s),
             F::U8 => build_output::<u8>(&device, &config, s),
             F::F64 => build_output::<f64>(&device, &config, s),
-            other => return Err(format!("formato de salida no soportado: {other:?}")),
+            other => return Err(tf!("formato de salida no soportado: {}", format!("{:?}", other))),
         }?;
         stream.play().map_err(|e| e.to_string())?;
         Ok(Self { shared, _output: stream, recorder: None, av_offset_ms: 0.0 })
@@ -189,7 +190,7 @@ impl AudioEngine {
         }
         request_mic_permission()?;
         let host = cpal::default_host();
-        let device = host.default_input_device().ok_or("no se encontró ningún micrófono")?;
+        let device = host.default_input_device().ok_or(tr("no se encontró ningún micrófono"))?;
         let supported = device.default_input_config().map_err(|e| e.to_string())?;
         let config = supported.config();
         // ~10 s of headroom between UI drains.
@@ -207,9 +208,9 @@ impl AudioEngine {
             F::I32 => build_input::<i32>(&device, &config, producer, c, d, l),
             F::U8 => build_input::<u8>(&device, &config, producer, c, d, l),
             F::F64 => build_input::<f64>(&device, &config, producer, c, d, l),
-            other => return Err(format!("formato de micrófono no soportado: {other:?}")),
+            other => return Err(tf!("formato de micrófono no soportado: {}", format!("{:?}", other))),
         }?;
-        stream.play().map_err(|e| format!("no se pudo abrir el micrófono: {e}"))?;
+        stream.play().map_err(|e| tf!("no se pudo abrir el micrófono: {}", e))?;
         self.recorder = Some(Recorder {
             _stream: stream,
             consumer,
@@ -438,7 +439,7 @@ where
             |e| log::error!("error del micrófono: {e}"),
             None,
         )
-        .map_err(|e| format!("no se pudo abrir el micrófono: {e}"))
+        .map_err(|e| tf!("no se pudo abrir el micrófono: {}", e))
 }
 
 /// Android needs a runtime permission for the microphone (API 23+).
@@ -449,7 +450,7 @@ fn request_mic_permission() -> Result<(), String> {
     if crate::android::has_permission(crate::android::RECORD_AUDIO) {
         Ok(())
     } else {
-        Err("falta el permiso de micrófono".into())
+        Err(tr("falta el permiso de micrófono").into())
     }
 }
 

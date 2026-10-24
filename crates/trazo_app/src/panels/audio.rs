@@ -1,6 +1,7 @@
 //! Audio panel: tracks with waveforms, clip editing (move, trim, split,
 //! volume, fades), lip-sync markers, mixing controls and voice-over recording.
 
+use crate::i18n::tr;
 use std::sync::mpsc;
 use std::sync::Arc;
 
@@ -230,7 +231,7 @@ pub fn import_audio_files(app: &mut TrazoApp, ctx: &egui::Context, files: Vec<st
         }
     });
     app.audio_ui.imports.push(rx);
-    app.toast(ctx, "Importando audio…");
+    app.toast(ctx, tr("Importando audio…"));
 }
 
 fn poll_imports(app: &mut TrazoApp, ctx: &egui::Context) {
@@ -257,14 +258,14 @@ fn poll_imports(app: &mut TrazoApp, ctx: &egui::Context) {
         match r.result {
             Ok(samples) => {
                 let track = r.track.filter(|t| app.doc.project.audio.track_index(*t).is_some());
-                add_clip(app, &r.name, samples, r.start, track, "Música y efectos", false);
+                add_clip(app, &r.name, samples, r.start, track, tr("Música y efectos"), false);
                 app.platform.imported(&r.path);
-                app.toast(ctx, format!("Audio importado: {}", r.name));
+                app.toast(ctx, tf!("Audio importado: {}", r.name));
             }
             Err(e) => {
                 // Don't retry a broken file forever (Android import folder).
                 app.platform.imported(&r.path);
-                app.toast(ctx, format!("No se pudo importar {}: {e}", r.name));
+                app.toast(ctx, tf!("No se pudo importar {}: {}", r.name, crate::i18n::tr_err(&e.to_string())));
             }
         }
     }
@@ -274,14 +275,14 @@ fn poll_imports(app: &mut TrazoApp, ctx: &egui::Context) {
 
 fn start_recording(app: &mut TrazoApp, ctx: &egui::Context) {
     if app.audio.is_none() {
-        app.toast(ctx, "No hay dispositivo de audio");
+        app.toast(ctx, tr("No hay dispositivo de audio"));
         return;
     }
     #[cfg(target_os = "android")]
     if !crate::android::has_permission(crate::android::RECORD_AUDIO) {
         // Ask, then start automatically once it is granted (see update_recording).
         if let Err(e) = crate::android::request_permissions(&[crate::android::RECORD_AUDIO]) {
-            app.toast(ctx, format!("No se pudo pedir el permiso de micrófono: {e}"));
+            app.toast(ctx, tf!("No se pudo pedir el permiso de micrófono: {}", crate::i18n::tr_err(&e.to_string())));
             return;
         }
         let since = ctx.input(|i| i.time);
@@ -292,7 +293,7 @@ fn start_recording(app: &mut TrazoApp, ctx: &egui::Context) {
     let Some(engine) = app.audio.as_mut() else { return };
     // Open the microphone now so it is warm when recording starts.
     if let Err(e) = engine.arm_recording() {
-        app.toast(ctx, format!("No se pudo abrir el micrófono: {e}"));
+        app.toast(ctx, tf!("No se pudo abrir el micrófono: {}", crate::i18n::tr_err(&e.to_string())));
         return;
     }
     app.stop_playback();
@@ -328,11 +329,11 @@ fn stop_recording(app: &mut TrazoApp, ctx: &egui::Context) {
         Some(samples) if capturing && samples.len() > 2 * 2400 => {
             let n = app.doc.project.audio.tracks.iter().map(|t| t.clips.len()).sum::<usize>() + 1;
             let shift = (app.audio_ui.record_offset_ms / 1000.0 * SAMPLE_RATE as f32) as i64;
-            add_clip(app, &format!("Toma {n}"), samples, start - shift, track, "Voz en off", true);
-            let msg = if overflow { "Grabación añadida (se perdió un trozo: el equipo iba lento)" } else { "Grabación añadida (Ctrl+Z para descartarla)" };
+            add_clip(app, &tf!("Toma {}", n), samples, start - shift, track, tr("Voz en off"), true);
+            let msg = if overflow { tr("Grabación añadida (se perdió un trozo: el equipo iba lento)") } else { tr("Grabación añadida (Ctrl+Z para descartarla)") };
             app.toast(ctx, msg);
         }
-        _ => app.toast(ctx, "Grabación demasiado corta: no se guardó"),
+        _ => app.toast(ctx, tr("Grabación demasiado corta: no se guardó")),
     }
 }
 
@@ -353,7 +354,7 @@ pub fn update_recording(app: &mut TrazoApp, ctx: &egui::Context) {
             }
             if now - since > 120.0 {
                 app.audio_ui.record = RecordState::Idle;
-                app.toast(ctx, "Sin permiso de micrófono no se puede grabar");
+                app.toast(ctx, tr("Sin permiso de micrófono no se puede grabar"));
             }
             ctx.request_repaint_after(std::time::Duration::from_millis(300));
         }
@@ -394,11 +395,11 @@ fn export_mix(app: &mut TrazoApp, ctx: &egui::Context) {
     let p = &app.doc.project;
     let end = ticks_to_samples(p.total_ticks() as f64, p.canvas.fps).max(p.audio.end());
     let name = format!("{} (audio).wav", p.name);
-    let Some(path) = app.platform.save_file("Exportar audio", &name, "wav") else { return };
+    let Some(path) = app.platform.save_file(tr("Exportar audio"), &name, "wav") else { return };
     let samples = render_mix(&p.audio, 0, end);
     match trazo_core::audio::encode_wav(&samples).map_err(|e| e.to_string()).and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())) {
-        Ok(()) => app.toast(ctx, format!("Audio exportado: {}", path.display())),
-        Err(e) => app.toast(ctx, format!("No se pudo exportar: {e}")),
+        Ok(()) => app.toast(ctx, tf!("Audio exportado: {}", path.display())),
+        Err(e) => app.toast(ctx, tf!("No se pudo exportar: {}", crate::i18n::tr_err(&e.to_string()))),
     }
 }
 
@@ -498,11 +499,11 @@ fn grab_bar(app: &mut TrazoApp, ui: &mut egui::Ui, height: f32, min: f32) {
     let close = Rect::from_center_size(Pos2::new(rect.right() - 22.0, rect.center().y), Vec2::splat(28.0));
     let cr = ui.interact(close, ui.scope_id().with("audio_close"), Sense::click());
     crate::icons::paint(ui.painter(), close.shrink(6.0), Icon::Close, crate::theme::TEXT2);
-    if cr.on_hover_text("Ocultar audio").clicked() {
+    if cr.on_hover_text(tr("Ocultar audio")).clicked() {
         ui.ctx().request_repaint();
         app.audio_ui.show = false;
     }
-    resp.on_hover_cursor(egui::CursorIcon::ResizeVertical).on_hover_text("Arrastra para cambiar la altura; hacia abajo para ocultar");
+    resp.on_hover_cursor(egui::CursorIcon::ResizeVertical).on_hover_text(tr("Arrastra para cambiar la altura; hacia abajo para ocultar"));
 }
 
 fn controls(app: &mut TrazoApp, ui: &mut egui::Ui) {
@@ -511,31 +512,31 @@ fn controls(app: &mut TrazoApp, ui: &mut egui::Ui) {
     ui.horizontal_wrapped(|ui| {
         // The tab already says "Audio".
         if app.audio.is_none() {
-            ui.label(RichText::new("(sin dispositivo de sonido)").weak());
+            ui.label(RichText::new(tr("(sin dispositivo de sonido)")).weak());
         }
 
         match app.audio_ui.record {
             RecordState::WaitingPermission { .. } => {
-                ui.label(RichText::new("Concede el permiso de micrófono en el aviso de Android…").strong());
-                if ui.add(IconButton::new(Icon::Close).keep_text().text("Cancelar")).clicked() {
+                ui.label(RichText::new(tr("Concede el permiso de micrófono en el aviso de Android…")).strong());
+                if ui.add(IconButton::new(Icon::Close).keep_text().text(tr("Cancelar"))).clicked() {
                     app.audio_ui.record = RecordState::Idle;
                 }
             }
             RecordState::Idle => {
-                if ui.add(IconButton::new(Icon::Mic).keep_text().text("Grabar voz")).on_hover_text("Graba desde el micrófono mientras se reproduce la animación (cuenta atrás y pre-roll)").clicked() {
+                if ui.add(IconButton::new(Icon::Mic).keep_text().text(tr("Grabar voz"))).on_hover_text(tr("Graba desde el micrófono mientras se reproduce la animación (cuenta atrás y pre-roll)")).clicked() {
                     start_recording(app, &ctx);
                 }
             }
             RecordState::Countdown { until, .. } => {
                 let left = (until - ctx.input(|i| i.time)).ceil().max(1.0);
-                ui.label(RichText::new(format!("Grabando en {left:.0}…")).strong().color(Color32::from_rgb(240, 80, 80)));
+                ui.label(RichText::new(tf!("Grabando en {}…", format!("{left:.0}"))).strong().color(Color32::from_rgb(240, 80, 80)));
                 level_meter(ui, app.audio.as_ref().map(|e| e.input_level()).unwrap_or(0.0));
-                if ui.add(IconButton::new(Icon::Close).keep_text().text("Cancelar")).clicked() {
+                if ui.add(IconButton::new(Icon::Close).keep_text().text(tr("Cancelar"))).clicked() {
                     cancel_recording(app);
                 }
             }
             RecordState::Recording { capturing, .. } => {
-                if ui.add(IconButton::new(Icon::Stop).keep_text().text("Detener").selected(true)).clicked() {
+                if ui.add(IconButton::new(Icon::Stop).keep_text().text(tr("Detener")).selected(true)).clicked() {
                     stop_recording(app, &ctx);
                 }
                 let (rect, _) = ui.allocate_exact_size(Vec2::splat(14.0), Sense::hover());
@@ -543,63 +544,63 @@ fn controls(app: &mut TrazoApp, ui: &mut egui::Ui) {
                 ui.painter().circle_filled(rect.center(), 6.0, red);
                 if capturing {
                     let secs = app.audio.as_ref().map(|e| e.recorded_seconds()).unwrap_or(0.0);
-                    ui.label(format!("{secs:.1} s"));
+                    ui.label(format!("{} s", crate::i18n::num(secs, 1)));
                 } else {
-                    ui.label("pre-roll…");
+                    ui.label(tr("pre-roll…"));
                 }
                 level_meter(ui, app.audio.as_ref().map(|e| e.input_level()).unwrap_or(0.0));
             }
         }
         if !small {
-            ui.checkbox(&mut app.audio_ui.monitor, "Oír pistas al grabar").on_hover_text("Usa auriculares para que el micrófono no recoja el sonido");
+            ui.checkbox(&mut app.audio_ui.monitor, tr("Oír pistas al grabar")).on_hover_text(tr("Usa auriculares para que el micrófono no recoja el sonido"));
             ui.separator();
         }
 
-        if ui.add(IconButton::new(Icon::Import).text("Importar")).on_hover_text("WAV, MP3, OGG, FLAC, M4A…: se coloca en el fotograma actual").clicked() {
+        if ui.add(IconButton::new(Icon::Import).text(tr("Importar"))).on_hover_text(tr("WAV, MP3, OGG, FLAC, M4A…: se coloca en el fotograma actual")).clicked() {
             crate::files::request(app, &ctx, crate::files::PickPurpose::Audio);
         }
         if app.audio_ui.is_importing() {
             ui.spinner();
         }
-        if ui.add(IconButton::new(Icon::Plus).text("Pista")).on_hover_text("Nueva pista de audio").clicked() {
+        if ui.add(IconButton::new(Icon::Plus).text(tr("Pista"))).on_hover_text(tr("Nueva pista de audio")).clicked() {
             let id = app.doc.project.alloc_id();
             let n = app.doc.project.audio.tracks.len() + 1;
-            edit_tracks(app, |t, _| t.push(AudioTrack::new(id, format!("Pista {n}"))));
+            edit_tracks(app, |t, _| t.push(AudioTrack::new(id, tf!("Pista {}", n))));
             app.audio_ui.target_track = Some(id);
         }
-        if ui.add(IconButton::new(Icon::RangeIn).text("Marcador")).on_hover_text("Marcador en el fotograma actual (K): diálogo, golpes, fonemas").clicked() {
+        if ui.add(IconButton::new(Icon::RangeIn).text(tr("Marcador"))).on_hover_text(tr("Marcador en el fotograma actual (K): diálogo, golpes, fonemas")).clicked() {
             add_marker(app);
         }
         let scrub_icon = if app.audio_ui.scrub { Icon::Speaker } else { Icon::SpeakerOff };
-        if ui.add(IconButton::new(scrub_icon).selected(app.audio_ui.scrub)).on_hover_text("Oír el sonido de cada fotograma al recorrerlos (lip-sync)").clicked() {
+        if ui.add(IconButton::new(scrub_icon).selected(app.audio_ui.scrub)).on_hover_text(tr("Oír el sonido de cada fotograma al recorrerlos (lip-sync)")).clicked() {
             app.audio_ui.scrub = !app.audio_ui.scrub;
         }
-        ui.add(egui::Slider::new(&mut app.audio_ui.volume, 0.0..=2.0).show_value(false)).on_hover_text("Volumen de escucha");
-        if ui.add(IconButton::new(Icon::Export).text("WAV")).on_hover_text("Exportar la mezcla de audio a un archivo WAV").clicked() {
+        ui.add(egui::Slider::new(&mut app.audio_ui.volume, 0.0..=2.0).show_value(false)).on_hover_text(tr("Volumen de escucha"));
+        if ui.add(IconButton::new(Icon::Export).text(tr("WAV"))).on_hover_text(tr("Exportar la mezcla de audio a un archivo WAV")).clicked() {
             export_mix(app, &ctx);
         }
-        let sync = ui.add(IconButton::new(Icon::Settings)).on_hover_text("Sincronía y grabación");
+        let sync = ui.add(IconButton::new(Icon::Settings)).on_hover_text(tr("Sincronía y grabación"));
         egui::Popup::menu(&sync).show(|ui| {
             ui.set_min_width(300.0);
             if small {
-                crate::widgets::switch_row(ui, "Oír pistas al grabar", &mut app.audio_ui.monitor);
+                crate::widgets::switch_row(ui, tr("Oír pistas al grabar"), &mut app.audio_ui.monitor);
             }
             if let Some(e) = app.audio.as_mut() {
-                ui.label(format!("Latencia de salida detectada: {:.0} ms (ya compensada)", e.latency_ms()));
-                ui.add(egui::Slider::new(&mut e.av_offset_ms, -300.0..=300.0).suffix(" ms").text("Ajuste imagen/sonido"))
-                    .on_hover_text("Si el sonido llega tarde respecto al dibujo, sube este valor");
+                ui.label(tf!("Latencia de salida detectada: {} ms (ya compensada)", format!("{:.0}", e.latency_ms())));
+                ui.add(egui::Slider::new(&mut e.av_offset_ms, -300.0..=300.0).suffix(" ms").text(tr("Ajuste imagen/sonido")))
+                    .on_hover_text(tr("Si el sonido llega tarde respecto al dibujo, sube este valor"));
             }
-            ui.add(egui::Slider::new(&mut app.audio_ui.record_offset_ms, -300.0..=300.0).suffix(" ms").text("Desfase de grabación"))
-                .on_hover_text("Si tus tomas quedan tarde, sube este valor");
-            ui.add(egui::Slider::new(&mut app.audio_ui.preroll, 0.0..=4.0).suffix(" s").text("Pre-roll"))
-                .on_hover_text("Segundos que suenan antes del punto de grabación");
-            ui.label(RichText::new("Consejo: Mayús+arrastrar en la regla marca el bucle; arrastrar sobre las pistas hace scrub.").small().weak());
+            ui.add(egui::Slider::new(&mut app.audio_ui.record_offset_ms, -300.0..=300.0).suffix(" ms").text(tr("Desfase de grabación")))
+                .on_hover_text(tr("Si tus tomas quedan tarde, sube este valor"));
+            ui.add(egui::Slider::new(&mut app.audio_ui.preroll, 0.0..=4.0).suffix(" s").text(tr("Pre-roll")))
+                .on_hover_text(tr("Segundos que suenan antes del punto de grabación"));
+            ui.label(RichText::new(tr("Consejo: Mayús+arrastrar en la regla marca el bucle; arrastrar sobre las pistas hace scrub.")).small().weak());
         });
         if !small {
             ui.separator();
-            ui.label("Zoom");
+            ui.label(tr("Zoom"));
         }
-        ui.add(egui::Slider::new(&mut app.audio_ui.pps, 20.0..=1200.0).logarithmic(true).show_value(false)).on_hover_text("También con Ctrl+rueda sobre las pistas");
+        ui.add(egui::Slider::new(&mut app.audio_ui.pps, 20.0..=1200.0).logarithmic(true).show_value(false)).on_hover_text(tr("También con Ctrl+rueda sobre las pistas"));
     });
 
     if let Some(id) = app.audio_ui.selected_marker {
@@ -630,10 +631,10 @@ pub fn add_marker(app: &mut TrazoApp) {
 fn marker_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: u64) {
     let Some(m) = app.doc.project.audio.markers.iter().find(|m| m.id == id).cloned() else { return };
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("Marcador").strong());
+        ui.label(RichText::new(tr("Marcador")).strong());
         let key = egui::Id::unique(("marker_text", id));
         let mut text = ui.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| m.text.clone());
-        let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0).hint_text("diálogo o nota"));
+        let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(160.0).hint_text(tr("diálogo o nota")));
         if r.changed() {
             ui.data_mut(|d| d.insert_temp(key, text.clone()));
         }
@@ -647,9 +648,9 @@ fn marker_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: u64) {
                 });
             }
         }
-        ui.label("Fonema:");
+        ui.label(tr("Fonema:"));
         for ph in std::iter::once(None).chain(Phoneme::ALL.iter().copied().map(Some)) {
-            let label = ph.map(|p| p.label()).unwrap_or("—");
+            let label = ph.map(|p| tr(p.label())).unwrap_or("—");
             if ui.selectable_label(m.phoneme == ph, label).clicked() && m.phoneme != ph {
                 edit_markers(app, |ms| {
                     if let Some(x) = ms.iter_mut().find(|x| x.id == id) {
@@ -658,11 +659,11 @@ fn marker_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: u64) {
                 });
             }
         }
-        if ui.add(IconButton::new(Icon::Trash)).on_hover_text("Borrar marcador").clicked() {
+        if ui.add(IconButton::new(Icon::Trash)).on_hover_text(tr("Borrar marcador")).clicked() {
             edit_markers(app, |ms| ms.retain(|x| x.id != id));
             app.audio_ui.selected_marker = None;
         }
-        if ui.add(IconButton::new(Icon::Close)).on_hover_text("Cerrar").clicked() {
+        if ui.add(IconButton::new(Icon::Close)).on_hover_text(tr("Cerrar")).clicked() {
             app.audio_ui.selected_marker = None;
         }
     });
@@ -681,15 +682,15 @@ fn clip_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: ClipId) {
     ui.horizontal_wrapped(|ui| {
         let asset = app.doc.project.audio.assets.get(&clip.asset).cloned();
         let name = asset.as_ref().map(|a| a.name.clone()).unwrap_or_default();
-        ui.label(RichText::new(format!("Clip: {name}")).strong());
+        ui.label(RichText::new(tf!("Clip: {}", name)).strong());
         let secs = |s: u64| s as f32 / SAMPLE_RATE as f32;
         let mut gain = clip.gain * 100.0;
         let mut fin = secs(clip.fade_in);
         let mut fout = secs(clip.fade_out);
         let max_fade = secs(clip.len).min(10.0);
-        let r1 = ui.add(egui::Slider::new(&mut gain, 0.0..=200.0).suffix(" %").text("Volumen"));
-        let r2 = ui.add(egui::Slider::new(&mut fin, 0.0..=max_fade).suffix(" s").text("Entrada"));
-        let r3 = ui.add(egui::Slider::new(&mut fout, 0.0..=max_fade).suffix(" s").text("Salida"));
+        let r1 = ui.add(egui::Slider::new(&mut gain, 0.0..=200.0).suffix(" %").text(tr("Volumen")));
+        let r2 = ui.add(egui::Slider::new(&mut fin, 0.0..=max_fade).suffix(" s").text(tr("Entrada")));
+        let r3 = ui.add(egui::Slider::new(&mut fout, 0.0..=max_fade).suffix(" s").text(tr("Salida")));
         let rs = [&r1, &r2, &r3];
         let changed = rs.iter().any(|r| r.changed());
         let stopped = rs.iter().any(|r| r.drag_stopped());
@@ -713,7 +714,7 @@ fn clip_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: ClipId) {
 
         ui.separator();
         let playhead = current_sample(app);
-        if ui.add_enabled(playhead > clip.start && playhead < clip.end(), IconButton::new(Icon::Cut).text("Dividir")).on_hover_text("Cortar el clip en el fotograma actual").clicked() {
+        if ui.add_enabled(playhead > clip.start && playhead < clip.end(), IconButton::new(Icon::Cut).text(tr("Dividir"))).on_hover_text(tr("Cortar el clip en el fotograma actual")).clicked() {
             let new_id = app.doc.project.alloc_id();
             edit_tracks(app, |t, _| {
                 if let Some(pos) = t[ti].clips.iter().position(|c| c.id == id) {
@@ -725,14 +726,14 @@ fn clip_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: ClipId) {
             });
         }
         if let Some(asset) = &asset {
-            if ui.button("Separar en silencios").on_hover_text("Corta el clip donde empieza cada frase").clicked() {
+            if ui.button(tr("Separar en silencios")).on_hover_text(tr("Corta el clip donde empieza cada frase")).clicked() {
                 let cuts: Vec<i64> = sound_starts(&asset.peaks, 0.02, SAMPLE_RATE as u64 / 4)
                     .into_iter()
                     .filter(|&f| f > clip.offset && f < clip.offset + clip.len)
                     .map(|f| clip.start + (f - clip.offset) as i64)
                     .collect();
                 if cuts.is_empty() {
-                    app.toast(ui.ctx(), "No se encontraron silencios");
+                    app.toast(ui.ctx(), tr("No se encontraron silencios"));
                 } else {
                     let ids: Vec<u64> = cuts.iter().map(|_| app.doc.project.alloc_id()).collect();
                     edit_tracks(app, |t, _| {
@@ -749,7 +750,7 @@ fn clip_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: ClipId) {
                     });
                 }
             }
-            if ui.button("Normalizar").on_hover_text("Sube el volumen hasta el máximo sin distorsionar").clicked() {
+            if ui.button(tr("Normalizar")).on_hover_text(tr("Sube el volumen hasta el máximo sin distorsionar")).clicked() {
                 match normalized(&asset.samples, 0.95) {
                     Some(samples) => {
                         let new_asset = app.doc.project.alloc_id();
@@ -760,28 +761,28 @@ fn clip_controls(app: &mut TrazoApp, ui: &mut egui::Ui, id: ClipId) {
                             }
                         });
                     }
-                    None => app.toast(ui.ctx(), "El clip está en silencio"),
+                    None => app.toast(ui.ctx(), tr("El clip está en silencio")),
                 }
             }
         }
-        if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text("Duplicar el clip a continuación").clicked() {
+        if ui.add(IconButton::new(Icon::Duplicate)).on_hover_text(tr("Duplicar el clip a continuación")).clicked() {
             let new_id = app.doc.project.alloc_id();
             edit_tracks(app, |t, _| t[ti].clips.push(AudioClip { id: new_id, start: clip.end(), ..clip.clone() }));
             app.audio_ui.selected = Some(new_id);
         }
         let mute_icon = if clip.muted { Icon::SpeakerOff } else { Icon::Speaker };
-        if ui.add(IconButton::new(mute_icon).selected(clip.muted)).on_hover_text("Silenciar este clip (las tomas sustituidas quedan silenciadas)").clicked() {
+        if ui.add(IconButton::new(mute_icon).selected(clip.muted)).on_hover_text(tr("Silenciar este clip (las tomas sustituidas quedan silenciadas)")).clicked() {
             edit_tracks(app, |t, _| {
                 if let Some(c) = t[ti].clip_mut(id) {
                     c.muted = !c.muted;
                 }
             });
         }
-        if ui.add(IconButton::new(Icon::Trash)).on_hover_text("Borrar el clip (Supr)").clicked() {
+        if ui.add(IconButton::new(Icon::Trash)).on_hover_text(tr("Borrar el clip (Supr)")).clicked() {
             edit_tracks(app, |t, _| t[ti].clips.retain(|c| c.id != id));
             app.audio_ui.selected = None;
         }
-        if ui.add(IconButton::new(Icon::Close)).on_hover_text("Deseleccionar").clicked() {
+        if ui.add(IconButton::new(Icon::Close)).on_hover_text(tr("Deseleccionar")).clicked() {
             app.audio_ui.selected = None;
         }
     });
@@ -799,7 +800,7 @@ fn commit_slider(app: &mut TrazoApp) {
 fn tracks(app: &mut TrazoApp, ui: &mut egui::Ui) {
     let n = app.doc.project.audio.tracks.len();
     if n == 0 && app.doc.project.audio.markers.is_empty() {
-        ui.label(RichText::new("Importa música o graba tu voz para empezar. Al reproducir, la animación sigue al sonido.").weak());
+        ui.label(RichText::new(tr("Importa música o graba tu voz para empezar. Al reproducir, la animación sigue al sonido.")).weak());
         return;
     }
     let fps = app.doc.project.canvas.fps.max(1);
@@ -817,7 +818,7 @@ fn tracks(app: &mut TrazoApp, ui: &mut egui::Ui) {
             ui.allocate_ui_with_layout(Vec2::new(HEADER_W, RULER_H + MARKER_H), egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_height(RULER_H + MARKER_H);
                 ui.add_space(RULER_H);
-                ui.label(RichText::new("Marcadores (K)").small().weak());
+                ui.label(RichText::new(tr("Marcadores (K)")).small().weak());
             });
             for i in 0..n {
                 // Fixed-height rows so headers line up with their lanes.
@@ -877,7 +878,7 @@ fn track_header(app: &mut TrazoApp, ui: &mut egui::Ui, i: usize) -> bool {
                     }
                 }
                 _ => {
-                    let r = ui.add(egui::Label::new(RichText::new(&t.name).strong()).sense(Sense::click())).on_hover_text("Clic: pista de destino para grabar e importar · doble clic: renombrar");
+                    let r = ui.add(egui::Label::new(RichText::new(&t.name).strong()).sense(Sense::click())).on_hover_text(tr("Clic: pista de destino para grabar e importar · doble clic: renombrar"));
                     if r.double_clicked() {
                         app.audio_ui.renaming = Some((t.id, t.name.clone()));
                     } else if r.clicked() {
@@ -888,14 +889,14 @@ fn track_header(app: &mut TrazoApp, ui: &mut egui::Ui, i: usize) -> bool {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
                 let mute_icon = if t.muted { Icon::SpeakerOff } else { Icon::Speaker };
-                if ui.add(IconButton::new(mute_icon).size(24.0).selected(t.muted)).on_hover_text("Silenciar pista").clicked() {
+                if ui.add(IconButton::new(mute_icon).size(24.0).selected(t.muted)).on_hover_text(tr("Silenciar pista")).clicked() {
                     edit_tracks(app, |tr, _| tr[i].muted = !tr[i].muted);
                 }
-                if ui.add(egui::Button::new(RichText::new("S").strong()).selected(t.solo).min_size(Vec2::splat(24.0))).on_hover_text("Solo: escuchar solo esta pista").clicked() {
+                if ui.add(egui::Button::new(RichText::new(tr("S")).strong()).selected(t.solo).min_size(Vec2::splat(24.0))).on_hover_text(tr("Solo: escuchar solo esta pista")).clicked() {
                     edit_tracks(app, |tr, _| tr[i].solo = !tr[i].solo);
                 }
                 let mut vol = (t.gain * 100.0).round() as i32;
-                let r = ui.add(egui::DragValue::new(&mut vol).range(0..=200).suffix("%")).on_hover_text("Volumen de la pista");
+                let r = ui.add(egui::DragValue::new(&mut vol).range(0..=200).suffix("%")).on_hover_text(tr("Volumen de la pista"));
                 if r.changed() {
                     if app.audio_ui.slider_before.is_none() {
                         app.audio_ui.slider_before = Some(app.doc.project.audio.tracks.clone());
@@ -906,7 +907,7 @@ fn track_header(app: &mut TrazoApp, ui: &mut egui::Ui, i: usize) -> bool {
                 if r.drag_stopped() || r.lost_focus() || (r.changed() && !r.dragged()) {
                     commit_slider(app);
                 }
-                if ui.add(IconButton::new(Icon::Trash).size(24.0)).on_hover_text("Borrar pista").clicked() {
+                if ui.add(IconButton::new(Icon::Trash).size(24.0)).on_hover_text(tr("Borrar pista")).clicked() {
                     delete = true;
                 }
             });
@@ -984,8 +985,8 @@ fn lanes(app: &mut TrazoApp, ui: &mut egui::Ui, rect: Rect, resp: &egui::Respons
             Stroke::NONE,
         ));
         let label = match m.phoneme {
-            Some(p) if m.text.is_empty() => p.label().to_string(),
-            Some(p) => format!("{} · {}", p.label(), m.text),
+            Some(p) if m.text.is_empty() => tr(p.label()).to_string(),
+            Some(p) => format!("{} · {}", tr(p.label()), m.text),
             None => m.text.clone(),
         };
         painter.text(Pos2::new(x + 10.0, marker_band.center().y), egui::Align2::LEFT_CENTER, label, egui::FontId::proportional(11.0), col);
