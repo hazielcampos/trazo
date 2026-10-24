@@ -257,6 +257,11 @@ fn lanes(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context, content_w: 
     let n_frames = app.doc.project.frames.len();
     let fps = app.doc.project.canvas.fps.max(1) as usize;
     let shown = app.displayed_frame();
+    // Only what is on screen is drawn (long animations have thousands of frames).
+    let clip = ui.clip_rect();
+    let first_visible = frame_at(clip.left()).saturating_sub(1);
+    let last_visible = (frame_at(clip.right()) + 2).min(n_frames);
+    let visible = |a: f32, b: f32| x_of(b) >= clip.left() && x_of(a) <= clip.right();
 
     // Ruler: frame numbers, seconds in bold.
     {
@@ -264,7 +269,7 @@ fn lanes(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context, content_w: 
         let ruler = Rect::from_min_size(rect.min, Vec2::new(rect.width(), ruler_h));
         p.hline(ruler.x_range(), ruler.bottom(), Stroke::new(1.0, SEPARATOR));
         let label_every = [1usize, 2, 4, 5, 10, 20, 50].into_iter().find(|k| *k as f32 * ppf >= 34.0).unwrap_or(100);
-        for f in 0..=n_frames {
+        for f in first_visible..=last_visible {
             let x = x_of(f as f32);
             let sec = f % fps == 0 && f > 0;
             let tick_h = if sec { 10.0 } else if f % label_every == 0 { 6.0 } else { 3.0 };
@@ -324,6 +329,9 @@ fn lanes(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context, content_w: 
                 len = s.len;
             }
             let start = if stretch.is_some_and(|s| s.layer == layer.id && b.start > s.start) { (b.start as isize + offset).max(0) as usize } else { b.start };
+            if !visible(start as f32, (start + len) as f32) && !is_sel {
+                continue;
+            }
             let r = bar(start as f32, (start + len) as f32);
             let p = ui.painter();
             p.rect_filled(r, 6.0, if is_sel { ACCENT } else { ELEVATED });

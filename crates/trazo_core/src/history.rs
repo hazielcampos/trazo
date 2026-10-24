@@ -144,6 +144,13 @@ impl Edit {
             }
             Edit::InsertLayer { cels: c, .. } | Edit::RemoveLayer { cels: c, .. } => cels(c),
             Edit::Batch(v) => v.iter().map(Edit::approx_bytes).sum(),
+            // Two copies of the frame list: each cel keeps its own list of
+            // tile pointers (the pixels themselves are shared).
+            Edit::Timeline { before, after } => [before, after]
+                .iter()
+                .flat_map(|v| v.iter())
+                .map(|f| 96 + f.cont.len() * 16 + f.cels.values().map(|c| 64 + c.tile_count() * 8).sum::<usize>())
+                .sum(),
             _ => 0,
         }
     }
