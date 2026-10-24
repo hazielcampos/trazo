@@ -224,6 +224,10 @@ pub struct UiState {
     pub tween_dialog: Option<panels::dialogs::TweenDialog>,
     /// Earlier versions of the project.
     pub versions_dialog: bool,
+    /// Writing text to place on the canvas.
+    pub text_dialog: Option<panels::dialogs::TextDialog>,
+    /// Text settings used last time (text, size, bold, centered).
+    pub last_text: (String, Option<f32>, bool, bool),
     pub toast: Option<Toast>,
     pub side_tab: panels::SideTab,
     /// Panel open as a sheet in the phone layouts.
@@ -307,6 +311,8 @@ impl TrazoApp {
                 language_dialog: first_run.then_some(true),
                 tween_dialog: None,
                 versions_dialog: false,
+                text_dialog: None,
+                last_text: Default::default(),
                 toast: None,
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
@@ -414,6 +420,25 @@ impl TrazoApp {
             }
             Err(e) => self.toast(ctx, tf!("No se pudo abrir: {}", tr_err(&e.to_string()))),
         }
+    }
+
+    /// Draw the text from the dialog as a floating selection centred where
+    /// the canvas was tapped, ready to move, scale or rotate.
+    pub fn place_text(&mut self, ctx: &egui::Context, dlg: &panels::dialogs::TextDialog) {
+        let fonts = egui::FontDefinitions::default();
+        let Some(font) = fonts.font_data.get("Ubuntu-Light") else { return };
+        let align = if dlg.center { trazo_core::text::Align::Center } else { trazo_core::text::Align::Left };
+        let Some(img) = trazo_core::text::render((*font.font).as_ref(), &dlg.text, dlg.size, self.tools.color_rgba(), dlg.bold, align) else {
+            self.toast(ctx, tr("No hay texto que insertar"));
+            return;
+        };
+        let x = (dlg.at.0 - img.width as f32 / 2.0).round() as i32;
+        let y = (dlg.at.1 - img.height as f32 / 2.0).round() as i32;
+        let rect = trazo_core::IRect::new(x, y, x + img.width, y + img.height);
+        self.canvas.select.place(&mut self.doc, rect, img.pixels);
+        // The selection tool shows the handles to move it.
+        self.tools.tool = Tool::Select;
+        self.tools.push_recent();
     }
 
     /// Go back to an earlier version. What is open now is kept as a version
@@ -630,7 +655,7 @@ impl TrazoApp {
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
         // Nothing reaches the drawing while the language is being chosen.
-        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() {
+        if ctx.egui_wants_keyboard_input() || self.ui.language_dialog.is_some() || self.ui.tween_dialog.is_some() || self.ui.text_dialog.is_some() {
             return;
         }
         use egui::{Key, KeyboardShortcut, Modifiers};
@@ -731,6 +756,9 @@ impl TrazoApp {
         }
         if key(Key::U) {
             self.tools.tool = Tool::Shape;
+        }
+        if key(Key::T) {
+            self.tools.tool = Tool::Text;
         }
         if key(Key::W) {
             self.tools.tool = Tool::Wand;
@@ -963,6 +991,11 @@ impl eframe::App for TrazoApp {
                 if let Some(msg) = self.canvas.take_message() {
                     self.toast(&ctx, msg);
                 }
+                if let Some(at) = self.canvas.take_text_request() {
+                    let size = (self.doc.project.canvas.height as f32 / 10.0).round().clamp(16.0, 400.0);
+                    let last = self.ui.last_text.clone();
+                    self.ui.text_dialog = Some(panels::dialogs::TextDialog { at, size: last.1.unwrap_or(size), bold: last.2, center: last.3, text: String::new() });
+                }
                 if self.canvas.wants_stop_playback() {
                     self.stop_playback();
                 }
@@ -978,6 +1011,7 @@ impl eframe::App for TrazoApp {
             || self.ui.language_dialog.is_some()
             || self.ui.tween_dialog.is_some()
             || self.ui.versions_dialog
+            || self.ui.text_dialog.is_some()
             || self.export_ui.open
             || self.video_import.is_busy()
             || self.file_browser.is_some();

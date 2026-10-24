@@ -19,7 +19,7 @@ use crate::widgets::{self, tool_button, SheetEdge};
 
 /// Tools always in reach; the rest live under "Más".
 const MAIN_TOOLS: [Tool; 4] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Lasso];
-const MORE_TOOLS: [Tool; 5] = [Tool::Select, Tool::Wand, Tool::Shape, Tool::Eyedropper, Tool::Hand];
+const MORE_TOOLS: [Tool; 6] = [Tool::Select, Tool::Wand, Tool::Shape, Tool::Text, Tool::Eyedropper, Tool::Hand];
 
 fn bar_frame() -> Frame {
     Frame::new().fill(SURFACE).inner_margin(Margin::symmetric(4, 4))

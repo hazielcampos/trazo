@@ -19,6 +19,7 @@ pub mod preview;
 pub mod raster;
 pub mod shapes;
 pub mod stroke;
+pub mod text;
 pub mod timeline;
 pub mod transform;
 pub mod video;

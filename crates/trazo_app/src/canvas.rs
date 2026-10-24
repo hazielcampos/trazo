@@ -89,6 +89,8 @@ pub struct CanvasView {
     touch: Option<TouchGesture>,
     gesture: Option<Gesture>,
     message: Option<String>,
+    /// Where the text tool was tapped (canvas pixels), for the app to ask for the text.
+    text_at: Option<(f32, f32)>,
     stop_playback: bool,
     scratch: Vec<u8>,
     playback_cache: HashMap<usize, Arc<ColorImage>>,
@@ -115,6 +117,7 @@ impl Default for CanvasView {
             touch: None,
             gesture: None,
             message: None,
+            text_at: None,
             stop_playback: false,
             scratch: Vec::new(),
             playback_cache: HashMap::new(),
@@ -140,6 +143,10 @@ impl CanvasView {
 
     pub fn take_message(&mut self) -> Option<String> {
         self.message.take()
+    }
+
+    pub fn take_text_request(&mut self) -> Option<(f32, f32)> {
+        self.text_at.take()
     }
 
     pub fn take_gesture(&mut self) -> Option<Gesture> {
@@ -453,6 +460,14 @@ impl CanvasView {
                     if let Some(p) = response.interact_pointer_pos() {
                         let c = xf.to_canvas(p);
                         self.pick_color(doc, tools, c.x.floor() as i32, c.y.floor() as i32);
+                    }
+                }
+            }
+            Tool::Text => {
+                if response.clicked() && self.editable_layer(doc) {
+                    if let Some(p) = response.interact_pointer_pos() {
+                        let c = xf.to_canvas(p);
+                        self.text_at = Some((c.x, c.y));
                     }
                 }
             }

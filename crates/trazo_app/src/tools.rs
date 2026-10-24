@@ -25,6 +25,7 @@ pub enum Tool {
     Lasso,
     Wand,
     Shape,
+    Text,
     Hand,
 }
 
@@ -37,8 +38,8 @@ pub enum LassoMode {
 }
 
 impl Tool {
-    pub const ALL: [Tool; 9] =
-        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Hand];
+    pub const ALL: [Tool; 10] =
+        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Text, Tool::Hand];
 
     pub fn icon(self) -> Icon {
         match self {
@@ -50,6 +51,7 @@ impl Tool {
             Tool::Lasso => Icon::Lasso,
             Tool::Wand => Icon::Wand,
             Tool::Shape => Icon::Shapes,
+            Tool::Text => Icon::Text,
             Tool::Hand => Icon::Hand,
         }
     }
@@ -64,6 +66,7 @@ impl Tool {
             Tool::Lasso => tr("Lazo: seleccionar, rellenar o borrar (L)"),
             Tool::Wand => tr("Varita mágica: selecciona por color (W)"),
             Tool::Shape => tr("Figuras: línea, rectángulo, elipse (U)"),
+            Tool::Text => tr("Texto: toca el lienzo para escribir (T)"),
             Tool::Hand => tr("Mover lienzo (H / espacio)"),
         }
     }

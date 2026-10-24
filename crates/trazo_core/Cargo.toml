@@ -11,6 +11,7 @@ serde_json.workspace = true
 png.workspace = true
 zip.workspace = true
 hound = "3.5"
+ab_glyph = "0.2"
 gif = "0.14"
 symphonia = { version = "0.6", features = ["all"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }

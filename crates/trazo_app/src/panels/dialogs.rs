@@ -36,6 +36,55 @@ pub fn show(app: &mut TrazoApp, ctx: &egui::Context) {
     language(app, ctx);
     tween(app, ctx);
     versions(app, ctx);
+    text(app, ctx);
+}
+
+/// Text being written; placed as a selection that can still be moved.
+pub struct TextDialog {
+    /// Where the canvas was tapped (canvas pixels).
+    pub at: (f32, f32),
+    pub text: String,
+    pub size: f32,
+    pub bold: bool,
+    pub center: bool,
+}
+
+fn text(app: &mut TrazoApp, ctx: &egui::Context) {
+    let Some(dlg) = &mut app.ui.text_dialog else { return };
+    let mut open = true;
+    let mut go = false;
+    crate::widgets::backdrop(ctx);
+    crate::widgets::dialog(ctx, tr("Texto"), 420.0).min_height(0.0).open(&mut open).show(ctx, |ui| {
+        ui.spacing_mut().item_spacing.y = 8.0;
+        let r = ui.add(
+            egui::TextEdit::multiline(&mut dlg.text)
+                .hint_text(tr("Escribe aquí…"))
+                .desired_rows(3)
+                .desired_width(f32::INFINITY)
+                .margin(egui::vec2(12.0, 10.0)),
+        );
+        if r.gained_focus() || ui.memory(|m| m.focused().is_none()) {
+            r.request_focus();
+        }
+        ui.horizontal(|ui| {
+            ui.label(tr("Tamaño"));
+            ui.add(egui::Slider::new(&mut dlg.size, 8.0..=400.0).suffix(" px").logarithmic(true));
+        });
+        crate::widgets::switch_row(ui, tr("Negrita"), &mut dlg.bold);
+        crate::widgets::switch_row(ui, tr("Centrar las líneas"), &mut dlg.center);
+        ui.label(RichText::new(tr("Usa el color actual. Después podrás moverlo, escalarlo o girarlo antes de pulsar Aplicar.")).size(12.0).color(crate::theme::TEXT2));
+        ui.add_space(6.0);
+        if crate::widgets::primary_button(ui, tr("Insertar")).clicked() {
+            go = true;
+        }
+    });
+    if go {
+        let dlg = app.ui.text_dialog.take().expect("dialog open");
+        app.ui.last_text = (String::new(), Some(dlg.size), dlg.bold, dlg.center);
+        app.place_text(ctx, &dlg);
+    } else if !open {
+        app.ui.text_dialog = None;
+    }
 }
 
 /// Earlier versions of the open project.

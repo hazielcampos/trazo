@@ -507,6 +507,15 @@ pub const TABLE: &[(&str, &str)] = &[
     ("{} imágenes a {} fps (las del proyecto) · ≈ {} MB", "{} images at {} fps (the project's) · ≈ {} MB"),
     ("Demasiado largo: el máximo son {} imágenes y {} MB. Acorta el rango.", "Too long: the maximum is {} images and {} MB. Shorten the range."),
     ("Importando «{}»…", "Importing “{}”…"),
+    // ---- text ---------------------------------------------------------------
+    ("Texto: toca el lienzo para escribir (T)", "Text: tap the canvas to write (T)"),
+    ("Texto", "Text"),
+    ("Escribe aquí…", "Type here…"),
+    ("Negrita", "Bold"),
+    ("Centrar las líneas", "Center the lines"),
+    ("Usa el color actual. Después podrás moverlo, escalarlo o girarlo antes de pulsar Aplicar.", "Uses the current color. You can then move, scale or rotate it before tapping Apply."),
+    ("Insertar", "Insert"),
+    ("No hay texto que insertar", "There's no text to insert"),
     // ---- fill on every drawing ----------------------------------------------
     ("Relleno aplicado en {} dibujos", "Filled {} drawings"),
     ("Rellenar en todos los dibujos de la capa", "Fill every drawing on the layer"),
