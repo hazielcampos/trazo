@@ -123,6 +123,10 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
    `cargo build --release -p trazo_app` + `scripts/apk-release.sh`, then
    `gh release create vX.Y.Z` with `Trazo-X.Y.Z-android-arm64.apk` and `Trazo-X.Y.Z-windows-x64.exe`
    and bilingual notes (English / Spanish).
+   Google Play takes an App Bundle: `bash scripts/aab-release.sh` → `target/release/Trazo-<version>.aab`
+   (arm64 + x86_64, signed with the same key; needs `~/.trazo/herramientas/bundletool.jar`). Store
+   material lives in `docs/play/` (feature graphic made by `tools/grafico_play.py`, privacy-policy brief).
+   Each Play upload needs a higher `versionCode`, which cargo-apk derives from `version`: bump it.
 
 ### Debug-only environment variables (debug builds, `app.rs`)
 | Variable | Effect |
