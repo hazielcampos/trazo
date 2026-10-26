@@ -169,7 +169,7 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
 - **Android file picker**: NativeActivity can't receive activity results, so `android/TrazoPicker.java`
   (a headless Fragment) opens `ACTION_OPEN_DOCUMENT` and copies the files to the cache. It is compiled
   to `picker.dex` (`scripts/build-picker-dex.sh`, needs javac + d8 from the SDK) and loaded from memory
-  with `InMemoryDexClassLoader` (`android.rs`). If it fails, the old in-app browser is the fallback.
+  with `InMemoryDexClassLoader` (`android.rs`). The app asks for **no media permissions** (Google Play only allows `READ_MEDIA_*` for gallery-type apps): the picker is the only way in; if it fails, a message says so. Only `RECORD_AUDIO` is requested.
   Windows uses the native Explorer dialog (`rfd`).
 - **Package name**: `lat.inerzadynamics.trazo` (reverse of the owner's domain inerzadynamics.lat), the
   one registered on Google Play. Releases up to 0.4.0 used `com.trazo.app` (taken on Play): Android treats

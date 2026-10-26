@@ -52,14 +52,13 @@ app, Android borra esos archivos; exporta o copia tus animaciones antes si quier
 
 - **Micrófono:** solo se usa cuando tú eliges «Grabar tu voz» para añadir voz a una animación. La grabación
   se guarda dentro de tu proyecto, en tu dispositivo, y no se envía a ningún lugar.
-- **Fotos, videos y audio de tu dispositivo:** solo para abrir los archivos que tú eliges importar (imágenes,
-  música, videos o pinceles). Normalmente se usa el selector de archivos de Android, que solo da acceso a lo
-  que seleccionas.
+- **Archivos que importas:** Trazo no pide permiso para ver tu galería. Para importar imágenes, música, videos
+  o pinceles usa el selector de archivos de Android, que solo le da acceso a los archivos que tú eliges.
 - **Guardar en la galería:** cuando exportas una animación, el video, GIF o imagen se guarda en tu galería o
   en tus descargas para que puedas verla y compartirla.
 
-Puedes negar o quitar cualquiera de estos permisos en los ajustes de Android; la app seguirá funcionando,
-salvo la función concreta que lo necesita.
+Puedes negar o quitar el permiso del micrófono en los ajustes de Android; la app seguirá funcionando, salvo la
+grabación de voz.
 
 ## Compartir
 
@@ -112,13 +111,13 @@ deletes those files; export or copy your animations first if you want to keep th
 
 - **Microphone:** used only when you choose "Record your voice" to add a voice to an animation. The recording
   is saved inside your project, on your device, and is not sent anywhere.
-- **Photos, videos and audio on your device:** only to open the files you choose to import (pictures, music,
-  videos or brushes). Usually Android's file picker is used, which only gives access to what you select.
+- **Files you import:** Trazo does not ask for permission to see your gallery. To import pictures, music,
+  videos or brushes it uses Android's file picker, which only gives it access to the files you choose.
 - **Saving to the gallery:** when you export an animation, the video, GIF or picture is saved to your gallery
   or downloads so you can watch and share it.
 
-You can deny or remove any of these permissions in Android's settings; the app keeps working, except for
-the specific feature that needs it.
+You can deny or remove the microphone permission in Android's settings; the app keeps working, except for
+voice recording.
 
 ## Sharing
 

@@ -1,10 +1,9 @@
 //! Choosing files to import.
 //!
-//! On desktop the system file dialog is used. On Android a NativeActivity
-//! can't receive the result of the system picker without Java code, so the
-//! app has its own browser over shared storage (Downloads, Music, Pictures,
-//! DCIM…), using the READ_MEDIA_* permissions, plus the app's own
-//! `importar` folder for files that aren't media (brushes).
+//! On desktop the system file dialog is used. On Android the system picker
+//! (ACTION_OPEN_DOCUMENT, through android/TrazoPicker.java) gives access to
+//! just the chosen files, so the app asks for no media permissions (Google
+//! Play policy). The old in-app browser below is no longer opened on Android.
 
 use crate::i18n::tr;
 use std::collections::BTreeSet;
@@ -76,15 +75,9 @@ pub fn request(app: &mut TrazoApp, ctx: &egui::Context, purpose: PickPurpose) {
         // Android's own picker: previews, every folder, Drive, Downloads…
         match crate::android::open_picker(ctx, purpose.mimes(), purpose.multi()) {
             Ok(()) => app.pending_pick = Some(purpose),
-            Err(_) => {
-                // Fallback: Trazo's own browser.
-                let perms = crate::android::media_permissions();
-                if !perms.iter().all(|p| crate::android::has_permission(p)) {
-                    let _ = crate::android::request_permissions(&perms);
-                }
-                let start = app.file_browser.as_ref().map(|b| b.dir.clone()).unwrap_or_else(|| shared_root().join("Download"));
-                app.file_browser = Some(FileBrowser::new(purpose, start));
-            }
+            // No media permissions are requested (Google Play policy): without the
+            // system picker there is no way to browse, so just say so.
+            Err(e) => app.toast(ctx, tf!("No se pudo abrir el selector de archivos: {}", crate::i18n::tr_err(&e))),
         }
     }
 }

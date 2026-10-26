@@ -957,4 +957,5 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Separar en frases", "Split into phrases"),
     ("Silenciar", "Mute"),
     ("no", "off"),
+    ("No se pudo abrir el selector de archivos: {}", "Couldn't open the file picker: {}"),
 ];
