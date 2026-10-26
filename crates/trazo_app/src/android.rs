@@ -242,7 +242,7 @@ fn picker_class(env: &mut JNIEnv, activity: &JObject) -> jni::errors::Result<jni
         "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V",
         &[JValue::Object(&buf), JValue::Object(&parent)],
     )?;
-    let name = env.new_string("com.trazo.app.TrazoPicker")?;
+    let name = env.new_string("lat.inerzadynamics.trazo.TrazoPicker")?;
     let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
     let class = jni::objects::JClass::from(class);
     env.register_native_methods(

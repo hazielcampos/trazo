@@ -1,4 +1,4 @@
-package com.trazo.app;
+package lat.inerzadynamics.trazo;
 
 import android.app.Activity;
 import android.app.Fragment;

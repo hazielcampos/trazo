@@ -30,6 +30,6 @@ export ANDROID_SERIAL="${ANDROID_SERIAL:-$("$ADB" devices | grep -o 'emulator-[0
 until [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done
 
 "$ADB" install -r "target/$OUT/apk/Trazo.apk"
-"$ADB" shell am force-stop com.trazo.app || true
-"$ADB" shell am start -n com.trazo.app/android.app.NativeActivity
+"$ADB" shell am force-stop lat.inerzadynamics.trazo || true
+"$ADB" shell am start -n lat.inerzadynamics.trazo/android.app.NativeActivity
 echo "Trazo abierto en $AVD"

@@ -43,7 +43,7 @@ ndk-context = "0.1"
 
 # Android packaging (used by `cargo apk build -p trazo_app`).
 [package.metadata.android]
-package = "com.trazo.app"
+package = "lat.inerzadynamics.trazo"
 apk_name = "Trazo"
 resources = "../../assets/icon/android-res"
 build_targets = ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]

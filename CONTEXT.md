@@ -167,10 +167,13 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
   to `picker.dex` (`scripts/build-picker-dex.sh`, needs javac + d8 from the SDK) and loaded from memory
   with `InMemoryDexClassLoader` (`android.rs`). If it fails, the old in-app browser is the fallback.
   Windows uses the native Explorer dialog (`rfd`).
+- **Package name**: `lat.inerzadynamics.trazo` (reverse of the owner's domain inerzadynamics.lat), the
+  one registered on Google Play. Releases up to 0.4.0 used `com.trazo.app` (taken on Play): Android treats
+  them as a different app, so moving to the new package means copying the animations over (§9).
 - **MP4**: Android via MediaCodec (`android_mp4.rs`), Windows via Media Foundation (`windows_mp4.rs`);
   macOS/Linux have no MP4 yet.
 - **App data** (projects, brushes, settings, `idioma.txt`, `vista_tablet.txt`):
-  Windows `%APPDATA%\trazo\data`, Android `/sdcard/Android/data/com.trazo.app/files`. Not in the repo.
+  Windows `%APPDATA%\trazo\data`, Android `/sdcard/Android/data/lat.inerzadynamics.trazo/files`. Not in the repo.
 - Test devices of the owner: Samsung Galaxy A37 (arm64). Emulator AVD `Animate_Tablet` for tablets
   (`scripts/android.sh`). Install on a phone with `adb install -r target/release/apk/Trazo.apk`.
 
@@ -182,6 +185,9 @@ Everything needed to keep working is on GitHub **except two private things**:
    Back them up somewhere safe (never in the repo, `.gitignore` blocks `*.jks` and `clave.txt`).
    Losing them means Android users can't update and Google Play can't take new versions.
 2. **Your animations and settings** — the app data folder (§8). Copy it if you want them.
+   On a phone that still has the old package, copy them with adb:
+   `adb shell "cp -r /sdcard/Android/data/com.trazo.app/files/. /sdcard/Android/data/lat.inerzadynamics.trazo/files/"`
+   (open the new app once first so its folder exists).
 
 Everything else is rebuildable: `target/` (the ~14 GB) is only build output — delete it freely.
 The demo project for screenshots is regenerated with
