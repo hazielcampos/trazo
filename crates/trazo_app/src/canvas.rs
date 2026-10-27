@@ -98,6 +98,8 @@ pub struct CanvasView {
     rotation: f32,
     flip: bool,
     needs_fit: bool,
+    /// Magnifier drag: the point the zoom is anchored to.
+    zoom_anchor: Option<Pos2>,
     /// Size of the area at the last fit; refit when it changes until the
     /// user zooms or moves the canvas.
     fitted_for: Option<Vec2>,
@@ -141,6 +143,7 @@ impl Default for CanvasView {
             rotation: 0.0,
             flip: false,
             needs_fit: true,
+            zoom_anchor: None,
             fitted_for: None,
             fit_pad: 40.0,
             fit_top: false,
@@ -386,6 +389,8 @@ impl CanvasView {
         if response.hovered() {
             let icon = match tools.tool {
                 Tool::Hand => egui::CursorIcon::Grab,
+                Tool::Zoom if ui.input(|i| i.modifiers.alt) => egui::CursorIcon::ZoomOut,
+                Tool::Zoom => egui::CursorIcon::ZoomIn,
                 Tool::Eyedropper | Tool::Fill | Tool::Select | Tool::Lasso | Tool::Wand => egui::CursorIcon::Crosshair,
                 _ => egui::CursorIcon::None,
             };
@@ -438,6 +443,30 @@ impl CanvasView {
         if pan_drag {
             self.pan += response.drag_delta();
         }
+        // Magnifier: tap to zoom in, Alt+tap or right click to zoom out,
+        // drag right/up to zoom in and left/down to zoom out.
+        if tools.tool == Tool::Zoom && !space {
+            if response.drag_started_by(egui::PointerButton::Primary) {
+                self.zoom_anchor = response.interact_pointer_pos();
+            }
+            if response.dragged_by(egui::PointerButton::Primary) {
+                if let Some(a) = self.zoom_anchor {
+                    let d = response.drag_delta();
+                    self.zoom_around(a, rect, cw, ch, ((d.x - d.y) * 0.008).exp());
+                }
+            }
+            if response.drag_stopped() {
+                self.zoom_anchor = None;
+            }
+            let out = ui.input(|i| i.modifiers.alt);
+            if let Some(p) = response.interact_pointer_pos() {
+                if response.clicked() {
+                    self.zoom_around(p, rect, cw, ch, if out { 1.0 / 1.6 } else { 1.6 });
+                } else if response.secondary_clicked() {
+                    self.zoom_around(p, rect, cw, ch, 1.0 / 1.6);
+                }
+            }
+        }
     }
 
     /// Change zoom keeping the canvas point under `p` in place.
@@ -463,7 +492,7 @@ impl CanvasView {
 
     fn handle_tool_input(&mut self, ui: &egui::Ui, response: &egui::Response, doc: &mut Document, tools: &mut ToolState, xf: ViewXf) {
         let space = ui.input(|i| i.key_down(egui::Key::Space));
-        if tools.tool == Tool::Hand || space || ui.input(|i| i.multi_touch().is_some()) || self.touch.is_some() {
+        if matches!(tools.tool, Tool::Hand | Tool::Zoom) || space || ui.input(|i| i.multi_touch().is_some()) || self.touch.is_some() {
             return;
         }
         let (pressed, down, released, events, time) = ui.input(|i| {
@@ -564,7 +593,7 @@ impl CanvasView {
                     }
                 }
             }
-            Tool::Hand => {}
+            Tool::Hand | Tool::Zoom => {}
         }
     }
 

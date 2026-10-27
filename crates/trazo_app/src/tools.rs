@@ -27,6 +27,8 @@ pub enum Tool {
     Shape,
     Text,
     Hand,
+    /// Magnifier: zoom without a mouse wheel or pinch.
+    Zoom,
 }
 
 /// What the lasso does when the loop is closed.
@@ -38,8 +40,8 @@ pub enum LassoMode {
 }
 
 impl Tool {
-    pub const ALL: [Tool; 10] =
-        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Text, Tool::Hand];
+    pub const ALL: [Tool; 11] =
+        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Text, Tool::Hand, Tool::Zoom];
 
     pub fn icon(self) -> Icon {
         match self {
@@ -53,6 +55,7 @@ impl Tool {
             Tool::Shape => Icon::Shapes,
             Tool::Text => Icon::Text,
             Tool::Hand => Icon::Hand,
+            Tool::Zoom => Icon::Zoom,
         }
     }
 
@@ -68,6 +71,7 @@ impl Tool {
             Tool::Shape => tr("Figuras: línea, rectángulo, elipse (U)"),
             Tool::Text => tr("Texto: toca el lienzo para escribir (T)"),
             Tool::Hand => tr("Mover lienzo (H / espacio)"),
+            Tool::Zoom => tr("Lupa: toca para acercar, Alt+toque para alejar, arrastra a los lados (Z)"),
         }
     }
 

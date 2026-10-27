@@ -242,6 +242,8 @@ pub struct UiState {
     pub sheet: Option<panels::SideTab>,
     /// The phone's bottom dock is pulled up: one track per layer.
     pub dock_open: bool,
+    /// Focus mode: timeline and panels hidden, only the tools and the canvas.
+    pub focus: bool,
     /// Menu of the drawing that starts at this frame (long press in the strip).
     pub drawing_menu: Option<usize>,
     /// Tablet: the inspector's tab.
@@ -334,6 +336,7 @@ impl TrazoApp {
                 side_tab: panels::SideTab::Layers,
                 sheet: None,
                 dock_open: false,
+                focus: false,
                 drawing_menu: None,
                 inspector: panels::SideTab::Layers,
                 gestures_card: None,
@@ -829,6 +832,13 @@ impl TrazoApp {
         if key(Key::I) {
             self.tools.tool = Tool::Eyedropper;
         }
+        if key(Key::Z) {
+            self.tools.tool = Tool::Zoom;
+        }
+        // Focus: only the tools and the canvas (Tab), like a painting app.
+        if key(Key::Tab) && ctx.memory(|m| m.focused().is_none()) {
+            panels::phone_up::toggle_focus(self);
+        }
         if key(Key::H) {
             self.tools.tool = Tool::Hand;
         }
@@ -1016,6 +1026,7 @@ impl eframe::App for TrazoApp {
                 Ok("menu") => self.ui.drawing_menu = Some(self.doc.frame),
                 Ok("exportar") => self.export_ui.open = true,
                 Ok("gestos") => self.ui.gestures_card = Some(false),
+                Ok("enfoque") => self.ui.focus = true,
                 _ => {}
             }
             if let Some(a) = std::env::var_os("TRAZO_AUDIO") {
@@ -1090,6 +1101,7 @@ impl eframe::App for TrazoApp {
         // One layout per screen shape (see the design canvas).
         let class = crate::widgets::SizeClass::of(&ctx);
         match class {
+            crate::widgets::SizeClass::Phone if self.ui.focus => {}
             crate::widgets::SizeClass::Phone => {
                 panels::phone_up::top_bar(self, ui);
                 // Sound has its own panel (from the dock's menu).
@@ -1202,6 +1214,7 @@ impl eframe::App for TrazoApp {
                 panels::phone_up::drawing_menu(self, &ctx);
                 panels::phone_up::gestures_card(self, &ctx);
                 panels::phone::panel_sheet(self, &ctx, crate::widgets::SheetEdge::Bottom);
+                panels::phone_up::focus_exit(self, &ctx);
             }
             crate::widgets::SizeClass::PhoneLandscape => {
                 let inset = crate::widgets::insets(self.platform.touch_first).1;
@@ -1210,15 +1223,20 @@ impl eframe::App for TrazoApp {
                     panels::phone_up::landscape(self, &ctx, ctx.content_rect());
                 }
                 panels::phone_up::drawing_menu(self, &ctx);
+                panels::phone_up::focus_exit(self, &ctx);
             }
             crate::widgets::SizeClass::Wide if self.platform.touch_first && !self.audio_ui.show => {
                 panels::phone_up::tablet(self, &ctx, canvas_rect);
                 panels::phone_up::drawing_menu(self, &ctx);
                 panels::phone_up::gestures_card(self, &ctx);
+                panels::phone_up::focus_exit(self, &ctx);
             }
             crate::widgets::SizeClass::Wide if !self.audio_ui.show => {
-                panels::phone_up::pc_view(self, &ctx, canvas_rect);
+                if !self.ui.focus {
+                    panels::phone_up::pc_view(self, &ctx, canvas_rect);
+                }
                 panels::phone_up::drawing_menu(self, &ctx);
+                panels::phone_up::focus_exit(self, &ctx);
             }
             crate::widgets::SizeClass::Wide => {}
         }

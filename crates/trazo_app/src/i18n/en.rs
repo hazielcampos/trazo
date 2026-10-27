@@ -958,4 +958,8 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Silenciar", "Mute"),
     ("no", "off"),
     ("No se pudo abrir el selector de archivos: {}", "Couldn't open the file picker: {}"),
+    ("Lupa: toca para acercar, Alt+toque para alejar, arrastra a los lados (Z)", "Magnifier: tap to zoom in, Alt+tap to zoom out, drag sideways (Z)"),
+    ("Modo enfoque: solo herramientas y lienzo", "Focus mode: just the tools and the canvas"),
+    ("Modo enfoque: solo herramientas y lienzo (Tab)", "Focus mode: just the tools and the canvas (Tab)"),
+    ("Salir del modo enfoque (Tab)", "Leave focus mode (Tab)"),
 ];

@@ -46,6 +46,9 @@ pub fn top_bar(app: &mut TrazoApp, ui: &mut Ui) {
                     if widgets::icon_button_ex(ui, Icon::Export, tr("Exportar y compartir"), true, Some(ELEVATED)).clicked() {
                         app.export_ui.open = true;
                     }
+                    if widgets::icon_button(ui, Icon::Focus, tr("Modo enfoque: solo herramientas y lienzo")).clicked() {
+                        toggle_focus(app);
+                    }
                 });
             });
         });
@@ -1500,7 +1503,9 @@ const RAIL_W: f32 = 56.0;
 const ISLAND_H: f32 = 58.0;
 
 fn card_width(app: &TrazoApp, screen: Rect) -> Option<f32> {
-    if app.ui.dock_open {
+    if app.ui.focus {
+        None
+    } else if app.ui.dock_open {
         Some((screen.width() - 2.0 * SIDE - RAIL_W - 28.0 - 184.0).max(360.0))
     } else if app.ui.sheet.is_some() {
         Some(340.0f32.min(screen.width() * 0.45))
@@ -1512,6 +1517,9 @@ fn card_width(app: &TrazoApp, screen: Rect) -> Option<f32> {
 /// Room kept free around the canvas (left, right, bottom): the rails, the
 /// card and the timeline island.
 pub fn landscape_sides(app: &TrazoApp, screen: Rect) -> (f32, f32, f32) {
+    if app.ui.focus {
+        return (SIDE + RAIL_W + 12.0 + 48.0, SIDE, 14.0);
+    }
     let left = SIDE + RAIL_W + 12.0 + if card_width(app, screen).is_none() { 48.0 } else { 0.0 };
     let right = match card_width(app, screen) {
         Some(w) => SIDE + w + 16.0,
@@ -1556,6 +1564,7 @@ pub fn landscape(app: &mut TrazoApp, ctx: &egui::Context, screen: Rect) {
             size_rail_at(app, ctx, Pos2::new(screen.left() + SIDE + RAIL_W + 12.0, screen.top() + 40.0), h, bubble);
         }
         // Right: export, history, panels.
+        if !app.ui.focus {
         egui::Area::new(egui::Id::unique("hor_right")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - SIDE, screen.top() + 14.0)).show(ctx, |ui| {
             rail_frame().show(ui, |ui| {
                 ui.set_width(RAIL_W - 12.0);
@@ -1587,12 +1596,17 @@ pub fn landscape(app: &mut TrazoApp, ctx: &egui::Context, screen: Rect) {
                     if resp.on_hover_text(tr("Color")).clicked() {
                         app.ui.sheet = Some(SideTab::Color);
                     }
+                    rail_sep(ui);
+                    if widgets::icon_button(ui, Icon::Focus, tr("Modo enfoque: solo herramientas y lienzo")).clicked() {
+                        toggle_focus(app);
+                    }
                 });
             });
         });
+        }
     }
     // Bottom: the compact timeline (not while the tracks are open).
-    if !app.ui.dock_open {
+    if !app.ui.dock_open && !app.ui.focus {
         let left = screen.left() + SIDE + RAIL_W + 12.0;
         let right = match card {
             Some(w) => screen.right() - SIDE - w - 16.0,
@@ -1787,7 +1801,7 @@ fn hor_tracks(app: &mut TrazoApp, ui: &mut Ui) {
 
 // ---- tablet (Tablet board) -------------------------------------------------------------------
 
-const T_TOOLS: [Tool; 7] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Lasso, Tool::Shape, Tool::Text];
+const T_TOOLS: [Tool; 6] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Lasso, Tool::Shape];
 
 /// The room the floating islands keep free around the canvas, and the
 /// timeline island at the bottom.
@@ -1798,6 +1812,7 @@ pub fn tablet_panels(app: &mut TrazoApp, ui: &mut Ui) {
     let fit = ((ui.ctx().content_rect().height() * 0.5 - 200.0) / 48.0).floor().max(2.0) as usize;
     let shown_rows = if app.ui.dock_open { n_rows.min(6).min(fit) } else { n_rows.min(2) };
     let more_row = if n_rows > 2 { 36.0 } else { 8.0 };
+    if !app.ui.focus {
     egui::Panel::bottom("tab_timeline").resizable(false).show_separator_line(false)
         .frame(Frame::new().fill(theme::CANVAS_BG).inner_margin(Margin { left: 20, right: 20, top: 12, bottom: 0 }))
         .show(ui, |ui| {
@@ -1835,9 +1850,14 @@ pub fn tablet_panels(app: &mut TrazoApp, ui: &mut Ui) {
                 }
             });
         });
-    egui::Panel::top("tab_top_room").exact_size(78.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    }
+    let focus = app.ui.focus;
+    egui::Panel::top("tab_top_room").exact_size(if focus { 16.0 } else { 78.0 }).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
     egui::Panel::left("tab_left_room").exact_size(146.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
-    egui::Panel::right("tab_right_room").exact_size(356.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    egui::Panel::right("tab_right_room").exact_size(if focus { 20.0 } else { 356.0 }).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    if focus {
+        egui::Panel::bottom("tab_bottom_room").exact_size(16.0).resizable(false).show_separator_line(false).frame(room).show(ui, |_| {});
+    }
 }
 
 fn tablet_transport(app: &mut TrazoApp, ui: &mut Ui) {
@@ -1903,7 +1923,9 @@ fn tablet_transport(app: &mut TrazoApp, ui: &mut Ui) {
 /// Floating islands of the tablet: title, actions, tools, size, view, inspector.
 pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
     let screen = ctx.content_rect();
+    let focus = app.ui.focus;
     // Title.
+    if !focus {
     egui::Area::new(egui::Id::unique("tab_title")).order(Order::Foreground).fixed_pos(screen.min + Vec2::new(20.0, 20.0)).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -1915,10 +1937,15 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
             egui::Popup::menu(&t).show(|ui| crate::panels::phone::project_menu(app, ui));
         });
     });
-    // Camera and export.
+    }
+    // Focus, camera and export.
+    if !focus {
     egui::Area::new(egui::Id::unique("tab_actions")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - 20.0, screen.top() + 24.0)).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
+            if widgets::icon_button_ex(ui, Icon::Focus, tr("Modo enfoque: solo herramientas y lienzo"), true, Some(SURFACE)).clicked() {
+                toggle_focus(app);
+            }
             for (ic, label, key) in [(Icon::Camera, tr("Cámara"), 0), (Icon::Export, tr("Exportar"), 1)] {
                 let g = ui.painter().layout_no_wrap(label.to_string(), theme::font(14.0, W::Semi), TEXT);
                 let (r, resp) = ui.allocate_exact_size(Vec2::new(g.size().x + 56.0, 44.0), Sense::click());
@@ -1935,9 +1962,11 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
             }
         });
     });
+    }
     // Tools, history first (left hand).
-    let rail_h = 468.0f32.min(canvas.bottom() - screen.top() - 86.0 - 8.0);
-    egui::Area::new(egui::Id::unique("tab_tools")).order(Order::Foreground).fixed_pos(screen.min + Vec2::new(20.0, 86.0)).show(ctx, |ui| {
+    let rail_top = if focus { 20.0 } else { 86.0 };
+    let rail_h = 468.0f32.min(canvas.bottom() - screen.top() - rail_top - 8.0);
+    egui::Area::new(egui::Id::unique("tab_tools")).order(Order::Foreground).fixed_pos(screen.min + Vec2::new(20.0, rail_top)).show(ctx, |ui| {
         Frame::new().fill(SURFACE).corner_radius(20).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::symmetric(8, 6)).show(ui, |ui| {
             ui.set_width(44.0);
             ui.set_height(rail_h - 12.0);
@@ -1953,14 +1982,12 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
                 }
                 let (r, _) = ui.allocate_exact_size(Vec2::new(44.0, 9.0), Sense::hover());
                 ui.painter().hline(r.center().x - 14.0..=r.center().x + 14.0, r.center().y, Stroke::new(1.0, SEPARATOR));
-                let fits = ((ui.available_height() - 46.0) / 42.0).floor().max(1.0) as usize;
-                for (i, t) in T_TOOLS.iter().enumerate() {
-                    if fits < T_TOOLS.len() && i + 1 >= fits {
-                        crate::panels::phone::more_tools_pub(app, ui, Vec2::new(44.0, 42.0));
-                        break;
-                    }
+                // As many tools as fit, then "more" (text, selection, hand, magnifier…).
+                let fits = ((ui.available_height() - 46.0) / 42.0).floor().max(2.0) as usize;
+                for t in &T_TOOLS[..T_TOOLS.len().min(fits - 1)] {
                     tool_slot(app, ui, *t, Vec2::new(44.0, 42.0));
                 }
+                crate::panels::phone::more_tools_pub(app, ui, Vec2::new(44.0, 42.0));
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
                     let p = ui.painter();
@@ -1978,6 +2005,9 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
     let h = 290.0f32.min(rail_h - 64.0);
     if h > 120.0 {
         size_rail_at(app, ctx, screen.min + Vec2::new(94.0, 150.0), h, Pos2::new(canvas.center().x, canvas.bottom() - 12.0));
+    }
+    if focus {
+        return;
     }
     // View: fit, flip, zoom.
     egui::Area::new(egui::Id::unique("tab_view")).order(Order::Foreground).pivot(Align2::RIGHT_BOTTOM).fixed_pos(Pos2::new(canvas.right() - 12.0, canvas.bottom() - 12.0)).show(ctx, |ui| {
@@ -2038,7 +2068,21 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
 
 // ---- PC (PC board) ------------------------------------------------------------------------------
 
-const PC_TOOLS: [Option<Tool>; 10] = [Some(Tool::Brush), Some(Tool::Eraser), Some(Tool::Fill), Some(Tool::Eyedropper), None, Some(Tool::Lasso), Some(Tool::Select), Some(Tool::Wand), Some(Tool::Shape), Some(Tool::Text)];
+const PC_TOOLS: [Option<Tool>; 13] = [
+    Some(Tool::Brush),
+    Some(Tool::Eraser),
+    Some(Tool::Fill),
+    Some(Tool::Eyedropper),
+    None,
+    Some(Tool::Lasso),
+    Some(Tool::Select),
+    Some(Tool::Wand),
+    Some(Tool::Shape),
+    Some(Tool::Text),
+    None,
+    Some(Tool::Hand),
+    Some(Tool::Zoom),
+];
 
 fn kbd(ui: &mut Ui, text: &str) {
     let g = ui.painter().layout_no_wrap(text.to_string(), theme::font(10.0, W::Semi), TEXT2);
@@ -2050,7 +2094,9 @@ fn kbd(ui: &mut Ui, text: &str) {
 /// Panels of the desktop layout: top bar, tools, inspector, timeline, status.
 pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
     let bar = Frame::new().fill(theme::PANEL);
+    let focus = app.ui.focus;
     // Top bar.
+    if !focus {
     egui::Panel::top("pc_top").exact_size(44.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(10, 0))).show(ui, |ui| {
         let r = ui.max_rect();
         ui.painter().hline(r.x_range(), r.bottom() + 0.5, Stroke::new(1.0, Color32::from_white_alpha(10)));
@@ -2103,6 +2149,9 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
                         }
                     }
                 }
+                if widgets::icon_button(ui, Icon::Focus, tr("Modo enfoque: solo herramientas y lienzo (Tab)")).clicked() {
+                    toggle_focus(app);
+                }
                 // Undo / redo in the middle of the bar.
                 let full = ui.ctx().content_rect();
                 let pill = Rect::from_center_size(Pos2::new(full.center().x, r.center().y), Vec2::new(68.0, 32.0));
@@ -2124,7 +2173,9 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
             });
         });
     });
+    }
     // Status bar.
+    if !focus {
     egui::Panel::bottom("pc_status").exact_size(24.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(12, 0))).show(ui, |ui| {
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 5.0;
@@ -2146,7 +2197,9 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
             });
         });
     });
+    }
     // Timeline.
+    if !focus {
     egui::Panel::bottom("pc_timeline").default_size(292.0).min_size(240.0).max_size(520.0).resizable(true).show_separator_line(false)
         .frame(Frame::new().fill(theme::PANEL))
         .show(ui, |ui| {
@@ -2168,6 +2221,7 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
                 });
             }
         });
+    }
     // Tools.
     egui::Panel::left("pc_tools").exact_size(52.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(4, 8))).show(ui, |ui| {
         let r = ui.max_rect();
@@ -2209,11 +2263,13 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
         });
     });
     // Inspector.
+    if !focus {
     egui::Panel::right("pc_inspector").exact_size(286.0).resizable(false).show_separator_line(false).frame(bar.inner_margin(Margin::symmetric(10, 6))).show(ui, |ui| {
         let r = ui.max_rect();
         ui.painter().vline(r.left() - 10.0, r.y_range(), Stroke::new(1.0, Color32::from_white_alpha(10)));
         egui::ScrollArea::vertical().id_salt("pc_inspector").auto_shrink([false, false]).show(ui, |ui| pc_inspector(app, ui));
     });
+    }
 }
 
 fn section(ui: &mut Ui, id: &str, title: &str, default_open: bool, right: impl FnOnce(&mut Ui)) -> bool {
@@ -2756,4 +2812,38 @@ pub(crate) fn clip_bar(app: &mut TrazoApp, ui: &mut Ui) -> bool {
         }
     });
     true
+}
+
+// ---- focus mode ------------------------------------------------------------------------
+
+/// Hide the timeline and the panels: only the tools and the canvas.
+pub fn toggle_focus(app: &mut TrazoApp) {
+    app.ui.focus = !app.ui.focus;
+    if app.ui.focus {
+        app.ui.dock_open = false;
+        app.ui.sheet = None;
+        app.ui.drawing_menu = None;
+    }
+}
+
+/// While in focus mode: one button in the top corner to come back.
+pub fn focus_exit(app: &mut TrazoApp, ctx: &egui::Context) {
+    if !app.ui.focus {
+        return;
+    }
+    let screen = ctx.content_rect();
+    let top = crate::widgets::insets(app.platform.touch_first).0;
+    let side = if crate::widgets::SizeClass::of(ctx) == crate::widgets::SizeClass::PhoneLandscape { SIDE } else { 16.0 };
+    egui::Area::new(egui::Id::unique("focus_exit")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - side, screen.top() + top + 14.0)).show(ctx, |ui| {
+        Frame::new().fill(SURFACE).corner_radius(14).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::same(2)).show(ui, |ui| {
+            let (r, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
+            if resp.hovered() || resp.is_pointer_button_down_on() {
+                ui.painter().rect_filled(r, 12.0, ELEVATED);
+            }
+            paint(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(22.0)), Icon::Focus, ACCENT);
+            if resp.on_hover_text(tr("Salir del modo enfoque (Tab)")).clicked() {
+                toggle_focus(app);
+            }
+        });
+    });
 }

@@ -82,6 +82,11 @@ it is a touch device. In `app.rs` the layout is chosen like this:
 | Tablet, **clean view** (`ui.tablet_clean`) | same as phone upright (bigger canvas); toggle button in the top bar; saved in `vista_tablet.txt` | — (branch test/rediseno) |
 | PC (`Wide`, mouse) | `pc_panels` + `pc_view`: top bar, tool column, docked inspector, timeline with headers, status bar | PC, PCExportar, PCMenus |
 
+**Focus mode** (`ui.focus`, `toggle_focus`, `focus_exit` in `phone_up.rs`; Tab on PC): hides the timeline,
+panels and bars on every layout, leaving only the tools and the canvas; a lime corner button brings them back.
+The **magnifier** tool (`Tool::Zoom`, Z) zooms without a wheel or pinch: tap in, Alt+tap / right click out,
+drag sideways for continuous zoom.
+
 The tracks (`tracks_styled` + `TrackStyle::PHONE/TABLET`, PC style inline) are shared by every layout:
 one row per layer, then **one row per sound track (waveform)** and a final **"+ Añadir sonido o grabar
 tu voz"** row. Selecting a sound clip turns the action bar into the clip bar (`clip_bar`); recording
