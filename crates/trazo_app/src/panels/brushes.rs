@@ -201,8 +201,8 @@ pub fn show(app: &mut TrazoApp, ui: &mut egui::Ui) {
         ui.add_space(6.0);
         // Its own surface, edge to edge, down to the bottom of the sheet.
         let top = ui.cursor().top();
-        let full = egui::Rect::from_min_max(egui::pos2(ui.max_rect().left() - 8.0, top), egui::pos2(ui.max_rect().right() + 8.0, ui.ctx().content_rect().bottom()));
-        let lp = ui.ctx().layer_painter(ui.layer_id());
+        let full = egui::Rect::from_min_max(egui::pos2(ui.max_rect().left() - 8.0, top), egui::pos2(ui.max_rect().right() + 8.0, ui.clip_rect().bottom().min(ui.ctx().content_rect().bottom())));
+        let lp = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(ui.clip_rect().expand2(egui::vec2(8.0, 0.0)));
         lp.rect_filled(full, 0.0, crate::theme::SURFACE);
         lp.hline(full.x_range(), top, egui::Stroke::new(1.0, Color32::from_white_alpha(15)));
         ui.add_space(9.5);
@@ -244,7 +244,9 @@ fn tuning(app: &mut TrazoApp, ui: &mut egui::Ui, ctx: &egui::Context) {
     let tw = &mut app.tools.tweaks[i];
     crate::widgets::hslider(ui, tr("Tamaño"), &mut tw.size, 1.0..=300.0, true, |v| format!("{:.0} px", v));
     crate::widgets::hslider(ui, tr("Opacidad"), &mut tw.opacity, 0.02..=1.0, false, |v| format!("{:.0} %", v * 100.0));
-    crate::widgets::hslider(ui, tr("Suavizado"), &mut app.tools.stabilizer, 0.0..=0.95, false, |v| format!("{:.0} %", v * 100.0));
+    ui.add_space(4.0);
+    crate::widgets::stabilizer_control(ui, &mut app.tools.stabilizer);
+    ui.add_space(4.0);
     crate::widgets::hslider(ui, tr("Presión"), &mut app.tools.pressure_gamma, 0.3..=3.0, true, |v| crate::i18n::num(v, 1));
     crate::widgets::switch_row(ui, tr("Simular presión con la velocidad"), &mut app.tools.simulate_pressure);
     brush_actions(app, ui, ctx);

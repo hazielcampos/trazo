@@ -12,6 +12,7 @@ pub enum Icon {
     // Tools
     Pencil,
     Zoom,
+    ZoomOut,
     Focus,
     Sliders,
     InsertBefore,
@@ -494,7 +495,7 @@ pub fn paint(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
             line(&[(12.0, 4.5), (12.0, 19.5)]);
             line(&[(9.0, 19.5), (15.0, 19.5)]);
         }
-        Icon::Zoom | Icon::Focus | Icon::Sliders | Icon::InsertBefore | Icon::Motion | Icon::Duration | Icon::SelectMany => {}
+        Icon::Zoom | Icon::ZoomOut | Icon::Focus | Icon::Sliders | Icon::InsertBefore | Icon::Motion | Icon::Duration | Icon::SelectMany => {}
         Icon::Tween => {
             dot(5.0, 17.0, 1.6);
             dot(9.5, 13.5, 2.0);

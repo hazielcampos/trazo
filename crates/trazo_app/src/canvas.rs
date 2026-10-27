@@ -378,6 +378,19 @@ impl CanvasView {
         }
         self.select.paint(&painter, xf);
 
+        // The stabilizer's rope: from the pen to where the line is, so the lag
+        // is visible (and obviously on purpose) while drawing.
+        if tools.stabilizer > 0.01 && !playing {
+            if let Some((head, pen)) = self.stroke.as_ref().and_then(|s| s.leash()) {
+                let a = xf.to_screen(Pos2::new(head.x, head.y));
+                let b = xf.to_screen(Pos2::new(pen.x, pen.y));
+                if a.distance(b) > 2.0 {
+                    painter.line_segment([a, b], UiStroke::new(2.5, Color32::from_black_alpha(90)));
+                    painter.line_segment([a, b], UiStroke::new(1.2, Color32::from_white_alpha(200)));
+                    painter.circle_filled(a, 3.5, crate::theme::ACCENT);
+                }
+            }
+        }
         // Brush outline under the pointer.
         if matches!(tools.tool, Tool::Brush | Tool::Eraser | Tool::Shape) && !playing {
             if let Some(hover) = response.hover_pos() {
@@ -389,8 +402,9 @@ impl CanvasView {
         if response.hovered() {
             let icon = match tools.tool {
                 Tool::Hand => egui::CursorIcon::Grab,
-                Tool::Zoom if ui.input(|i| i.modifiers.alt) => egui::CursorIcon::ZoomOut,
-                Tool::Zoom => egui::CursorIcon::ZoomIn,
+                Tool::Zoom | Tool::ZoomOut => {
+                    if (tools.tool == Tool::ZoomOut) != ui.input(|i| i.modifiers.alt) { egui::CursorIcon::ZoomOut } else { egui::CursorIcon::ZoomIn }
+                }
                 Tool::Eyedropper | Tool::Fill | Tool::Select | Tool::Lasso | Tool::Wand => egui::CursorIcon::Crosshair,
                 _ => egui::CursorIcon::None,
             };
@@ -445,7 +459,7 @@ impl CanvasView {
         }
         // Magnifier: tap to zoom in, Alt+tap or right click to zoom out,
         // drag right/up to zoom in and left/down to zoom out.
-        if tools.tool == Tool::Zoom && !space {
+        if matches!(tools.tool, Tool::Zoom | Tool::ZoomOut) && !space {
             if response.drag_started_by(egui::PointerButton::Primary) {
                 self.zoom_anchor = response.interact_pointer_pos();
             }
@@ -458,12 +472,14 @@ impl CanvasView {
             if response.drag_stopped() {
                 self.zoom_anchor = None;
             }
-            let out = ui.input(|i| i.modifiers.alt);
+            // Alt (or the right button) does the opposite of the chosen magnifier.
+            let out = (tools.tool == Tool::ZoomOut) != ui.input(|i| i.modifiers.alt);
             if let Some(p) = response.interact_pointer_pos() {
+                let step = |out: bool| if out { 1.0 / 1.6 } else { 1.6 };
                 if response.clicked() {
-                    self.zoom_around(p, rect, cw, ch, if out { 1.0 / 1.6 } else { 1.6 });
+                    self.zoom_around(p, rect, cw, ch, step(out));
                 } else if response.secondary_clicked() {
-                    self.zoom_around(p, rect, cw, ch, 1.0 / 1.6);
+                    self.zoom_around(p, rect, cw, ch, step(!out));
                 }
             }
         }
@@ -492,7 +508,7 @@ impl CanvasView {
 
     fn handle_tool_input(&mut self, ui: &egui::Ui, response: &egui::Response, doc: &mut Document, tools: &mut ToolState, xf: ViewXf) {
         let space = ui.input(|i| i.key_down(egui::Key::Space));
-        if matches!(tools.tool, Tool::Hand | Tool::Zoom) || space || ui.input(|i| i.multi_touch().is_some()) || self.touch.is_some() {
+        if matches!(tools.tool, Tool::Hand | Tool::Zoom | Tool::ZoomOut) || space || ui.input(|i| i.multi_touch().is_some()) || self.touch.is_some() {
             return;
         }
         let (pressed, down, released, events, time) = ui.input(|i| {
@@ -593,7 +609,7 @@ impl CanvasView {
                     }
                 }
             }
-            Tool::Hand | Tool::Zoom => {}
+            Tool::Hand | Tool::Zoom | Tool::ZoomOut => {}
         }
     }
 
@@ -688,7 +704,10 @@ impl CanvasView {
         let seed = doc.history.revision().wrapping_mul(2654435761).wrapping_add(7);
         let owner = doc.project.cel_owner(doc.frame_id(), doc.layer);
         let center = (doc.project.canvas.width as f32 * 0.5, doc.project.canvas.height as f32 * 0.5);
-        self.stroke = Some(Stroke::new(tools.active_brush().clone(), tools.stroke_settings(alpha_lock, center), owner, doc.layer, seed));
+        let mut settings = tools.stroke_settings(alpha_lock, center);
+        // The stabilizer's rope is the same length on screen at any zoom.
+        settings.rope_scale = 1.0 / self.zoom.max(0.05);
+        self.stroke = Some(Stroke::new(tools.active_brush().clone(), settings, owner, doc.layer, seed));
     }
 
     fn add_stroke_point(&mut self, doc: &mut Document, pt: StrokePoint) {

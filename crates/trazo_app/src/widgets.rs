@@ -466,3 +466,24 @@ pub fn hslider(ui: &mut Ui, label: &str, value: &mut f32, range: std::ops::Range
     p.text(Pos2::new(rect.right(), rect.center().y), Align2::RIGHT_CENTER, fmt(*value), theme::font(14.0, theme::W::Semi), TEXT);
     resp
 }
+
+/// Stabilizer presets with words instead of a percentage, a sentence about
+/// the trade-off, and a fine slider. Returns true when it changed.
+pub fn stabilizer_control(ui: &mut Ui, value: &mut f32) -> bool {
+    const PRESETS: [f32; 4] = [0.0, 0.25, 0.5, 0.8];
+    let before = *value;
+    let mut i = PRESETS.iter().enumerate().min_by(|a, b| (a.1 - *value).abs().total_cmp(&(b.1 - *value).abs())).map(|(i, _)| i).unwrap_or(0);
+    ui.label(egui::RichText::new(tr("Estabilizador")).font(theme::font(13.0, theme::W::Semi)).color(TEXT));
+    if segmented(ui, &mut i, &[tr("Nada"), tr("Suave"), tr("Medio"), tr("Fuerte")], ui.available_width()) {
+        *value = PRESETS[i];
+    }
+    let what = match i {
+        0 => tr("El trazo sigue al lápiz al instante, con su temblor."),
+        1 => tr("Quita el temblor de la mano sin que se note el retraso."),
+        2 => tr("Líneas limpias: el trazo va un poco detrás del lápiz."),
+        _ => tr("Curvas muy suaves: el trazo va detrás del lápiz, unido por una cuerda."),
+    };
+    ui.label(egui::RichText::new(what).font(theme::font(12.0, theme::W::Regular)).color(TEXT2));
+    hslider(ui, tr("Ajuste fino"), value, 0.0..=0.95, false, |v| format!("{:.0} %", v * 100.0));
+    (*value - before).abs() > f32::EPSILON
+}

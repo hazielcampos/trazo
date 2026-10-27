@@ -1995,7 +1995,11 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
                     p.circle_filled(rect.center(), 16.0, SURFACE);
                     p.circle_filled(rect.center(), 14.0, app.tools.color);
                     if resp.on_hover_text(tr("Color")).clicked() {
-                        app.ui.inspector = SideTab::Color;
+                        if app.ui.focus {
+                            app.ui.focus_pop = Some(SideTab::Color);
+                        } else {
+                            app.ui.inspector = SideTab::Color;
+                        }
                     }
                 });
             });
@@ -2068,7 +2072,7 @@ pub fn tablet(app: &mut TrazoApp, ctx: &egui::Context, canvas: Rect) {
 
 // ---- PC (PC board) ------------------------------------------------------------------------------
 
-const PC_TOOLS: [Option<Tool>; 13] = [
+const PC_TOOLS: [Option<Tool>; 14] = [
     Some(Tool::Brush),
     Some(Tool::Eraser),
     Some(Tool::Fill),
@@ -2082,6 +2086,7 @@ const PC_TOOLS: [Option<Tool>; 13] = [
     None,
     Some(Tool::Hand),
     Some(Tool::Zoom),
+    Some(Tool::ZoomOut),
 ];
 
 fn kbd(ui: &mut Ui, text: &str) {
@@ -2257,7 +2262,11 @@ pub fn pc_panels(app: &mut TrazoApp, ui: &mut Ui) {
                 p.rect_filled(Rect::from_min_size(r.min + Vec2::new(4.0, 4.0), Vec2::splat(22.0)), 6.0, app.tools.color);
                 p.rect_stroke(Rect::from_min_size(r.min + Vec2::new(4.0, 4.0), Vec2::splat(22.0)), 6.0, Stroke::new(1.0, Color32::from_white_alpha(40)), egui::StrokeKind::Inside);
                 if resp.on_hover_text(tr("Color")).clicked() {
-                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("pc_color_open"), true));
+                    if app.ui.focus {
+                        app.ui.focus_pop = Some(SideTab::Color);
+                    } else {
+                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("pc_color_open"), true));
+                    }
                 }
             });
         });
@@ -2333,7 +2342,8 @@ fn pc_inspector(app: &mut TrazoApp, ui: &mut Ui) {
         });
         ui.horizontal(|ui| {
             let mut s = app.tools.stabilizer * 100.0;
-            field(ui, tr("Suavizado"), &mut s, 0.0..=95.0, 0.5, |v| format!("{v:.0} %"), half);
+            field(ui, tr("Estabilizador"), &mut s, 0.0..=95.0, 0.5, |v| (if v < 12.0 { tr("Nada") } else if v < 37.0 { tr("Suave") } else if v < 65.0 { tr("Medio") } else { tr("Fuerte") }).to_string(), half)
+                .on_hover_text(tr("Arrastra a los lados. Más fuerte = líneas más limpias, pero el trazo va detrás del lápiz"));
             app.tools.stabilizer = s / 100.0;
             field(ui, tr("Presión"), &mut app.tools.pressure_gamma, 0.3..=3.0, 0.01, |v| (if v < 0.8 { tr("Suave") } else if v > 1.25 { tr("Firme") } else { tr("Normal") }).to_string(), half);
         });
@@ -2826,24 +2836,87 @@ pub fn toggle_focus(app: &mut TrazoApp) {
     }
 }
 
-/// While in focus mode: one button in the top corner to come back.
+/// While in focus mode: brush, color and leave, in the top corner. Brush and
+/// color open floating menus, so the interface doesn't have to come back.
 pub fn focus_exit(app: &mut TrazoApp, ctx: &egui::Context) {
     if !app.ui.focus {
+        app.ui.focus_pop = None;
         return;
     }
     let screen = ctx.content_rect();
     let top = crate::widgets::insets(app.platform.touch_first).0;
     let side = if crate::widgets::SizeClass::of(ctx) == crate::widgets::SizeClass::PhoneLandscape { SIDE } else { 16.0 };
-    egui::Area::new(egui::Id::unique("focus_exit")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(Pos2::new(screen.right() - side, screen.top() + top + 14.0)).show(ctx, |ui| {
+    let anchor = Pos2::new(screen.right() - side, screen.top() + top + 14.0);
+    let bar = egui::Area::new(egui::Id::unique("focus_exit")).order(Order::Foreground).pivot(Align2::RIGHT_TOP).fixed_pos(anchor).show(ctx, |ui| {
         Frame::new().fill(SURFACE).corner_radius(14).stroke(Stroke::new(1.0, Color32::from_white_alpha(13))).shadow(theme::island_shadow()).inner_margin(Margin::same(2)).show(ui, |ui| {
-            let (r, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
-            if resp.hovered() || resp.is_pointer_button_down_on() {
-                ui.painter().rect_filled(r, 12.0, ELEVATED);
-            }
-            paint(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(22.0)), Icon::Focus, ACCENT);
-            if resp.on_hover_text(tr("Salir del modo enfoque (Tab)")).clicked() {
-                toggle_focus(app);
-            }
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                let mut button = |ui: &mut Ui, on: bool, tip: &str, draw: &dyn Fn(&egui::Painter, Rect)| -> bool {
+                    let (r, resp) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::click());
+                    if on || resp.hovered() || resp.is_pointer_button_down_on() {
+                        ui.painter().rect_filled(r, 12.0, if on { SEPARATOR } else { ELEVATED });
+                    }
+                    draw(ui.painter(), r);
+                    resp.on_hover_text(tip).clicked()
+                };
+                let brush_on = app.ui.focus_pop == Some(SideTab::Brushes);
+                if button(ui, brush_on, tr("Pinceles"), &|p, r| paint(p, Rect::from_center_size(r.center(), Vec2::splat(22.0)), Icon::Brush, TEXT)) {
+                    app.ui.focus_pop = if brush_on { None } else { Some(SideTab::Brushes) };
+                }
+                let color = app.tools.color;
+                let color_on = app.ui.focus_pop == Some(SideTab::Color);
+                if button(ui, color_on, tr("Color"), &|p, r| {
+                    p.circle_filled(r.center(), 13.0, TEXT);
+                    p.circle_filled(r.center(), 11.0, SURFACE);
+                    p.circle_filled(r.center(), 9.5, color);
+                }) {
+                    app.ui.focus_pop = if color_on { None } else { Some(SideTab::Color) };
+                }
+                let (sep, _) = ui.allocate_exact_size(Vec2::new(5.0, 28.0), Sense::hover());
+                ui.painter().vline(sep.center().x, sep.y_range(), Stroke::new(1.0, SEPARATOR));
+                if button(ui, false, tr("Salir del modo enfoque (Tab)"), &|p, r| paint(p, Rect::from_center_size(r.center(), Vec2::splat(22.0)), Icon::Focus, ACCENT)) {
+                    toggle_focus(app);
+                }
+            });
         });
     });
+    // The floating menu under the buttons.
+    let Some(tab) = app.ui.focus_pop else { return };
+    let w = 340.0f32.min(screen.width() - 24.0);
+    let max_h = (screen.bottom() - bar.response.rect.bottom() - 24.0).max(200.0);
+    let menu = egui::Area::new(egui::Id::unique("focus_pop")).order(Order::Tooltip).pivot(Align2::RIGHT_TOP)
+        .fixed_pos(Pos2::new(anchor.x, bar.response.rect.bottom() + 8.0)).constrain(true)
+        .show(ctx, |ui| {
+            Frame::new().fill(SURFACE).corner_radius(theme::R_ISLAND).stroke(Stroke::new(1.0, Color32::from_white_alpha(18)))
+                .shadow(egui::Shadow { offset: [0, 20], blur: 50, spread: 0, color: Color32::from_black_alpha(166) })
+                .inner_margin(Margin::same(12)).show(ui, |ui| {
+                    ui.set_width(w - 24.0);
+                    let title = if tab == SideTab::Color { tr("Color") } else { tr("Pinceles") };
+                    ui.label(egui::RichText::new(title).font(theme::font(17.0, W::Semi)).color(TEXT));
+                    ui.add_space(6.0);
+                    match tab {
+                        SideTab::Color => {
+                            egui::ScrollArea::vertical().id_salt("focus_pop_body").max_height(max_h - 60.0).auto_shrink([false, true]).show(ui, |ui| {
+                                ui.spacing_mut().item_spacing.y = 12.0;
+                                crate::panels::toolbar::color_panel(app, ui);
+                            });
+                        }
+                        // The brush list scrolls by itself; give it a fixed height.
+                        _ => {
+                            let h = (max_h - 60.0).min(560.0);
+                            ui.allocate_ui(Vec2::new(ui.available_width(), h), |ui| {
+                                ui.set_min_height(h);
+                                ui.set_clip_rect(ui.max_rect());
+                                crate::panels::brushes::show(app, ui);
+                            });
+                        }
+                    }
+                });
+        });
+    // A tap outside closes it (Escape too).
+    let outside = ctx.input(|i| i.pointer.any_pressed())
+        && ctx.input(|i| i.pointer.interact_pos()).is_some_and(|p| !menu.response.rect.contains(p) && !bar.response.rect.contains(p));
+    if outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        app.ui.focus_pop = None;
+    }
 }

@@ -84,8 +84,12 @@ it is a touch device. In `app.rs` the layout is chosen like this:
 
 **Focus mode** (`ui.focus`, `toggle_focus`, `focus_exit` in `phone_up.rs`; Tab on PC): hides the timeline,
 panels and bars on every layout, leaving only the tools and the canvas; a lime corner button brings them back.
-The **magnifier** tool (`Tool::Zoom`, Z) zooms without a wheel or pinch: tap in, Alt+tap / right click out,
-drag sideways for continuous zoom.
+In focus mode the corner also has **brush and color buttons** that open floating menus (`ui.focus_pop`).
+Two **magnifiers**: `Tool::Zoom` (in) and `Tool::ZoomOut` (out); Z switches between them, Alt or the right
+button does the opposite, dragging zooms continuously.
+**Stabilizer**: a "lazy rope" (`stroke.rs`) now measured in screen pixels (`StrokeSettings::rope_scale`), so the
+lag is the same at any zoom; the canvas draws the rope while drawing; the UI uses presets
+(`widgets::stabilizer_control`: Nada / Suave / Medio / Fuerte + a sentence + fine slider).
 
 The tracks (`tracks_styled` + `TrackStyle::PHONE/TABLET`, PC style inline) are shared by every layout:
 one row per layer, then **one row per sound track (waveform)** and a final **"+ Añadir sonido o grabar

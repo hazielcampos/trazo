@@ -244,6 +244,8 @@ pub struct UiState {
     pub dock_open: bool,
     /// Focus mode: timeline and panels hidden, only the tools and the canvas.
     pub focus: bool,
+    /// Focus mode: the floating brush or color menu that is open.
+    pub focus_pop: Option<panels::SideTab>,
     /// Menu of the drawing that starts at this frame (long press in the strip).
     pub drawing_menu: Option<usize>,
     /// Tablet: the inspector's tab.
@@ -337,6 +339,7 @@ impl TrazoApp {
                 sheet: None,
                 dock_open: false,
                 focus: false,
+                focus_pop: None,
                 drawing_menu: None,
                 inspector: panels::SideTab::Layers,
                 gestures_card: None,
@@ -832,8 +835,9 @@ impl TrazoApp {
         if key(Key::I) {
             self.tools.tool = Tool::Eyedropper;
         }
+        // Z: the magnifier; again, the other one (zoom in ↔ out).
         if key(Key::Z) {
-            self.tools.tool = Tool::Zoom;
+            self.tools.tool = if self.tools.tool == Tool::Zoom { Tool::ZoomOut } else { Tool::Zoom };
         }
         // Focus: only the tools and the canvas (Tab), like a painting app.
         if key(Key::Tab) && ctx.memory(|m| m.focused().is_none()) {
@@ -1027,6 +1031,14 @@ impl eframe::App for TrazoApp {
                 Ok("exportar") => self.export_ui.open = true,
                 Ok("gestos") => self.ui.gestures_card = Some(false),
                 Ok("enfoque") => self.ui.focus = true,
+                Ok("enfoque-color") => {
+                    self.ui.focus = true;
+                    self.ui.focus_pop = Some(panels::SideTab::Color);
+                }
+                Ok("enfoque-pinceles") => {
+                    self.ui.focus = true;
+                    self.ui.focus_pop = Some(panels::SideTab::Brushes);
+                }
                 _ => {}
             }
             if let Some(a) = std::env::var_os("TRAZO_AUDIO") {

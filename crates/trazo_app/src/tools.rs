@@ -29,6 +29,8 @@ pub enum Tool {
     Hand,
     /// Magnifier: zoom without a mouse wheel or pinch.
     Zoom,
+    /// Magnifier that zooms out.
+    ZoomOut,
 }
 
 /// What the lasso does when the loop is closed.
@@ -40,8 +42,8 @@ pub enum LassoMode {
 }
 
 impl Tool {
-    pub const ALL: [Tool; 11] =
-        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Text, Tool::Hand, Tool::Zoom];
+    pub const ALL: [Tool; 12] =
+        [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Eyedropper, Tool::Select, Tool::Lasso, Tool::Wand, Tool::Shape, Tool::Text, Tool::Hand, Tool::Zoom, Tool::ZoomOut];
 
     pub fn icon(self) -> Icon {
         match self {
@@ -56,6 +58,7 @@ impl Tool {
             Tool::Text => Icon::Text,
             Tool::Hand => Icon::Hand,
             Tool::Zoom => Icon::Zoom,
+            Tool::ZoomOut => Icon::ZoomOut,
         }
     }
 
@@ -71,7 +74,8 @@ impl Tool {
             Tool::Shape => tr("Figuras: línea, rectángulo, elipse (U)"),
             Tool::Text => tr("Texto: toca el lienzo para escribir (T)"),
             Tool::Hand => tr("Mover lienzo (H / espacio)"),
-            Tool::Zoom => tr("Lupa: toca para acercar, Alt+toque para alejar, arrastra a los lados (Z)"),
+            Tool::Zoom => tr("Lupa para acercar: toca o arrastra a la derecha (Z cambia a alejar)"),
+            Tool::ZoomOut => tr("Lupa para alejar: toca o arrastra a la izquierda (Z cambia a acercar)"),
         }
     }
 
@@ -380,6 +384,7 @@ impl ToolState {
             size: self.tweaks[i].size,
             opacity: self.tweaks[i].opacity,
             stabilizer: self.stabilizer,
+            rope_scale: 1.0,
             alpha_lock,
             pressure_gamma: self.pressure_gamma,
             symmetry: trazo_core::stroke::Symmetry {

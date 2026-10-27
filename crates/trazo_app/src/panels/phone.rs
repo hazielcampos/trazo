@@ -19,7 +19,7 @@ use crate::widgets::{self, tool_button, SheetEdge};
 
 /// Tools always in reach; the rest live under "Más".
 const MAIN_TOOLS: [Tool; 4] = [Tool::Brush, Tool::Eraser, Tool::Fill, Tool::Lasso];
-const MORE_TOOLS: [Tool; 7] = [Tool::Select, Tool::Wand, Tool::Shape, Tool::Text, Tool::Eyedropper, Tool::Hand, Tool::Zoom];
+const MORE_TOOLS: [Tool; 8] = [Tool::Select, Tool::Wand, Tool::Shape, Tool::Text, Tool::Eyedropper, Tool::Hand, Tool::Zoom, Tool::ZoomOut];
 
 fn bar_frame() -> Frame {
     Frame::new().fill(SURFACE).inner_margin(Margin::symmetric(4, 4))
@@ -290,6 +290,12 @@ fn tool_options(app: &mut TrazoApp, ui: &mut Ui) {
             widgets::hslider(ui, tr("Cerrar huecos"), &mut gc, 0.0..=8.0, false, |v| format!("{v:.0} px"));
             app.tools.fill.gap_close = gc.round() as _;
         }
+        Tool::Zoom | Tool::ZoomOut => {
+            let mut i = usize::from(app.tools.tool == Tool::ZoomOut);
+            if widgets::segmented(ui, &mut i, &[tr("Acercar"), tr("Alejar")], 240.0) {
+                app.tools.tool = if i == 0 { Tool::Zoom } else { Tool::ZoomOut };
+            }
+        }
         Tool::Eyedropper => {
             ui.checkbox(&mut app.tools.pick_layer_only, tr("Cuentagotas: solo la capa actual"));
         }
@@ -299,7 +305,7 @@ fn tool_options(app: &mut TrazoApp, ui: &mut Ui) {
 
 /// Whether a tool has options worth a popup.
 pub fn has_options(t: Tool) -> bool {
-    matches!(t, Tool::Fill | Tool::Lasso | Tool::Shape | Tool::Eyedropper)
+    matches!(t, Tool::Fill | Tool::Lasso | Tool::Shape | Tool::Eyedropper | Tool::Zoom | Tool::ZoomOut)
 }
 
 /// Brush size and opacity on the left edge of the canvas (Procreate style).

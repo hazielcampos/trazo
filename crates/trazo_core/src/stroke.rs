@@ -42,6 +42,9 @@ pub struct StrokeSettings {
     pub opacity: f32,
     /// 0 = raw input, up to ~0.95 = very smooth lines ("lazy rope" length).
     pub stabilizer: f32,
+    /// Canvas pixels per screen pixel. The rope is measured on screen, so the
+    /// lag feels the same at any zoom (1 = canvas pixels).
+    pub rope_scale: f32,
     pub alpha_lock: bool,
     /// Pressure curve: output = input^gamma (<1 softer pen, >1 firmer pen).
     pub pressure_gamma: f32,
@@ -55,6 +58,7 @@ impl Default for StrokeSettings {
             size: 10.0,
             opacity: 1.0,
             stabilizer: 0.0,
+            rope_scale: 1.0,
             alpha_lock: false,
             pressure_gamma: 1.0,
             symmetry: Symmetry::default(),
@@ -62,7 +66,7 @@ impl Default for StrokeSettings {
     }
 }
 
-/// Longest rope (in canvas pixels) at stabilizer = 1.
+/// Longest rope (in screen pixels, see `rope_scale`) at stabilizer = 1.
 const ROPE_MAX: f32 = 40.0;
 
 /// Small deterministic PRNG (xorshift); avoids an external dependency.
@@ -285,6 +289,12 @@ impl Stroke {
         std::mem::replace(&mut self.dirty, IRect::EMPTY)
     }
 
+    /// While the stabilizer holds the line back: where the line is (the head
+    /// of the rope) and where the pen is. Lets the UI draw the rope.
+    pub fn leash(&self) -> Option<(StrokePoint, StrokePoint)> {
+        Some((self.lazy?, self.last_raw?))
+    }
+
     /// Feed one input sample.
     pub fn add_point(&mut self, img: &mut TiledImage, mut raw: StrokePoint) {
         let gamma = self.settings.pressure_gamma.clamp(0.2, 5.0);
@@ -292,7 +302,7 @@ impl Stroke {
         self.last_raw = Some(raw);
         // "Lazy rope" stabilizer: the brush only moves when the pointer pulls
         // the rope tight. Unlike averaging, it doesn't depend on event rate.
-        let rope = self.settings.stabilizer.clamp(0.0, 1.0) * ROPE_MAX;
+        let rope = self.settings.stabilizer.clamp(0.0, 1.0) * ROPE_MAX * self.settings.rope_scale.clamp(0.01, 100.0);
         let p = match self.lazy {
             None => raw,
             Some(l) => {
