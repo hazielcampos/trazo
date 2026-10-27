@@ -261,7 +261,13 @@ pub fn show(app: &mut TrazoApp, ui: &mut Ui) {
             app.ui.home = false;
         }
         Some(Action::Menu(path)) => app.home.menu = Some(path),
-        Some(Action::Language) => app.ui.language_dialog = Some(false),
+        Some(Action::Language) => {
+            if cfg!(target_os = "android") {
+                app.ui.language_dialog = Some(false);
+            } else {
+                app.ui.app_settings = true;
+            }
+        }
         None => {}
     }
     project_menu(app, &ctx, class);
@@ -278,7 +284,7 @@ fn header(ui: &mut Ui, h: &mut HomeState, title: &str, big: bool) -> Option<Acti
         logo(ui, if big { 30.0 } else { 26.0 });
         ui.label(RichText::new(title).size(if big { 26.0 } else { 22.0 }).strong().color(TEXT));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if round_icon(ui, Icon::Globe, tr("Idioma · Language…")).clicked() {
+            if round_icon(ui, if cfg!(target_os = "android") { Icon::Globe } else { Icon::Settings }, if cfg!(target_os = "android") { tr("Idioma · Language…") } else { tr("Ajustes de Trazo…") }).clicked() {
                 action = Some(Action::Language);
             }
             search_button(ui, h);
@@ -508,7 +514,7 @@ fn landscape(ui: &mut Ui, h: &mut HomeState, order: &[usize]) -> Option<Action> 
         ui.horizontal(|ui| {
             ui.label(RichText::new(tf!("Todas · {}", order.len())).size(14.0).color(TEXT2));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if round_icon(ui, Icon::Globe, tr("Idioma · Language…")).clicked() {
+                if round_icon(ui, if cfg!(target_os = "android") { Icon::Globe } else { Icon::Settings }, if cfg!(target_os = "android") { tr("Idioma · Language…") } else { tr("Ajustes de Trazo…") }).clicked() {
                     action = Some(Action::Language);
                 }
                 search_button(ui, h);
@@ -570,7 +576,7 @@ fn first_time(ui: &mut Ui, class: SizeClass) -> Option<Action> {
         logo(ui, 30.0);
         ui.label(RichText::new("Trazo").size(26.0).strong().color(TEXT));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if round_icon(ui, Icon::Globe, tr("Idioma · Language…")).clicked() {
+            if round_icon(ui, if cfg!(target_os = "android") { Icon::Globe } else { Icon::Settings }, if cfg!(target_os = "android") { tr("Idioma · Language…") } else { tr("Ajustes de Trazo…") }).clicked() {
                 action = Some(Action::Language);
             }
         });

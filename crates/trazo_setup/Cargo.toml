@@ -1,0 +1,19 @@
+[package]
+name = "trazo_setup"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Trazo installer for Windows"
+build = "build.rs"
+
+[[bin]]
+name = "trazo-setup"
+path = "src/main.rs"
+
+[dependencies]
+eframe.workspace = true
+egui.workspace = true
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

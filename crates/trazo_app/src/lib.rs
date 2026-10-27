@@ -27,6 +27,8 @@ mod theme;
 mod widgets;
 mod tools;
 mod versions;
+#[cfg(not(target_os = "android"))]
+mod updater;
 #[cfg(windows)]
 mod windows_mp4;
 

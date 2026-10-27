@@ -100,7 +100,10 @@ Download the latest version from [Releases](../../releases):
 - **Android** (64-bit ARM phones and tablets, Android 10 or later): the `.apk` file. Allow
   "install unknown apps" when asked. Coming from 0.1.0 or 0.2.0? Since 0.3.0 the app is signed with a
   new permanent key, so uninstall the old version first (copy your animations before), then install.
-- **Windows** (64-bit): the `.exe` file. It runs without installation. It is not code-signed, so
+- **Windows** (64-bit): `Trazo-…-windows-setup.exe` installs it for your user (Start menu, desktop shortcut,
+  uninstall from Windows settings) and keeps it up to date: when a new version is out, Trazo downloads it
+  and offers *Restart to update*. Updates can be turned off, and earlier versions installed, from Trazo's
+  settings. `Trazo-…-windows-x64.exe` is the same app without installing. Neither is code-signed, so
   Windows SmartScreen may show a warning.
 
 There is no Play Store version yet. You can also build it yourself with the steps below.

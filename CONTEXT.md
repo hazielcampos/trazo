@@ -129,8 +129,9 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
 5. Before committing: `cargo test --workspace` (includes the i18n check) and, ideally,
    `cargo clippy --workspace`. Commits end with a `Co-Authored-By:` line for the AI that helped.
 6. Releases (only when asked): bump `version` in `Cargo.toml`, merge to `main`, push, build
-   `cargo build --release -p trazo_app` + `scripts/apk-release.sh`, then
-   `gh release create vX.Y.Z` with `Trazo-X.Y.Z-android-arm64.apk` and `Trazo-X.Y.Z-windows-x64.exe`
+   `bash scripts/windows-release.sh` (exe + installer) + `scripts/apk-release.sh`, then
+   `gh release create vX.Y.Z` with `Trazo-X.Y.Z-android-arm64.apk`, `Trazo-X.Y.Z-windows-x64.exe` (the file
+   the PC updater downloads: keep that name) and `Trazo-X.Y.Z-windows-setup.exe`
    and bilingual notes (English / Spanish).
    Google Play takes an App Bundle: `bash scripts/aab-release.sh` → `target/release/Trazo-<version>.aab`
    (arm64 + x86_64, signed with the same key; needs `~/.trazo/herramientas/bundletool.jar`). Store
@@ -174,6 +175,18 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
 - Test captures must never touch the owner's real projects: `tools/captura.py` copies the demo first.
 
 ## 8. Platform notes
+
+- **PC updates** (`updater.rs`, not on Android): on start Trazo reads GitHub Releases, downloads the newest
+  `*-windows-x64.exe` (or `*-linux-x64`) into `<data>/actualizaciones`, checks size and SHA-256, and shows
+  «Reiniciar para actualizar». On close (`TrazoApp::save`) the running exe is renamed to `trazo.old.exe`, the
+  new one takes its place and is launched. «Ajustes de Trazo» (home settings icon / project menu on PC):
+  language, turn updates off, install any earlier release (that turns auto-updates off). Debug builds never
+  update unless `TRAZO_UPDATES=1`; `TRAZO_VERSION=0.4.0` pretends to be older, `TRAZO_REINICIAR=1` restarts
+  as soon as the download is ready (to test the swap from a script).
+- **Windows installer** (`crates/trazo_setup`, `trazo-setup.exe`): carries the release exe inside, installs
+  per user in `%LOCALAPPDATA%\Programs\Trazo` (no admin, so updates can replace it), Start menu + optional
+  desktop shortcut, entry in «Aplicaciones instaladas». `trazo.exe --uninstall` removes program, shortcuts
+  and entry (keeps animations). Exe icons come from `assets/icon/trazo.ico` (`build.rs`, winresource).
 
 - **Android file picker**: NativeActivity can't receive activity results, so `android/TrazoPicker.java`
   (a headless Fragment) opens `ACTION_OPEN_DOCUMENT` and copies the files to the cache. It is compiled

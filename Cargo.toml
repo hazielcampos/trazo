@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/trazo_core", "crates/trazo_app"]
+members = ["crates/trazo_core", "crates/trazo_app", "crates/trazo_setup"]
 
 [workspace.package]
 version = "0.5.0"

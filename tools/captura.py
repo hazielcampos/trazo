@@ -9,6 +9,7 @@ Options:
     noabrir         stay on the home screen
     panel=X         open a panel: pinceles | capas | color | pistas | menu | exportar | gestos | limpia
     audio           load a test voice clip into the project
+    espera=N        seconds to wait before the screenshot (default 2.5)
     x,y             click at client coordinates before the screenshot
 
 Needs: a debug build (`cargo build -p trazo_app`), Python 3 with Pillow
@@ -100,6 +101,7 @@ def main():
             test_voice(voice)
             env["TRAZO_AUDIO"] = voice
     clicks = [tuple(map(int, a.split(","))) for a in extra if "," in a]
+    wait = next((float(a[7:]) for a in extra if a.startswith("espera=")), 2.5)
 
     proc = subprocess.Popen([EXE], env=env)
     hwnd = 0
@@ -119,7 +121,7 @@ def main():
     bh = (wr.bottom - wr.top) - cr.bottom
     u.ShowWindow(hwnd, 9)
     u.MoveWindow(hwnd, 30, 30, w + bw, h + bh, True)
-    time.sleep(2.5)
+    time.sleep(wait)
 
     def origin():
         p = wintypes.POINT(0, 0)

@@ -220,6 +220,8 @@ pub struct UiState {
     pub settings_dialog: bool,
     /// Language picker; `Some(true)` the first time the app opens.
     pub language_dialog: Option<bool>,
+    /// PC: "Ajustes de Trazo" (language, updates, earlier versions).
+    pub app_settings: bool,
     /// The home screen (the project gallery) is showing instead of the editor.
     pub home: bool,
     /// Options for generating in-betweens from the selection.
@@ -289,6 +291,11 @@ pub struct TrazoApp {
     /// Packs drawings away from the current frame (memory on big projects).
     compactor: crate::compactor::Compactor,
     last_autosave: f64,
+    /// PC: updates from GitHub Releases.
+    #[cfg(not(target_os = "android"))]
+    pub updater: crate::updater::Updater,
+    /// PC: a downloaded build to switch to when Trazo closes ("Reiniciar para actualizar").
+    pub restart_to: Option<PathBuf>,
 }
 
 const AUTOSAVE_SECS: f64 = 45.0;
@@ -326,6 +333,7 @@ impl TrazoApp {
                 open_dialog: false,
                 settings_dialog: false,
                 language_dialog: first_run.then_some(true),
+                app_settings: false,
                 home: true,
                 tween_dialog: None,
                 versions_dialog: false,
@@ -370,6 +378,9 @@ impl TrazoApp {
             synced_audio: (u64::MAX, u64::MAX),
             last_scrub_frame: usize::MAX,
             frame_selection: Default::default(),
+            #[cfg(not(target_os = "android"))]
+            updater: crate::updater::Updater::new(&platform.data_dir),
+            restart_to: None,
             platform,
             saver: Default::default(),
             home: Default::default(),
@@ -1031,6 +1042,7 @@ impl eframe::App for TrazoApp {
                 Ok("exportar") => self.export_ui.open = true,
                 Ok("gestos") => self.ui.gestures_card = Some(false),
                 Ok("enfoque") => self.ui.focus = true,
+                Ok("ajustes") => self.ui.app_settings = true,
                 Ok("enfoque-color") => {
                     self.ui.focus = true;
                     self.ui.focus_pop = Some(panels::SideTab::Color);
@@ -1096,6 +1108,11 @@ impl eframe::App for TrazoApp {
             crate::files::show_browser(self, &ctx);
             panels::export::show(self, &ctx);
             panels::dialogs::show(self, &ctx);
+            #[cfg(not(target_os = "android"))]
+            {
+                crate::updater::settings_dialog(self, &ctx);
+                crate::updater::banner(self, &ctx);
+            }
             self.draw_toast(&ctx);
             return;
         }
@@ -1259,6 +1276,11 @@ impl eframe::App for TrazoApp {
         panels::selection_bar::show(self, &ctx);
         panels::dialogs::show(self, &ctx);
         panels::camera::show(self, &ctx);
+        #[cfg(not(target_os = "android"))]
+        {
+            crate::updater::settings_dialog(self, &ctx);
+            crate::updater::banner(self, &ctx);
+        }
         self.thumbs.update(&ctx, &mut self.doc, self.canvas.is_stroking());
         self.draw_toast(&ctx);
     }
@@ -1283,6 +1305,13 @@ impl eframe::App for TrazoApp {
         if self.doc.is_modified() {
             if let Err(e) = self.save_blocking() {
                 log::error!("autoguardado fallido: {e}");
+            }
+        }
+        #[cfg(not(target_os = "android"))]
+        if let Some(path) = self.restart_to.take() {
+            if let Err(e) = crate::updater::swap_and_launch(&path) {
+                log::error!("no se pudo actualizar: {e}");
+                let _ = rfd::MessageDialog::new().set_title("Trazo").set_description(tf!("No se pudo actualizar: {}", e)).show();
             }
         }
     }

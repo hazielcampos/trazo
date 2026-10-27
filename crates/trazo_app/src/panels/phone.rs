@@ -128,8 +128,13 @@ pub fn project_menu(app: &mut TrazoApp, ui: &mut Ui) {
         app.ui.versions_dialog = true;
         ui.close();
     }
-    if item(ui, Icon::Globe, tr("Idioma · Language…")) {
-        app.ui.language_dialog = Some(false);
+    if cfg!(target_os = "android") {
+        if item(ui, Icon::Globe, tr("Idioma · Language…")) {
+            app.ui.language_dialog = Some(false);
+            ui.close();
+        }
+    } else if item(ui, Icon::Settings, tr("Ajustes de Trazo…")) {
+        app.ui.app_settings = true;
         ui.close();
     }
     ui.separator();
