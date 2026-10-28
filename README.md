@@ -103,7 +103,8 @@ Download the latest version from [Releases](../../releases):
 - **Windows** (64-bit): `Trazo-…-windows-setup.exe` installs it for your user (Start menu, desktop shortcut,
   uninstall from Windows settings) and keeps it up to date: when a new version is out, Trazo downloads it
   and offers *Restart to update*. Updates can be turned off, and earlier versions installed, from Trazo's
-  settings. `Trazo-…-windows-x64.exe` is the same app without installing. Neither is code-signed, so
+  settings. `Trazo-…-windows.msi` is the same installer as an .msi (for those who prefer it or deploy with tools).
+  `Trazo-…-windows-x64.exe` is the same app without installing. Neither is code-signed, so
   Windows SmartScreen may show a warning.
 
 There is no Play Store version yet. You can also build it yourself with the steps below.

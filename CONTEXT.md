@@ -129,9 +129,9 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
 5. Before committing: `cargo test --workspace` (includes the i18n check) and, ideally,
    `cargo clippy --workspace`. Commits end with a `Co-Authored-By:` line for the AI that helped.
 6. Releases (only when asked): bump `version` in `Cargo.toml`, merge to `main`, push, build
-   `bash scripts/windows-release.sh` (exe + installer) + `scripts/apk-release.sh`, then
+   `bash scripts/windows-release.sh` (exe + installer + .msi) + `scripts/apk-release.sh`, then
    `gh release create vX.Y.Z` with `Trazo-X.Y.Z-android-arm64.apk`, `Trazo-X.Y.Z-windows-x64.exe` (the file
-   the PC updater downloads: keep that name) and `Trazo-X.Y.Z-windows-setup.exe`
+   the PC updater downloads: keep that name), `Trazo-X.Y.Z-windows-setup.exe` and `Trazo-X.Y.Z-windows.msi`
    and bilingual notes (English / Spanish).
    Google Play takes an App Bundle: `bash scripts/aab-release.sh` → `target/release/Trazo-<version>.aab`
    (arm64 + x86_64, signed with the same key; needs `~/.trazo/herramientas/bundletool.jar`). Store
@@ -186,7 +186,10 @@ shows `record_bar`. Setting `audio_ui.show = true` anywhere now just opens the t
 - **Windows installer** (`crates/trazo_setup`, `trazo-setup.exe`): carries the release exe inside, installs
   per user in `%LOCALAPPDATA%\Programs\Trazo` (no admin, so updates can replace it), Start menu + optional
   desktop shortcut, entry in «Aplicaciones instaladas». `trazo.exe --uninstall` removes program, shortcuts
-  and entry (keeps animations). Exe icons come from `assets/icon/trazo.ico` (`build.rs`, winresource).
+  and entry (keeps animations).
+  The `.msi` (`scripts/windows/trazo.wxs`, WiX 5: `dotnet tool install --global wix --version 5.0.2`) is
+  the same per-user install into the same folder; Windows removes it from «Aplicaciones instaladas» and a
+  newer .msi replaces an older one. Repair is off (it would undo in-app updates). Exe icons come from `assets/icon/trazo.ico` (`build.rs`, winresource).
 
 - **Android file picker**: NativeActivity can't receive activity results, so `android/TrazoPicker.java`
   (a headless Fragment) opens `ACTION_OPEN_DOCUMENT` and copies the files to the cache. It is compiled

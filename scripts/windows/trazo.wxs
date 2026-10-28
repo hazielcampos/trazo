@@ -1,0 +1,52 @@
+<!--
+  Trazo .msi (WiX 5). Built by scripts/windows-release.sh:
+    wix build scripts/windows/trazo.wxs -d Version=X -d Exe=path\trazo.exe -o Trazo-X-windows.msi
+
+  Per-user install into %LOCALAPPDATA%\Programs\Trazo — the same folder as
+  trazo-setup.exe — so no admin prompt and the in-app updater can replace
+  trazo.exe. A newer .msi replaces an older one (MajorUpgrade).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Trazo"
+           Manufacturer="Inerza Dynamics"
+           Version="$(var.Version)"
+           UpgradeCode="7c2933f7-6ee8-48de-90f0-f6271dcc6f66"
+           Scope="perUser"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="Ya hay una versión más nueva de Trazo instalada. · A newer version of Trazo is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="TrazoIcon" SourceFile="$(sys.SOURCEFILEDIR)..\..\assets\icon\trazo.ico" />
+    <Property Id="ARPPRODUCTICON" Value="TrazoIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/hazielcampos/trazo" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <!-- Repair would put back the exe the updater already replaced. -->
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Trazo" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Trazo">
+      <Component Id="TrazoExe" Directory="INSTALLFOLDER" Guid="fe21233d-62f0-44cf-8d93-103a1971dd49">
+        <File Id="TrazoExeFile" Name="trazo.exe" Source="$(var.Exe)" />
+        <!-- Left behind by an in-app update. -->
+        <RemoveFile Id="OldExe" Name="trazo.old.exe" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Inerza Dynamics\Trazo" Name="msi" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="Shortcuts" Directory="INSTALLFOLDER" Guid="5c4c47df-e4c9-4e70-a283-5f7553a790b6">
+        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Trazo"
+                  Target="[INSTALLFOLDER]trazo.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrazoIcon" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Trazo"
+                  Target="[INSTALLFOLDER]trazo.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrazoIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Inerza Dynamics\Trazo" Name="shortcuts" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
